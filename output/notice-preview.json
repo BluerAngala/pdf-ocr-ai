@@ -1,0 +1,69 @@
+{
+  "summary": {
+    "total": 4,
+    "matched": 2,
+    "unmatched": 2
+  },
+  "items": [
+    {
+      "matched": false,
+      "original_filename": "1-责催-穗公积金中心黄埔责字（2025）594号.pdf",
+      "decision_number": null,
+      "sequence": null,
+      "new_filename": "1-责催-穗公积金中心黄埔责字（2025）594号.pdf"
+    },
+    {
+      "matched": true,
+      "original_filename": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+      "decision_number": "穗公积金中心越秀责字〔2024〕914-1号",
+      "sequence": "7",
+      "new_filename": "7-责催-穗公积金中心越秀责字〔2024〕914-1号.pdf"
+    },
+    {
+      "matched": true,
+      "original_filename": "8-责催-穗公积金中心越秀责字（2025）856号.pdf",
+      "decision_number": "穗公积金中心越秀责字〔2025〕856号",
+      "sequence": "8",
+      "new_filename": "8-责催-穗公积金中心越秀责字〔2025〕856号.pdf"
+    },
+    {
+      "matched": false,
+      "original_filename": "（2025）粤7101行审3352号.pdf",
+      "decision_number": null,
+      "sequence": null,
+      "new_filename": "（2025）粤7101行审3352号.pdf"
+    }
+  ],
+  "matched_items": [
+    {
+      "matched": true,
+      "original_filename": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+      "decision_number": "穗公积金中心越秀责字〔2024〕914-1号",
+      "sequence": "7",
+      "new_filename": "7-责催-穗公积金中心越秀责字〔2024〕914-1号.pdf"
+    },
+    {
+      "matched": true,
+      "original_filename": "8-责催-穗公积金中心越秀责字（2025）856号.pdf",
+      "decision_number": "穗公积金中心越秀责字〔2025〕856号",
+      "sequence": "8",
+      "new_filename": "8-责催-穗公积金中心越秀责字〔2025〕856号.pdf"
+    }
+  ],
+  "unmatched_items": [
+    {
+      "matched": false,
+      "original_filename": "1-责催-穗公积金中心黄埔责字（2025）594号.pdf",
+      "decision_number": null,
+      "sequence": null,
+      "new_filename": "1-责催-穗公积金中心黄埔责字（2025）594号.pdf"
+    },
+    {
+      "matched": false,
+      "original_filename": "（2025）粤7101行审3352号.pdf",
+      "decision_number": null,
+      "sequence": null,
+      "new_filename": "（2025）粤7101行审3352号.pdf"
+    }
+  ]
+}

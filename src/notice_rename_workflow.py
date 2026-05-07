@@ -4,7 +4,38 @@
 from pathlib import Path
 from typing import Dict
 
+from openpyxl import load_workbook
+
 from rename_rules import build_notice_rename_plan, RenameService
+
+
+def normalize_notice_number(text: str) -> str:
+    value = str(text).strip()
+    value = value.replace('（', '〔').replace('）', '〕').replace('(', '〔').replace(')', '〕')
+    return value
+
+
+def load_ledger_map_from_excel(excel_path: Path) -> Dict[str, str]:
+    workbook = load_workbook(excel_path, data_only=True)
+    sheet = workbook.active
+    ledger_map: Dict[str, str] = {}
+
+    for row in sheet.iter_rows(values_only=True):
+        values = [str(item).strip() if item is not None else '' for item in row]
+        if len(values) < 3:
+            continue
+        original_notice = values[1]
+        renamed_notice = values[2]
+        if '责字' not in original_notice or '责催' not in renamed_notice:
+            continue
+
+        normalized_notice = normalize_notice_number(original_notice)
+        sequence_match = __import__('re').match(r'(\d+)-责催-', renamed_notice.replace(' ', ''))
+        if not sequence_match:
+            continue
+        ledger_map[normalized_notice] = sequence_match.group(1)
+
+    return ledger_map
 
 
 def build_notice_plan_from_paths(input_dir: Path, output_dir: Path, ledger_map: Dict[str, str], service: RenameService) -> Dict:

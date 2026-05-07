@@ -73,7 +73,7 @@ class TextPostProcessor:
             description='年份括号标准化'
         ))
         self.corrections.append(TextCorrection(
-            pattern=r'(责字|行审|民初|刑初|执字)[（\[〔]?(\d{4})[）\]〕]?(\d+)号',
+            pattern=r'(责字|行审|民初|刑初|执字)[（\[〔]?(\d{4})[）\]〕]?(\d+(?:-\d+)?)号',
             replacement=r'\1〔\2〕\3号',
             description='决定书编号标准化'
         ))
@@ -142,7 +142,7 @@ class TextPostProcessor:
 
         text = re.sub(court_pattern, replace_court_case, text)
 
-        decision_pattern = r'(.{2,30}?字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+)\s*号'
+        decision_pattern = r'(.{2,30}?字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+(?:-\d+)?)\s*号'
 
         def replace_decision_case(match):
             prefix = match.group(1)
@@ -191,8 +191,12 @@ class TextPostProcessor:
 
     def expand_decision_number_ranges(self, text: str) -> List[str]:
         results = []
-        pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕)(\d+)号至(\d+)号')
+        pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕)(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号')
         for prefix, start, end in pattern.findall(text):
+            if '-' in start or '-' in end:
+                if start == end:
+                    results.append(f'{prefix}{start}号')
+                continue
             start_num = int(start)
             end_num = int(end)
             if end_num >= start_num and end_num - start_num <= 20:
@@ -203,7 +207,7 @@ class TextPostProcessor:
     def extract_decision_numbers(self, text: str) -> List[str]:
         numbers = []
         numbers.extend(self.expand_decision_number_ranges(text))
-        single_pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕\d+号)')
+        single_pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕\d+(?:-\d+)?号)')
         for match in single_pattern.findall(text):
             numbers.append(self.normalize_decision_number(match))
         cleaned = []
@@ -221,13 +225,17 @@ class TextPostProcessor:
         if not match:
             return None
         year_text, month_text, day_text = match.groups()
-        year = ''.join(chinese_map.get(ch, ch) for ch in year_text).replace('零', '0')
-        month = self.chinese_number_to_int(month_text)
-        day = self.chinese_number_to_int(day_text)
+        year = ''.join(chinese_map.get(char, char) for char in year_text).replace('零', '0')
+        month = self.parse_chinese_number(month_text)
+        day = self.parse_chinese_number(day_text)
+        if not (year.isdigit() and month and day):
+            return None
         return f'{int(year)}年{month}月{day}日'
 
-    def chinese_number_to_int(self, text: str) -> int:
+    def parse_chinese_number(self, text: str) -> Optional[int]:
         mapping = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+        if text in mapping and text != '十':
+            return mapping[text]
         if text == '十':
             return 10
         if text.startswith('十'):

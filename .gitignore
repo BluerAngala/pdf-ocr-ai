@@ -38,8 +38,7 @@ ENV/
 Thumbs.db
 
 # Project specific
-output/*.txt
-output/*.json
+# 不
 !output/.gitkeep
 
 # Temporary files
@@ -50,7 +49,7 @@ output/*.json
 # Large files
 *.zip
 *.tar.gz
-*.pdf
+# *.pdf
 
 # Model files (if downloaded locally)
 *.onnx
@@ -65,3 +64,8 @@ tools/poppler/
 *.a
 *.so
 *.dylib
+
+*.gguf
+
+.venv*
+.venv/

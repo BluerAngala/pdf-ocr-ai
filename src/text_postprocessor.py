@@ -8,6 +8,7 @@ OCR 文本后处理器
 3. 修正常见识别错误文字
 4. 识别案号，把括号改为中文括号输出
 5. 优化识别公司名称
+6. 结构化提取功能一/功能二所需字段
 """
 
 import re
@@ -26,9 +27,7 @@ class TextCorrection:
 class TextPostProcessor:
     """OCR 文本后处理器"""
     
-    # 常见 OCR 识别错误映射
     COMMON_ERRORS = {
-        # 括号类
         '【': '[',
         '】': ']',
         '（': '(',
@@ -37,12 +36,8 @@ class TextPostProcessor:
         '〕': ']',
         '［': '[',
         '］': ']',
-        
-        # 数字类（全角转半角）
         '０': '0', '１': '1', '２': '2', '３': '3', '４': '4',
         '５': '5', '６': '6', '７': '7', '８': '8', '９': '9',
-        
-        # 字母类（全角转半角）
         'Ａ': 'A', 'Ｂ': 'B', 'Ｃ': 'C', 'Ｄ': 'D', 'Ｅ': 'E',
         'Ｆ': 'F', 'Ｇ': 'G', 'Ｈ': 'H', 'Ｉ': 'I', 'Ｊ': 'J',
         'Ｋ': 'K', 'Ｌ': 'L', 'Ｍ': 'M', 'Ｎ': 'N', 'Ｏ': 'O',
@@ -55,49 +50,28 @@ class TextPostProcessor:
         'ｐ': 'p', 'ｑ': 'q', 'ｒ': 'r', 'ｓ': 's', 'ｔ': 't',
         'ｕ': 'u', 'ｖ': 'v', 'ｗ': 'w', 'ｘ': 'x', 'ｙ': 'y',
         'ｚ': 'z',
-        
-        # 常见错别字
-        '住': '住',  # 防止"住房公积金"被误识别
         '房公积金': '住房公积金',
         '限公司': '有限公司',
-        '责字': '责字',
-        '行审': '行审',
-        '粤': '粤',
-        '穗': '穗',
     }
     
-    # 案号正则表达式模式
-    CASE_NUMBER_PATTERNS = [
-        # 法院案号：如 (2025)粤7101行审3352号
-        r'[(\[（〔](\d{4})[)\]）〕]([^号]{1,10})号',
-        # 决定书编号：如 穗公积金中心黄埔责字[2025]594号
-        r'(.{2,10}字)[(\[（〔](\d{4})[)\]）〕](\d+)号',
-        # 一般编号：如 [2025]第1号
-        r'[(\[（〔](\d{4})[)\]）〕]第(\d+)号',
-    ]
-    
-    # 公司名称关键词
     COMPANY_KEYWORDS = [
-        '有限公司', '有限责任公司', '股份有限公司', '股份公司',
-        '集团有限公司', '集团公司', '实业有限公司', '投资公司',
-        '科技有限公司', '技术有限公司', '开发有限公司',
-        '管理中心', '服务中心', '事务所', '研究院',
+        '有限责任公司', '股份有限公司', '集团有限公司', '有限公司',
+        '集团公司', '股份公司', '事务所', '管理中心', '研究院',
+        '协会', '中心', '公司'
     ]
+
+    NOISE_PREFIXES = ['准予强制执行', '附：', '附件：', '1 ', '2 ', '3 ', '4 ', '5 ', '序号', '号 ']
     
     def __init__(self):
         self.corrections: List[TextCorrection] = []
         self._init_corrections()
     
     def _init_corrections(self):
-        """初始化修正规则"""
-        # 案号标准化：统一使用中文括号
         self.corrections.append(TextCorrection(
             pattern=r'[(\[]?(\d{4})[)\]]?([粤穗])',
             replacement=r'（\1）\2',
             description='年份括号标准化'
         ))
-        
-        # 决定书编号标准化
         self.corrections.append(TextCorrection(
             pattern=r'(责字|行审|民初|刑初|执字)[（\[〔]?(\d{4})[）\]〕]?(\d+)号',
             replacement=r'\1〔\2〕\3号',
@@ -105,50 +79,25 @@ class TextPostProcessor:
         ))
     
     def normalize_brackets(self, text: str) -> str:
-        """
-        统一括号格式为英文括号
-        同时处理全角字符
-        """
-        # 先替换全角括号为半角
         bracket_map = {
-            '（': '(',
-            '）': ')',
-            '【': '[',
-            '】': ']',
-            '〔': '[',
-            '〕': ']',
-            '［': '[',
-            '］': ']',
+            '（': '(', '）': ')', '【': '[', '】': ']',
+            '〔': '[', '〕': ']', '［': '[', '］': ']'
         }
-        
         for full, half in bracket_map.items():
             text = text.replace(full, half)
-        
         return text
     
     def remove_extra_whitespace(self, text: str) -> str:
-        """
-        移除多余空格和换行
-        保留段落结构
-        """
-        # 将多个连续换行合并为两个
         text = re.sub(r'\n{3,}', '\n\n', text)
-        # 将行内多个空格合并为一个
         text = re.sub(r' +', ' ', text)
-        # 移除行首行尾空格
         text = '\n'.join(line.strip() for line in text.split('\n'))
         return text
     
     def correct_common_errors(self, text: str) -> str:
-        """修正常见识别错误"""
-        # 全角转半角（数字和字母）
         fullwidth = '０１２３４５６７８９ＡＢＣＤＥＦＧＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺａｂｃｄｅｆｇｈｉｊｋｌｍｎｏｐｑｒｓｔｕｖｗｘｙｚ'
         halfwidth = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-        
         for f, h in zip(fullwidth, halfwidth):
             text = text.replace(f, h)
-        
-        # 修正常见错误词汇
         corrections = {
             r'住\s*房\s*公\s*积\s*金': '住房公积金',
             r'有\s*限\s*公\s*司': '有限公司',
@@ -157,31 +106,28 @@ class TextPostProcessor:
             r'委\s*托\s*代\s*理\s*人': '委托代理人',
             r'申\s*请\s*执\s*行\s*人': '申请执行人',
             r'被\s*执\s*行\s*人': '被执行人',
+            r'审\s*判\s*员': '审判员',
+            r'书\s*记\s*员': '书记员',
+            r'行\s*政\s*裁\s*定\s*书': '行政裁定书',
+            r'责\s*令\s*限\s*期\s*办\s*理\s*决\s*定\s*书': '责令限期办理决定书',
+            r'催\s*告\s*书': '催告书',
+            r'审判员\s*([\u4e00-\u9fa5])\s*([\u4e00-\u9fa5])': r'审判员\1\2',
+            r'书记员\s*([\u4e00-\u9fa5])\s*([\u4e00-\u9fa5])': r'书记员\1\2',
         }
-        
         for pattern, replacement in corrections.items():
             text = re.sub(pattern, replacement, text)
-        
         return text
     
     def extract_and_format_case_numbers(self, text: str) -> Tuple[str, List[Dict]]:
-        """
-        识别案号并格式化
-        返回：(格式化后的文本, 案号列表)
-        """
         case_numbers = []
-        
-        # 法院案号模式（支持空格）：(2025)粤 7101 行审 3352 号 -> （2025）粤7101行审3352号
-        # 匹配格式：(2025)粤7101行审3352号 或 (2025)粤 7101 行审 3352 号
         court_pattern = r'[(\[]\s*(\d{4})\s*[)\]]\s*(粤|穗)\s*(\d+)\s*(行审|民初|刑初|执|行)\s*(\d+)\s*号'
-        
+
         def replace_court_case(match):
             year = match.group(1)
             region = match.group(2)
             court_code = match.group(3)
             case_type = match.group(4)
             number = match.group(5)
-            
             formatted = f'（{year}）{region}{court_code}{case_type}{number}号'
             case_numbers.append({
                 'original': match.group(0),
@@ -193,18 +139,15 @@ class TextPostProcessor:
                 'number': number
             })
             return formatted
-        
+
         text = re.sub(court_pattern, replace_court_case, text)
-        
-        # 决定书编号模式（支持空格）：穗公积金中心黄埔责字[2025]594号 -> 穗公积金中心黄埔责字〔2025〕594号
-        # 匹配格式：责字[2025]594号 或 责字 [2025] 594 号
-        decision_pattern = r'(.{2,20}字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+)\s*号'
-        
+
+        decision_pattern = r'(.{2,30}?字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+)\s*号'
+
         def replace_decision_case(match):
             prefix = match.group(1)
             year = match.group(2)
             number = match.group(3)
-            
             formatted = f'{prefix}〔{year}〕{number}号'
             case_numbers.append({
                 'original': match.group(0),
@@ -215,92 +158,226 @@ class TextPostProcessor:
                 'number': number
             })
             return formatted
-        
+
         text = re.sub(decision_pattern, replace_decision_case, text)
-        
         return text, case_numbers
     
     def optimize_company_names(self, text: str) -> str:
-        """
-        优化公司名称识别
-        修复常见的公司名称识别错误
-        """
-        # 修复 "XX 有限公司" 中间有空格的情况
         for keyword in self.COMPANY_KEYWORDS:
             pattern = rf'(\S+)\s+{keyword}'
             replacement = rf'\1{keyword}'
             text = re.sub(pattern, replacement, text)
-        
-        # 修复统一社会信用代码格式
-        # 统一社会信用代码：18位，格式为 xxxxxxxxxxxxxxxxxx
-        uscc_pattern = r'统一社会信用代码[:：]?\s*([0-9A-Za-z]{18})'
-        
-        def format_uscc(match):
-            code = match.group(1).upper()
-            return f'统一社会信用代码：{code}'
-        
-        text = re.sub(uscc_pattern, format_uscc, text, flags=re.IGNORECASE)
-        
-        # 常见公司名称纠错
+
         company_corrections = {
             r'广东\s*润生\s*箱包\s*制造\s*有限公司': '广东润生箱包制造有限公司',
             r'三菱\s*电机\s*[(（]\s*广州\s*[)）]\s*压缩机\s*有限公司': '三菱电机（广州）压缩机有限公司',
             r'广州\s*住房\s*公积金\s*管理\s*中心': '广州住房公积金管理中心',
+            r'广东\s*省\s*新闻\s*工作\s*者\s*协会': '广东省新闻工作者协会',
+            r'广东\s*岭南\s*律师\s*事务所': '广东岭南律师事务所',
         }
-        
         for pattern, replacement in company_corrections.items():
             text = re.sub(pattern, replacement, text)
-        
         return text
+
+    def normalize_decision_number(self, text: str) -> str:
+        text = text.strip()
+        text = re.sub(r'^[^穗粤广]*', '', text)
+        text = re.sub(r'^(附：|附件：|准予强制执行)', '', text)
+        text = re.sub(r'^\d+\s*', '', text)
+        text = re.sub(r'\s+', '', text)
+        text = text.replace('(', '〔').replace(')', '〕').replace('[', '〔').replace(']', '〕')
+        text = re.sub(r'号.*$', '号', text)
+        return text.strip()
+
+    def expand_decision_number_ranges(self, text: str) -> List[str]:
+        results = []
+        pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕)(\d+)号至(\d+)号')
+        for prefix, start, end in pattern.findall(text):
+            start_num = int(start)
+            end_num = int(end)
+            if end_num >= start_num and end_num - start_num <= 20:
+                for number in range(start_num, end_num + 1):
+                    results.append(f'{prefix}{number}号')
+        return results
+
+    def extract_decision_numbers(self, text: str) -> List[str]:
+        numbers = []
+        numbers.extend(self.expand_decision_number_ranges(text))
+        single_pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕\d+号)')
+        for match in single_pattern.findall(text):
+            numbers.append(self.normalize_decision_number(match))
+        cleaned = []
+        seen = set()
+        for item in numbers:
+            if item and item not in seen:
+                seen.add(item)
+                cleaned.append(item)
+        return cleaned
+
+    def chinese_date_to_normalized(self, text: str) -> Optional[str]:
+        text = text.strip()
+        chinese_map = {'〇': '0', '○': '0', 'Ｏ': '0', '一': '1', '二': '2', '三': '3', '四': '4', '五': '5', '六': '6', '七': '7', '八': '8', '九': '9'}
+        match = re.search(r'([二〇○Ｏ一三四五六七八九零]{4})年([一二三四五六七八九十]{1,3})月([一二三四五六七八九十]{1,3})日', text)
+        if not match:
+            return None
+        year_text, month_text, day_text = match.groups()
+        year = ''.join(chinese_map.get(ch, ch) for ch in year_text).replace('零', '0')
+        month = self.chinese_number_to_int(month_text)
+        day = self.chinese_number_to_int(day_text)
+        return f'{int(year)}年{month}月{day}日'
+
+    def chinese_number_to_int(self, text: str) -> int:
+        mapping = {'一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10}
+        if text == '十':
+            return 10
+        if text.startswith('十'):
+            return 10 + mapping[text[1]]
+        if text.endswith('十'):
+            return mapping[text[0]] * 10
+        if '十' in text:
+            left, right = text.split('十')
+            return mapping[left] * 10 + mapping[right]
+        return mapping[text]
+
+    def extract_document_type(self, text: str) -> Optional[str]:
+        for doc_type in ['行政裁定书', '责令限期办理决定书', '催告书', '授权委托书', '合作协议', '合同']:
+            if doc_type in text:
+                return doc_type
+        return None
+
+    def extract_company_candidates(self, text: str) -> List[str]:
+        candidates = []
+        patterns = [
+            r'委托人与([\u4e00-\u9fa5A-Za-z0-9（）()·]+?(?:有限责任公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|股份有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限责任公司|股份有限公司|有限公司))',
+            r'关于([\u4e00-\u9fa5A-Za-z0-9（）()·]+?(?:有限责任公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|股份有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限责任公司|股份有限公司|有限公司))',
+            r'名称[:：]\s*([\u4e00-\u9fa5A-Za-z0-9（）()·]+?(?:有限责任公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|股份有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限责任公司|股份有限公司|有限公司))',
+            r'委托单位[:：]\s*([\u4e00-\u9fa5A-Za-z0-9（）()·]+?(?:有限责任公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|股份有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限公司[\u4e00-\u9fa5A-Za-z0-9（）()·]*分公司|有限责任公司|股份有限公司|有限公司))',
+        ]
+        for pattern in patterns:
+            candidates.extend(re.findall(pattern, text))
+        cleaned = []
+        seen = set()
+        for candidate in candidates:
+            value = candidate.strip()
+            if value and value not in seen:
+                seen.add(value)
+                cleaned.append(value)
+        return cleaned
+
+    def extract_company_after_label(self, text: str, labels: List[str]) -> Optional[str]:
+        for label in labels:
+            match = re.search(rf'{label}[:：]\s*([^\n，。]*)', text)
+            if match:
+                value = match.group(1).strip()
+                company = self.extract_company_name_from_text(value)
+                if company:
+                    return company
+        return None
+
+    def extract_company_name_from_text(self, text: str) -> Optional[str]:
+        candidates = []
+        for keyword in self.COMPANY_KEYWORDS:
+            pattern = rf'([\u4e00-\u9fa5A-Za-z0-9（）()·]+?{keyword})'
+            candidates.extend(re.findall(pattern, text))
+        cleaned = []
+        for candidate in candidates:
+            value = re.sub(r'^(甲方|乙方|名称|申请执行人|被执行人)[:：]?', '', candidate).strip()
+            value = re.sub(r'[，。；].*$', '', value)
+            if len(value) >= 4:
+                cleaned.append(value)
+        if not cleaned:
+            return None
+        cleaned.sort(key=len, reverse=True)
+        return cleaned[0]
+
+    def extract_ruling_fields(self, text: str) -> Dict:
+        administrative_case_no = None
+        match = re.search(r'（\d{4}）粤\d+行审\d+号', text)
+        if match:
+            administrative_case_no = match.group(0)
+
+        judge = None
+        match = re.search(r'审判员\s*([\u4e00-\u9fa5]{2,4})', text)
+        if match:
+            judge = match.group(1)
+
+        clerk = None
+        match = re.search(r'书记员\s*([\u4e00-\u9fa5]{2,4})', text)
+        if match:
+            clerk = match.group(1)
+
+        execution_date = self.chinese_date_to_normalized(text)
+        if not execution_date:
+            match = re.search(r'(20\d{2})年(\d{1,2})月(\d{1,2})日', text)
+            if match:
+                execution_date = f'{int(match.group(1))}年{int(match.group(2))}月{int(match.group(3))}日'
+
+        return {
+            'document_type': '行政裁定书' if '行政裁定书' in text else None,
+            'administrative_case_no': administrative_case_no,
+            'decision_numbers': self.extract_decision_numbers(text),
+            'judge': judge,
+            'clerk': clerk,
+            'execution_date': execution_date,
+        }
+
+    def extract_notice_fields(self, text: str) -> Dict:
+        document_type = self.extract_document_type(text)
+        company_name = self.extract_company_after_label(text, ['名称', '委托单位', '委托人'])
+        company_name_candidates = self.extract_company_candidates(text)
+        if not company_name and company_name_candidates:
+            company_name = company_name_candidates[0]
+        return {
+            'document_type': document_type,
+            'company_name': company_name,
+            'company_name_candidates': company_name_candidates,
+            'decision_numbers': self.extract_decision_numbers(text),
+        }
+
+    def extract_contract_fields(self, text: str) -> Dict:
+        party_a = self.extract_company_after_label(text, ['甲方'])
+        party_b = self.extract_company_after_label(text, ['乙方'])
+        return {
+            'document_type': '合同' if ('合同' in text or '协议' in text) else None,
+            'party_a': party_a,
+            'party_b': party_b,
+        }
+
+    def build_structured_output(self, text: str) -> Dict:
+        return {
+            'decision_numbers': self.extract_decision_numbers(text),
+            'ruling': self.extract_ruling_fields(text),
+            'notice': self.extract_notice_fields(text),
+            'contract': self.extract_contract_fields(text),
+        }
     
     def process(self, text: str) -> Dict:
-        """
-        完整的后处理流程
-        
-        返回：{
-            'original': 原始文本,
-            'processed': 处理后文本,
-            'case_numbers': 识别的案号列表,
-            'changes': 修改记录
-        }
-        """
         original = text
         changes = []
-        
-        # 1. 统一括号格式（先转为英文括号便于处理）
         text = self.normalize_brackets(text)
         changes.append('统一括号为英文格式')
-        
-        # 2. 移除多余空格换行
         text = self.remove_extra_whitespace(text)
         changes.append('移除多余空格和换行')
-        
-        # 3. 修正常见识别错误
         text = self.correct_common_errors(text)
         changes.append('修正常见识别错误')
-        
-        # 4. 识别并格式化案号（转为中文括号输出）
         text, case_numbers = self.extract_and_format_case_numbers(text)
         if case_numbers:
             changes.append(f'识别并格式化 {len(case_numbers)} 个案号')
-        
-        # 5. 优化公司名称
         text = self.optimize_company_names(text)
         changes.append('优化公司名称识别')
-        
+        structured = self.build_structured_output(text)
+        changes.append('提取功能一和功能二结构化字段')
         return {
             'original': original,
             'processed': text,
             'case_numbers': case_numbers,
-            'changes': changes
+            'changes': changes,
+            'structured': structured,
         }
 
 
 def demo():
-    """演示后处理功能"""
     processor = TextPostProcessor()
-    
-    # 测试文本
     test_text = """广州住房公积金管理中心
 责令限期办理决定书
 穗公积金中心黄埔责字[2025]594号
@@ -312,30 +389,9 @@ def demo():
 (2025)粤7101行审3352号
 申请执行人：广州住房公积金管理中心
 """
-    
     result = processor.process(test_text)
-    
-    print("=" * 60)
-    print("原始文本：")
-    print("=" * 60)
-    print(result['original'])
-    
-    print("\n" + "=" * 60)
-    print("处理后文本：")
-    print("=" * 60)
     print(result['processed'])
-    
-    print("\n" + "=" * 60)
-    print("识别的案号：")
-    print("=" * 60)
-    for case in result['case_numbers']:
-        print(f"  - {case['type']}: {case['original']} -> {case['formatted']}")
-    
-    print("\n" + "=" * 60)
-    print("修改记录：")
-    print("=" * 60)
-    for change in result['changes']:
-        print(f"  ✓ {change}")
+    print(result['structured'])
 
 
 if __name__ == '__main__':

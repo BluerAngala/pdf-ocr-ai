@@ -193,7 +193,7 @@ class UltraFastOCR:
 
     def _warmup(self):
         """模型预热 - 提前加载模型"""
-        print("  🔥 模型预热中...")
+        print("  [INFO] 模型预热中...")
         start = time.time()
         engine = get_ocr_engine()
         dummy_img = Image.new('RGB', (100, 100), color='white')
@@ -201,7 +201,7 @@ class UltraFastOCR:
         dummy_img.save(dummy_path)
         engine(str(dummy_path))
         dummy_path.unlink()
-        print(f"  ✅ 预热完成 ({time.time()-start:.2f}秒)")
+        print(f"  [OK] 预热完成 ({time.time()-start:.2f}秒)")
     
     def _process_single_image(self, image: Image.Image, page_num: int = 1) -> PageResult:
         """处理单张图片"""

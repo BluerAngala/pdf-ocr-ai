@@ -13,3 +13,20 @@ pillow>=9.0.0
 
 # 工具库
 numpy>=1.21.0
+
+# ==================== 可选：本地LLM支持 ====================
+# 取消下面注释以启用本地AI模型功能
+
+# llama-cpp-python 用于运行 GGUF 格式模型（推荐）
+# 安装命令（CPU版本）:
+#   pip install llama-cpp-python --no-cache-dir
+# 安装命令（支持GPU/CUDA）:
+#   CMAKE_ARGS="-DLLAMA_CUDA=on" pip install llama-cpp-python --no-cache-dir
+
+# transformers + torch 用于运行 HuggingFace 格式模型
+# transformers>=4.36.0
+# torch>=2.0.0
+
+# 其他LLM工具
+# sentencepiece>=0.1.99  # 部分模型需要
+# protobuf>=3.20.0       # 部分模型需要

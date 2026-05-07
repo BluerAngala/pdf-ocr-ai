@@ -1,0 +1,579 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+PDF OCR 工具 - 超极速版（Ultra Fast）
+核心优化策略：
+1. 智能识别策略 - 可编辑PDF直接提取，扫描件自动OCR
+2. 图像预处理优化 - 提前压缩、增强
+3. 多进程并行 - 绕过GIL限制
+4. 模型预热 - 预加载保持常驻
+5. 支持图片输入 - PNG/JPG/JPEG
+"""
+
+import os
+import sys
+import json
+import time
+import argparse
+from pathlib import Path
+from typing import List, Dict, Optional, Tuple, Any, Union
+from dataclasses import dataclass, asdict
+from multiprocessing import Pool, cpu_count
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import traceback
+import numpy as np
+
+os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
+os.environ['OMP_NUM_THREADS'] = '2'
+os.environ['ONNXRUNTIME_CPU_NUM_THREADS'] = '2'
+os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
+
+try:
+    import pdfplumber
+    HAS_PDFPLUMBER = True
+except ImportError:
+    HAS_PDFPLUMBER = False
+
+try:
+    from pdf2image import convert_from_path
+    HAS_PDF2IMAGE = True
+except ImportError:
+    HAS_PDF2IMAGE = False
+
+try:
+    from rapidocr import RapidOCR
+    HAS_RAPIDOCR = True
+except ImportError:
+    HAS_RAPIDOCR = False
+
+try:
+    from PIL import Image, ImageEnhance, ImageFilter
+    HAS_PIL = True
+except ImportError:
+    HAS_PIL = False
+
+
+_ocr_engine = None
+_ocr_lock = None
+
+def init_worker():
+    """子进程初始化 - 预加载OCR模型"""
+    global _ocr_engine
+    if HAS_RAPIDOCR:
+        _ocr_engine = RapidOCR()
+
+def get_ocr_engine():
+    """获取OCR引擎"""
+    global _ocr_engine
+    if _ocr_engine is None:
+        if not HAS_RAPIDOCR:
+            raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
+        _ocr_engine = RapidOCR()
+    return _ocr_engine
+
+
+def check_poppler_installed(poppler_path: str) -> bool:
+    """检查 poppler 是否已安装"""
+    if sys.platform == "win32":
+        pdftoppm = Path(poppler_path) / "pdftoppm.exe"
+        return pdftoppm.exists()
+    else:
+        import shutil
+        return shutil.which("pdftoppm") is not None
+
+
+def show_poppler_setup_guide():
+    """显示 poppler 安装指南"""
+    print("\n" + "=" * 70)
+    print("❌ 缺少 Poppler 工具")
+    print("=" * 70)
+    print("\nPoppler 是 PDF 转图片的必要工具，请按以下步骤安装：\n")
+
+    if sys.platform == "win32":
+        print("【Windows 用户】")
+        print("\n方式一：自动配置（推荐）")
+        print("  运行以下命令自动下载配置：")
+        print("  python scripts/setup_poppler.py")
+        print("\n方式二：手动配置")
+        print("  1. 下载: https://github.com/oschwartz10612/poppler-windows/releases")
+        print("  2. 解压到: tools/poppler/ 目录")
+        print("  3. 确保目录结构: tools/poppler/poppler-24.08.0/Library/bin/")
+    else:
+        print("【Linux/macOS 用户】")
+        print("  Ubuntu/Debian: sudo apt-get install poppler-utils")
+        print("  macOS: brew install poppler")
+
+    print("\n" + "=" * 70)
+    print("详细说明请查看: INSTALL.md")
+    print("=" * 70 + "\n")
+
+
+class ImagePreprocessor:
+    """图像预处理器 - 减少OCR计算量"""
+    
+    @staticmethod
+    def optimize_for_ocr(image: Image.Image, target_size: Tuple[int, int] = (1024, 1024)) -> Image.Image:
+        """
+        优化图像以加速OCR
+        
+        策略：
+        1. 智能缩放 - 保持文字清晰度的最大压缩
+        2. 对比度增强 - 让文字更清晰
+        3. 轻度锐化 - 增强文字边缘
+        """
+        original_size = image.size
+        max_dim = max(original_size)
+        
+        if max_dim > target_size[0]:
+            scale = target_size[0] / max_dim
+            new_size = (int(original_size[0] * scale), int(original_size[1] * scale))
+            image = image.resize(new_size, Image.Resampling.LANCZOS)
+        
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(1.2)
+        
+        image = image.filter(ImageFilter.SHARPEN)
+        
+        return image
+
+
+@dataclass
+class OCRConfig:
+    """OCR配置"""
+    _base_dir: Path = Path(__file__).parent.parent
+    poppler_path: str = str(_base_dir / "tools" / "poppler" / "poppler-24.08.0" / "Library" / "bin")
+    dpi: int = 250
+    output_dir: str = str(_base_dir / "output")
+    max_image_size: int = 1024
+    parallel_workers: int = min(cpu_count(), 4)
+    max_retries: int = 2
+
+
+@dataclass
+class PageResult:
+    """单页识别结果"""
+    page: int
+    text: str
+    method: str
+    duration: float = 0
+    error: str = ""
+
+
+class UltraFastOCR:
+    """超极速OCR处理器"""
+
+    SUPPORTED_IMAGE_FORMATS = {'.png', '.jpg', '.jpeg'}
+    SUPPORTED_PDF_FORMATS = {'.pdf'}
+
+    def __init__(self, config: Optional[OCRConfig] = None):
+        self.config = config or OCRConfig()
+        self.preprocessor = ImagePreprocessor()
+        Path(self.config.output_dir).mkdir(exist_ok=True)
+
+        self._check_dependencies()
+        self._warmup()
+    
+    def _check_dependencies(self):
+        """检查依赖"""
+        missing = []
+        
+        if not HAS_RAPIDOCR:
+            missing.append("rapidocr-onnxruntime")
+        if not HAS_PIL:
+            missing.append("pillow")
+        
+        if missing:
+            print(f"❌ 缺少依赖: {', '.join(missing)}")
+            print(f"请运行: pip install {' '.join(missing)}")
+            raise RuntimeError("依赖未安装")
+        
+        if not check_poppler_installed(self.config.poppler_path):
+            show_poppler_setup_guide()
+            raise RuntimeError("Poppler 未安装，请先运行: python scripts/setup_poppler.py")
+
+    def _warmup(self):
+        """模型预热 - 提前加载模型"""
+        print("  🔥 模型预热中...")
+        start = time.time()
+        engine = get_ocr_engine()
+        dummy_img = Image.new('RGB', (100, 100), color='white')
+        dummy_path = Path(self.config.output_dir) / "_warmup.png"
+        dummy_img.save(dummy_path)
+        engine(str(dummy_path))
+        dummy_path.unlink()
+        print(f"  ✅ 预热完成 ({time.time()-start:.2f}秒)")
+    
+    def _process_single_image(self, image: Image.Image, page_num: int = 1) -> PageResult:
+        """处理单张图片"""
+        start = time.time()
+        
+        for attempt in range(self.config.max_retries + 1):
+            try:
+                optimized_img = self.preprocessor.optimize_for_ocr(
+                    image, 
+                    target_size=(self.config.max_image_size, self.config.max_image_size)
+                )
+                
+                temp_dir = Path(self.config.output_dir) / "_temp"
+                temp_dir.mkdir(exist_ok=True)
+                temp_img = temp_dir / f"_page_{page_num}_opt.png"
+                optimized_img.save(temp_img, 'PNG', optimize=True)
+                
+                engine = get_ocr_engine()
+                result = engine(str(temp_img))
+                
+                texts = []
+                if result and hasattr(result, 'txts') and result.txts:
+                    for text in result.txts:
+                        if text and str(text).strip():
+                            texts.append(str(text))
+                
+                temp_img.unlink(missing_ok=True)
+                try:
+                    temp_dir.rmdir()
+                except:
+                    pass
+                
+                duration = time.time() - start
+                return PageResult(
+                    page=page_num,
+                    text="\n".join(texts),
+                    method="rapidocr",
+                    duration=duration
+                )
+                
+            except Exception as e:
+                if attempt < self.config.max_retries:
+                    print(f"  ⚠️ 第 {page_num} 页处理失败，重试 {attempt + 1}/{self.config.max_retries}...")
+                    time.sleep(0.5)
+                else:
+                    error_detail = f"{type(e).__name__}: {str(e)}"
+                    print(f"  ✗ 第 {page_num} 页错误: {error_detail}")
+                    return PageResult(
+                        page=page_num,
+                        text="",
+                        method="error",
+                        duration=time.time() - start,
+                        error=error_detail
+                    )
+        
+        return PageResult(page=page_num, text="", method="error", duration=time.time() - start)
+    
+    def process_page_parallel(self, args: Tuple[int, Any]) -> PageResult:
+        """并行处理单页（用于多进程）"""
+        page_num, image_path = args
+        try:
+            image = Image.open(image_path) if isinstance(image_path, (str, Path)) else image_path
+            return self._process_single_image(image, page_num)
+        except Exception as e:
+            return PageResult(
+                page=page_num,
+                text="",
+                method="error",
+                error=str(e)
+            )
+
+    def process_image(self, image_path: str) -> Optional[Dict]:
+        """处理图片文件"""
+        image_path = Path(image_path)
+        if not image_path.exists():
+            print(f"❌ 文件不存在: {image_path}")
+            return None
+        
+        print(f"\n{'='*60}")
+        print(f"🖼️ 处理图片: {image_path.name}")
+        print(f"{'='*60}")
+        
+        total_start = time.time()
+        
+        try:
+            image = Image.open(image_path)
+            result = self._process_single_image(image, 1)
+            
+            total_duration = time.time() - total_start
+            print(f"  ✅ 处理完成 ({total_duration:.2f}秒)")
+            
+            return {
+                'filename': image_path.name,
+                'filepath': str(image_path),
+                'total_pages': 1,
+                'method': 'rapidocr',
+                'total_duration': total_duration,
+                'pages': [asdict(result)],
+                'full_text': result.text
+            }
+        except Exception as e:
+            print(f"❌ 图片处理失败: {e}")
+            return None
+
+    def process_pdf(self, pdf_path: str, force_ocr: bool = False) -> Optional[Dict]:
+        """处理PDF（超极速模式）"""
+        pdf_path = Path(pdf_path)
+        if not pdf_path.exists():
+            print(f"❌ 文件不存在: {pdf_path}")
+            return None
+        
+        print(f"\n{'='*60}")
+        print(f"🚀 超极速处理: {pdf_path.name}")
+        print(f"⚡ 配置: DPI={self.config.dpi}, 最大尺寸={self.config.max_image_size}")
+        print(f"{'='*60}")
+        
+        total_start = time.time()
+        
+        if not force_ocr and HAS_PDFPLUMBER:
+            print("  📄 尝试 pdfplumber 提取...")
+            result = self._try_pdfplumber(str(pdf_path))
+            if result:
+                result['total_duration'] = time.time() - total_start
+                print(f"  ✅ pdfplumber 成功 ({result['total_duration']:.2f}秒)")
+                return result
+        
+        print("  🔍 使用超极速OCR...")
+        
+        print(f"  📄 转换PDF (DPI={self.config.dpi})...")
+        conv_start = time.time()
+        
+        try:
+            images = convert_from_path(
+                str(pdf_path),
+                dpi=self.config.dpi,
+                poppler_path=self.config.poppler_path
+            )
+        except Exception as e:
+            print(f"❌ PDF转换失败: {e}")
+            return None
+        
+        conv_duration = time.time() - conv_start
+        print(f"  ✅ 共 {len(images)} 页 (转换: {conv_duration:.2f}秒)")
+        
+        print(f"  🔄 多进程处理 ({self.config.parallel_workers} workers)...")
+        
+        pages = []
+        if len(images) == 1:
+            result = self._process_single_image(images[0], 1)
+            pages.append(result)
+        else:
+            args_list = [(i, img) for i, img in enumerate(images, 1)]
+            
+            with Pool(
+                processes=self.config.parallel_workers,
+                initializer=init_worker
+            ) as pool:
+                pages = pool.map(self._process_page_mp_wrapper, args_list)
+        
+        pages.sort(key=lambda p: p.page)
+        total_duration = time.time() - total_start
+        
+        success_count = sum(1 for p in pages if p.method != "error")
+        print(f"\n  📊 处理统计:")
+        print(f"     总耗时: {total_duration:.2f}秒")
+        print(f"     平均每页: {total_duration/len(pages):.2f}秒")
+        print(f"     成功: {success_count}/{len(pages)} 页")
+        
+        return {
+            'filename': pdf_path.name,
+            'filepath': str(pdf_path),
+            'total_pages': len(pages),
+            'method': 'ultra_fast',
+            'total_duration': total_duration,
+            'pages': [asdict(p) for p in pages],
+            'full_text': "\n\n".join([f"=== 第{p.page}页 ===\n{p.text}" for p in pages if p.text])
+        }
+    
+    def _process_page_mp_wrapper(self, args: Tuple[int, Any]) -> PageResult:
+        """多进程包装器"""
+        global _ocr_engine
+        page_num, image = args
+        start = time.time()
+        
+        for attempt in range(self.config.max_retries + 1):
+            try:
+                if isinstance(image, (str, Path)):
+                    image = Image.open(image)
+                
+                original_size = image.size
+                max_dim = max(original_size)
+                
+                if max_dim > self.config.max_image_size:
+                    scale = self.config.max_image_size / max_dim
+                    new_size = (int(original_size[0] * scale), int(original_size[1] * scale))
+                    image = image.resize(new_size, Image.Resampling.LANCZOS)
+                
+                enhancer = ImageEnhance.Contrast(image)
+                image = enhancer.enhance(1.2)
+                image = image.filter(ImageFilter.SHARPEN)
+                
+                temp_dir = Path(self.config.output_dir) / "_temp"
+                temp_dir.mkdir(exist_ok=True)
+                temp_img = temp_dir / f"_mp_{page_num}_{os.getpid()}.png"
+                image.save(temp_img, 'PNG', optimize=True)
+                
+                if _ocr_engine is None:
+                    _ocr_engine = RapidOCR()
+                
+                result = _ocr_engine(str(temp_img))
+                
+                texts = []
+                if result and hasattr(result, 'txts') and result.txts:
+                    for text in result.txts:
+                        if text and str(text).strip():
+                            texts.append(str(text))
+                
+                temp_img.unlink(missing_ok=True)
+                
+                duration = time.time() - start
+                return PageResult(
+                    page=page_num,
+                    text="\n".join(texts),
+                    method="rapidocr",
+                    duration=duration
+                )
+                
+            except Exception as e:
+                if attempt < self.config.max_retries:
+                    time.sleep(0.3)
+                else:
+                    return PageResult(
+                        page=page_num,
+                        text="",
+                        method="error",
+                        duration=time.time() - start,
+                        error=f"{type(e).__name__}: {str(e)}"
+                    )
+        
+        return PageResult(page=page_num, text="", method="error", duration=time.time() - start)
+
+    def _try_pdfplumber(self, pdf_path: str) -> Optional[Dict]:
+        """尝试使用pdfplumber"""
+        try:
+            pages = []
+            with pdfplumber.open(pdf_path) as pdf:
+                for i, page in enumerate(pdf.pages, 1):
+                    text = page.extract_text()
+                    if text:
+                        pages.append({
+                            'page': i,
+                            'text': text.strip(),
+                            'method': 'pdfplumber',
+                            'duration': 0,
+                            'error': ''
+                        })
+            
+            if pages and any(p['text'] for p in pages):
+                return {
+                    'filename': Path(pdf_path).name,
+                    'filepath': pdf_path,
+                    'total_pages': len(pages),
+                    'method': 'pdfplumber',
+                    'pages': pages,
+                    'full_text': "\n\n".join([f"=== 第{p['page']}页 ===\n{p['text']}" for p in pages])
+                }
+            return None
+        except Exception as e:
+            print(f"  ⚠️ pdfplumber 提取失败: {e}")
+            return None
+    
+    def process_file(self, file_path: str, force_ocr: bool = False) -> Optional[Dict]:
+        """智能处理文件（自动识别PDF或图片）"""
+        file_path = Path(file_path)
+        suffix = file_path.suffix.lower()
+        
+        if suffix in self.SUPPORTED_PDF_FORMATS:
+            return self.process_pdf(str(file_path), force_ocr)
+        elif suffix in self.SUPPORTED_IMAGE_FORMATS:
+            return self.process_image(str(file_path))
+        else:
+            print(f"❌ 不支持的文件格式: {suffix}")
+            print(f"   支持的格式: PDF, PNG, JPG, JPEG")
+            return None
+
+    def save_result(self, result: Dict) -> Dict[str, Path]:
+        """保存结果"""
+        output_dir = Path(self.config.output_dir)
+        base_name = Path(result['filename']).stem
+        
+        txt_path = output_dir / f"{base_name}_ultra_result.txt"
+        with open(txt_path, 'w', encoding='utf-8') as f:
+            f.write(result['full_text'])
+        
+        json_path = output_dir / f"{base_name}_ultra_result.json"
+        with open(json_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, ensure_ascii=False, indent=2)
+        
+        print(f"\n💾 已保存:")
+        print(f"   TXT:  {txt_path}")
+        print(f"   JSON: {json_path}")
+        
+        return {'txt': txt_path, 'json': json_path}
+
+
+def main():
+    """命令行入口"""
+    parser = argparse.ArgumentParser(
+        description='PDF/图片 OCR 工具 - 超极速版',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+支持的文件格式:
+  - PDF: .pdf
+  - 图片: .png, .jpg, .jpeg
+
+使用示例:
+  # 处理PDF
+  python pdf_ocr_ultra.py input/document.pdf
+
+  # 处理图片
+  python pdf_ocr_ultra.py input/scanned.png
+
+  # 批量处理
+  python pdf_ocr_ultra.py input/*.pdf input/*.png
+
+  # 强制OCR（跳过pdfplumber）
+  python pdf_ocr_ultra.py document.pdf --force-ocr
+
+  # 调整参数
+  python pdf_ocr_ultra.py document.pdf --dpi 200 --workers 6
+        '''
+    )
+    
+    parser.add_argument('files', nargs='+', help='PDF或图片文件路径')
+    parser.add_argument('-o', '--output', default='./output', help='输出目录')
+    parser.add_argument('--force-ocr', action='store_true', help='强制使用OCR')
+    parser.add_argument('--dpi', type=int, default=250, help='DPI (默认: 250)')
+    parser.add_argument('--max-size', type=int, default=1024, help='最大图像尺寸 (默认: 1024)')
+    parser.add_argument('--workers', type=int, default=min(cpu_count(), 4), help=f'进程数 (默认: {min(cpu_count(), 4)})')
+    
+    args = parser.parse_args()
+    
+    config = OCRConfig(
+        output_dir=args.output,
+        dpi=args.dpi,
+        max_image_size=args.max_size,
+        parallel_workers=args.workers
+    )
+    
+    try:
+        processor = UltraFastOCR(config)
+    except RuntimeError:
+        return 1
+    
+    success_count = 0
+    for file_path in args.files:
+        result = processor.process_file(file_path, force_ocr=args.force_ocr)
+        if result:
+            processor.save_result(result)
+            
+            print(f"\n{'='*60}")
+            print(f"📋 预览 (前500字符):")
+            print(f"{'='*60}")
+            preview = result['full_text'][:500]
+            print(preview + "..." if len(result['full_text']) > 500 else preview)
+            success_count += 1
+        else:
+            print(f"❌ 处理失败: {file_path}")
+    
+    print(f"\n✅ 完成! 成功处理 {success_count}/{len(args.files)} 个文件")
+    return 0 if success_count == len(args.files) else 1
+
+
+if __name__ == '__main__':
+    sys.exit(main())

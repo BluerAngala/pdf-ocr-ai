@@ -487,10 +487,35 @@ class UltraFastOCR:
             print(f"   支持的格式: PDF, PNG, JPG, JPEG")
             return None
 
-    def save_result(self, result: Dict) -> Dict[str, Path]:
+    def save_result(self, result: Dict, apply_postprocess: bool = True) -> Dict[str, Path]:
         """保存结果"""
         output_dir = Path(self.config.output_dir)
         base_name = Path(result['filename']).stem
+        
+        # 应用文本后处理
+        if apply_postprocess:
+            try:
+                from text_postprocessor import TextPostProcessor
+                processor = TextPostProcessor()
+                process_result = processor.process(result['full_text'])
+                result['full_text'] = process_result['processed']
+                result['case_numbers'] = process_result['case_numbers']
+                result['postprocess_changes'] = process_result['changes']
+                
+                # 同时处理每页的文本
+                for page in result.get('pages', []):
+                    if isinstance(page, dict) and 'text' in page:
+                        page_result = processor.process(page['text'])
+                        page['text'] = page_result['processed']
+                        page['case_numbers'] = page_result['case_numbers']
+                
+                print(f"\n📝 文本后处理完成:")
+                for change in process_result['changes']:
+                    print(f"   ✓ {change}")
+                if process_result['case_numbers']:
+                    print(f"   📋 识别案号: {len(process_result['case_numbers'])} 个")
+            except Exception as e:
+                print(f"\n⚠️ 文本后处理失败: {e}")
         
         txt_path = output_dir / f"{base_name}_ultra_result.txt"
         with open(txt_path, 'w', encoding='utf-8') as f:

@@ -6,14 +6,16 @@ SRC = ROOT / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from non_litigation_export import build_mock_ocr_cache, get_non_litigation_input_root, get_non_litigation_ocr_cache_dir, get_non_litigation_result_root
+from non_litigation_export import build_mock_ocr_cache, ensure_non_litigation_input_structure, get_non_litigation_input_root, get_non_litigation_ocr_cache_dir, get_non_litigation_result_root
 from project_evaluation import run_project_evaluation
 
 
 def test_project_evaluation_should_return_runtime_quality_and_code_quality():
+    input_dir = ensure_non_litigation_input_structure(ROOT)
     build_mock_ocr_cache(
         ROOT / '样本材料' / '非诉组自动化样本材料',
         get_non_litigation_ocr_cache_dir(ROOT),
+        input_dir=input_dir,
     )
     report = run_project_evaluation(ROOT)
 

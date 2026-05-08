@@ -260,7 +260,7 @@ def detect_notice_source_mapping_from_ocr(output_cache_dir: Path) -> Dict[str, s
     return mapping
 
 
-def build_mock_ocr_cache(sample_root: Path, cache_dir: Path) -> Path:
+def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | None = None) -> Path:
     """构建 Mock OCR 缓存（用于测试）"""
     cache_dir.mkdir(parents=True, exist_ok=True)
     standard_root = sample_root / '对应输出文件（标准版）'
@@ -296,20 +296,42 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path) -> Path:
 
     # 责催文件：每个 PDF 就是一个案件
     notice_files = sorted((standard_root / '输出文件（责催）').glob('*.pdf'))
-    notice_numbers = [pdf_path.stem.split('-责催-')[1] for pdf_path in notice_files]
-    source_names = ['1', '2', '3']
-    # 按顺序对应
-    for source_name, notice_number in zip(source_names, notice_numbers):
-        normalized_number = normalize_notice_number(notice_number)
-        payload = {
-            'pages': [{'page': 1, 'text': normalized_number}],
-            'total_pages': 1,
-            'filename': f'{source_name}.pdf',
-        }
-        (cache_dir / f'{source_name}_ultra_result.json').write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2),
-            encoding='utf-8',
-        )
+
+    if input_dir and input_dir.exists():
+        std_page_map = {pdf_path: inspect_pdf_page_count(pdf_path) for pdf_path in notice_files}
+        for src_name in ['1', '2', '3']:
+            src_path = input_dir / f'{src_name}.pdf'
+            if not src_path.exists():
+                continue
+            src_pages = inspect_pdf_page_count(src_path)
+            for std_path, std_pages in std_page_map.items():
+                if std_pages == src_pages:
+                    notice_number = std_path.stem.split('-责催-')[1]
+                    normalized_number = normalize_notice_number(notice_number)
+                    payload = {
+                        'pages': [{'page': 1, 'text': normalized_number}],
+                        'total_pages': 1,
+                        'filename': f'{src_name}.pdf',
+                    }
+                    (cache_dir / f'{src_name}_ultra_result.json').write_text(
+                        json.dumps(payload, ensure_ascii=False, indent=2),
+                        encoding='utf-8',
+                    )
+                    break
+    else:
+        notice_numbers = [pdf_path.stem.split('-责催-')[1] for pdf_path in notice_files]
+        source_names = ['1', '2', '3']
+        for source_name, notice_number in zip(source_names, notice_numbers):
+            normalized_number = normalize_notice_number(notice_number)
+            payload = {
+                'pages': [{'page': 1, 'text': normalized_number}],
+                'total_pages': 1,
+                'filename': f'{source_name}.pdf',
+            }
+            (cache_dir / f'{source_name}_ultra_result.json').write_text(
+                json.dumps(payload, ensure_ascii=False, indent=2),
+                encoding='utf-8',
+            )
 
     return cache_dir
 
@@ -407,10 +429,10 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
 
 
 def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = False) -> Path:
-    """构建真实 OCR 缓存"""
+    """构建真实 OCR 缓存 - 支持并行处理"""
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # 责催文件（使用逐页识别优化）
+    # 责催文件（必须串行：逐页识别，找到即停）
     notice_files = [
         ('1.pdf', '1'),
         ('2.pdf', '2'),
@@ -433,22 +455,40 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
         else:
             print(f"  [WARN] 文件不存在: {pdf_path}")
 
-    # 其他文件（申请书、授权书、所函）
+    # 其他文件（可以并行处理）
     other_files = [
         ('申请书.pdf', '申请书'),
         ('授权书.pdf', '授权书'),
         ('所函.pdf', '所函'),
     ]
     
-    print("\n📄 处理其他文件...")
-    for filename, stem in other_files:
+    print("\n📄 处理其他文件（并行处理）...")
+    
+    # 使用线程池并行处理
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    
+    def process_file(args):
+        """处理单个文件的辅助函数"""
+        filename, stem = args
         pdf_path = input_dir / filename
         cache_path = cache_dir / f'{stem}_ultra_result.json'
-
+        
         if pdf_path.exists():
-            run_real_ocr_on_pdf(pdf_path, cache_path, use_mock=use_mock)
+            result = run_real_ocr_on_pdf(pdf_path, cache_path, use_mock=use_mock)
+            return (filename, result, None)
         else:
-            print(f"  [WARN] 文件不存在: {pdf_path}")
+            return (filename, None, "文件不存在")
+    
+    # 并行处理，最多3个并发
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {executor.submit(process_file, args): args for args in other_files}
+        
+        for future in as_completed(futures):
+            filename, result, error = future.result()
+            if error:
+                print(f"  [WARN] {filename}: {error}")
+            else:
+                print(f"  [OK] {filename} 处理完成")
 
     return cache_dir
 

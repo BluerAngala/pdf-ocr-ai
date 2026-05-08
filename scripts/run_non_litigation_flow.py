@@ -35,6 +35,9 @@ from non_litigation_export import (
     get_non_litigation_ocr_cache_dir,
     get_non_litigation_result_root,
 )
+from non_litigation_product import load_non_litigation_cases
+from non_litigation_validator import validate_ocr_results, ValidationStatus
+from report_generator import generate_html_report
 from project_evaluation import evaluate_non_litigation_quality
 
 
@@ -74,7 +77,7 @@ def build_run_summary(root_dir: Path, use_real_ocr: bool = False) -> Dict:
         print("=" * 60)
         print("📝 Mock 模式（使用预生成缓存）")
         print("=" * 60)
-        build_mock_ocr_cache(SAMPLE_ROOT, ocr_cache_dir)
+        build_mock_ocr_cache(SAMPLE_ROOT, ocr_cache_dir, input_dir=input_root)
 
     # 执行导出
     print("\n📦 开始导出文件...")
@@ -90,6 +93,20 @@ def build_run_summary(root_dir: Path, use_real_ocr: bool = False) -> Dict:
     # 质量评估
     quality = evaluate_non_litigation_quality(root_dir, result_root)
 
+    # OCR 结果验证
+    print("\n🔍 验证 OCR 识别结果...")
+    cases = load_non_litigation_cases(SAMPLE_ROOT)
+    validation_result = validate_ocr_results(cases, ocr_cache_dir)
+    
+    # 生成 HTML 报告
+    html_report_path = root_dir / 'output' / 'ocr-validation-report.html'
+    generate_html_report(
+        validation_result,
+        html_report_path,
+        mode='real_ocr' if use_real_ocr else 'mock',
+        runtime_seconds=runtime_seconds
+    )
+
     # 收集输出文件
     folder_items = {
         folder.name: list_pdf_names(folder)
@@ -104,6 +121,7 @@ def build_run_summary(root_dir: Path, use_real_ocr: bool = False) -> Dict:
         'runtime_seconds': runtime_seconds,
         'created_count': export_result['created_count'],
         'quality': quality,
+        'validation': validation_result,
         'output_folders': folder_items,
         'mode': 'real_ocr' if use_real_ocr else 'mock',
     }
@@ -130,6 +148,30 @@ def format_summary(summary: Dict) -> str:
         lines.append(f"\n  {folder_name}: {len(file_names)} 个文件")
         for file_name in file_names:
             lines.append(f"    - {file_name}")
+    
+    # 添加 OCR 验证结果
+    if 'validation' in summary:
+        validation = summary['validation']
+        lines.extend([
+            "",
+            "🔍 OCR 识别验证:",
+            f"  总计: {validation['summary']['total']} 个文件",
+            f"  ✅ 通过: {validation['summary']['passed']} 个",
+            f"  ⚠️  警告: {validation['summary']['warnings']} 个",
+            f"  ❌ 失败: {validation['summary']['failed']} 个",
+            f"  通过率: {validation['summary']['pass_rate']:.1%}",
+        ])
+        
+        if validation['failed_items']:
+            lines.append("\n  ❌ 失败项:")
+            for item in validation['failed_items']:
+                lines.append(f"    - {item['file_name']}: {item['message']}")
+        
+        if validation['warning_items']:
+            lines.append("\n  ⚠️  警告项:")
+            for item in validation['warning_items']:
+                lines.append(f"    - {item['file_name']}: {item['message']}")
+    
     lines.extend([
         "",
         "=" * 60,
@@ -199,12 +241,34 @@ def main() -> int:
     print(f"\n📄 详细报告已保存: {report_path}")
 
     # 返回状态码
-    if summary['quality']['page_count_match_rate'] >= 1.0:
-        print("✅ 所有文件页数匹配，测试通过！")
-        return 0
-    else:
-        print("⚠️  部分文件页数不匹配，请检查输出")
-        return 1
+    exit_code = 0
+    
+    # 检查页数匹配
+    if summary['quality']['page_count_match_rate'] < 1.0:
+        print("⚠️  部分文件页数不匹配")
+        exit_code = 1
+    
+    # 检查 OCR 验证结果
+    if 'validation' in summary:
+        validation = summary['validation']
+        if validation['summary']['failed'] > 0:
+            print(f"\n❌ OCR 验证失败: {validation['summary']['failed']} 个文件")
+            print("\n💡 处理建议:")
+            for item in validation['failed_items']:
+                print(f"\n  【{item['file_name']}】")
+                for suggestion in item['suggestions']:
+                    print(f"    - {suggestion}")
+            exit_code = 2
+        elif validation['summary']['warnings'] > 0:
+            print(f"\n⚠️  OCR 验证警告: {validation['summary']['warnings']} 个文件")
+            print("建议查看验证报告: output/ocr-validation-report.json")
+        else:
+            print("\n✅ OCR 验证全部通过！")
+    
+    if exit_code == 0:
+        print("\n🎉 所有检查通过，处理成功！")
+    
+    return exit_code
 
 
 if __name__ == '__main__':

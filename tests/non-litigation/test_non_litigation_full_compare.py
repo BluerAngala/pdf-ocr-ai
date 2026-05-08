@@ -16,13 +16,16 @@ from non_litigation_export import (
 
 
 def test_non_litigation_exported_outputs_should_match_standard_page_counts_for_all_four_types(tmp_path: Path):
+    from non_litigation_export import ensure_non_litigation_input_structure
+    input_dir = ensure_non_litigation_input_structure(ROOT)
     export_non_litigation_standard_outputs(
         sample_root=ROOT / '样本材料' / '非诉组自动化样本材料',
-        input_dir=ensure_non_litigation_input_structure(ROOT),
+        input_dir=input_dir,
         output_root=tmp_path,
         ocr_cache_dir=build_mock_ocr_cache(
             ROOT / '样本材料' / '非诉组自动化样本材料',
             get_non_litigation_ocr_cache_dir(ROOT),
+            input_dir=input_dir,
         ),
     )
 

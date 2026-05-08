@@ -91,6 +91,7 @@ def run_project_evaluation(root_dir: Path) -> Dict:
         build_mock_ocr_cache(
             root_dir / '样本材料' / '非诉组自动化样本材料',
             ocr_cache_dir,
+            input_dir=input_dir,
         )
 
     start = time.perf_counter()

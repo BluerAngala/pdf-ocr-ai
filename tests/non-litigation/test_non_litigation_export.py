@@ -25,6 +25,7 @@ def test_export_non_litigation_standard_outputs_should_match_standard_page_count
         ocr_cache_dir=build_mock_ocr_cache(
             ROOT / '样本材料' / '非诉组自动化样本材料',
             get_non_litigation_ocr_cache_dir(ROOT),
+            input_dir=input_dir,
         ),
     )
 

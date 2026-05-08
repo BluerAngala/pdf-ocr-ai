@@ -2,48 +2,48 @@
   "input_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\input\\non-litigation",
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
-  "runtime_seconds": 0.3045,
+  "runtime_seconds": 0.3035,
   "created_count": 12,
   "quality": {
-    "total_files": 12,
+    "total_files": 1152,
     "page_count_matched": 12,
-    "page_count_match_rate": 1.0
+    "page_count_match_rate": 0.0104
   },
   "validation": {
     "summary": {
       "total": 6,
-      "passed": 6,
-      "warnings": 0,
+      "passed": 3,
+      "warnings": 3,
       "failed": 0,
-      "pass_rate": 1.0
+      "pass_rate": 0.5
     },
     "timing_statistics": {
       "notice": {
-        "total": 35.32413840293884,
-        "avg": 11.774712800979614,
-        "min": 10.310006141662598,
-        "max": 12.752420902252197,
+        "total": 20.27582812309265,
+        "avg": 6.758609374364217,
+        "min": 6.125699758529663,
+        "max": 7.367512941360474,
         "count": 3
       },
       "application": {
-        "total": 104.79154658317566,
-        "avg": 104.79154658317566,
-        "min": 104.79154658317566,
-        "max": 104.79154658317566,
+        "total": 57.951605558395386,
+        "avg": 57.951605558395386,
+        "min": 57.951605558395386,
+        "max": 57.951605558395386,
         "count": 1
       },
       "authorization": {
-        "total": 61.79841160774231,
-        "avg": 61.79841160774231,
-        "min": 61.79841160774231,
-        "max": 61.79841160774231,
+        "total": 21.533421516418457,
+        "avg": 21.533421516418457,
+        "min": 21.533421516418457,
+        "max": 21.533421516418457,
         "count": 1
       },
       "letter": {
-        "total": 64.63005018234253,
-        "avg": 64.63005018234253,
-        "min": 64.63005018234253,
-        "max": 64.63005018234253,
+        "total": 20.61797261238098,
+        "avg": 20.61797261238098,
+        "min": 20.61797261238098,
+        "max": 20.61797261238098,
         "count": 1
       }
     },
@@ -55,29 +55,25 @@
         "message": "成功识别并匹配责令号: 穗公积金中心越秀责字〔2024〕914-1号",
         "details": {
           "file_name": "1.pdf",
-          "total_pages": 3,
-          "pages_processed": 3,
+          "total_pages": 1,
+          "pages_processed": 1,
           "detected_notices": [
-            "穗公积金中心越秀责字〔2024〕914-1号",
             "穗公积金中心越秀责字〔2024〕914-1号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2024〕914-1号",
           "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积金账户内。补缴手续需到我中心越秀管理部办理。\n如对本决定不服，可在收到本决定书之日起60日内，向广州市人民政府申\n请行政复议，也可以在6",
           "normalized_notices": [
-            "穗公积金中心越秀责字〔2024〕914-1号",
             "穗公积金中心越秀责字〔2024〕914-1号"
           ]
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 12.261711359024048,
+          "total_duration": 7.367512941360474,
           "method": "sequential_ocr_optimized",
           "pages_timings": [
-            6.7804272174835205,
-            0.20244431495666504,
-            3.2464888095855713
+            6.678675651550293
           ],
-          "avg_time_per_page": 3.4097867806752524
+          "avg_time_per_page": 6.678675651550293
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -93,28 +89,25 @@
         "message": "成功识别并匹配责令号: 穗公积金中心越秀责字〔2025〕1107号",
         "details": {
           "file_name": "2.pdf",
-          "total_pages": 2,
-          "pages_processed": 2,
+          "total_pages": 1,
+          "pages_processed": 1,
           "detected_notices": [
-            "穗公积金中心越秀责字〔2025〕1107号",
             "穗公积金中心越秀责字〔2025〕1107号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2025〕1107号",
           "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张璐缴存2019年07月至2021年04月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发布\n施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国务\n院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位张璐补缴2019年07月至\n账户内。补缴手续需到我中心越秀管理部办理。\n如对本决定不服，可在收到本决定书之日起60日内，向广州市人民政府申\n请行政复议，也可以在6个月内直接向广州铁路运输法院提起诉讼。复议或诉讼\n期间不停止本",
           "normalized_notices": [
-            "穗公积金中心越秀责字〔2025〕1107号",
             "穗公积金中心越秀责字〔2025〕1107号"
           ]
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 10.310006141662598,
+          "total_duration": 6.782615423202515,
           "method": "sequential_ocr_optimized",
           "pages_timings": [
-            5.973552703857422,
-            2.68589448928833
+            5.890838146209717
           ],
-          "avg_time_per_page": 4.329723596572876
+          "avg_time_per_page": 5.890838146209717
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -130,8 +123,8 @@
         "message": "成功识别并匹配责令号: 穗公积金中心越秀责字〔2025〕856号",
         "details": {
           "file_name": "3.pdf",
-          "total_pages": 3,
-          "pages_processed": 3,
+          "total_pages": 1,
+          "pages_processed": 1,
           "detected_notices": [
             "穗公积金中心越秀责字〔2025〕856号"
           ],
@@ -143,14 +136,12 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 12.752420902252197,
+          "total_duration": 6.125699758529663,
           "method": "sequential_ocr_optimized",
           "pages_timings": [
-            5.4035327434539795,
-            2.696143865585327,
-            2.2696874141693115
+            5.1139397621154785
           ],
-          "avg_time_per_page": 3.4564546744028726
+          "avg_time_per_page": 5.1139397621154785
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -160,105 +151,233 @@
         }
       },
       {
-        "status": "pass",
+        "status": "warning",
         "file_name": "申请书.pdf",
         "file_type": "application",
-        "message": "成功识别 3 个案件",
+        "message": "识别到 3 个案件，期望 288 个",
         "details": {
           "file_name": "申请书.pdf",
           "total_pages": 6,
-          "expected_cases": 3,
+          "expected_cases": 288,
           "detected_cases": 3,
           "keywords_found": [
             "强制执行申请书",
             "名称"
           ]
         },
-        "suggestions": [],
+        "suggestions": [
+          "检查申请书页数是否正确（应为 2 页/案件）",
+          "检查是否有缺失或多余的案件",
+          "当前页数: 6 页",
+          "期望页数: 576 页（288 案件 × 2 页）"
+        ],
         "timing": {
-          "total_duration": 104.79154658317566,
+          "total_duration": 57.951605558395386,
           "method": "ultra_fast",
           "pages_timings": [
-            64.35780119895935,
-            54.89944529533386,
-            51.61762237548828,
-            41.4405779838562,
-            19.559932947158813,
-            16.380330801010132
+            40.6956307888031,
+            35.71486043930054,
+            40.29851055145264,
+            32.428672552108765,
+            19.56416344642639,
+            16.15241050720215
           ],
-          "avg_time_per_page": 41.37595176696777
+          "avg_time_per_page": 30.809041380882263
         },
         "accuracy": {
           "text_quality": "good",
-          "case_detection_accuracy": 100.0,
+          "case_detection_accuracy": 1.0416666666666665,
           "keyword_detection_rate": 100.0
         }
       },
       {
-        "status": "pass",
+        "status": "warning",
         "file_name": "授权书.pdf",
         "file_type": "authorization",
-        "message": "验证通过: 3 页，识别到关键字",
+        "message": "页数不匹配: 实际 3 页，期望 288 页",
         "details": {
           "file_name": "授权书.pdf",
           "total_pages": 3,
-          "expected_count": 3,
+          "expected_count": 288,
           "doc_type": "authorization",
           "keywords_found": [
             "授权委托书"
           ]
         },
-        "suggestions": [],
+        "suggestions": [
+          "检查 authorization 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 288 页（288 公司 × 1 页）"
+        ],
         "timing": {
-          "total_duration": 61.79841160774231,
+          "total_duration": 21.533421516418457,
           "method": "ultra_fast",
           "pages_timings": [
-            53.52960920333862,
-            45.15981841087341,
-            43.72485136985779
+            17.512330770492554,
+            16.934311866760254,
+            16.187922954559326
           ],
-          "avg_time_per_page": 47.47142632802328
+          "avg_time_per_page": 16.878188530604046
         },
         "accuracy": {
           "text_quality": "good",
           "keyword_detection_rate": 100.0,
-          "page_count_match": true
+          "page_count_match": false
         }
       },
       {
-        "status": "pass",
+        "status": "warning",
         "file_name": "所函.pdf",
         "file_type": "letter",
-        "message": "验证通过: 3 页，识别到关键字",
+        "message": "页数不匹配: 实际 3 页，期望 288 页",
         "details": {
           "file_name": "所函.pdf",
           "total_pages": 3,
-          "expected_count": 3,
+          "expected_count": 288,
           "doc_type": "letter",
           "keywords_found": [
             "岭南律师事务所"
           ]
         },
-        "suggestions": [],
+        "suggestions": [
+          "检查 letter 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 288 页（288 公司 × 1 页）"
+        ],
         "timing": {
-          "total_duration": 64.63005018234253,
+          "total_duration": 20.61797261238098,
           "method": "ultra_fast",
           "pages_timings": [
-            56.70599317550659,
-            49.60657262802124,
-            33.36829900741577
+            17.073606729507446,
+            14.680739879608154,
+            16.305529594421387
           ],
-          "avg_time_per_page": 46.56028827031454
+          "avg_time_per_page": 16.01995873451233
         },
         "accuracy": {
           "text_quality": "good",
           "keyword_detection_rate": 50.0,
-          "page_count_match": true
+          "page_count_match": false
         }
       }
     ],
     "failed_items": [],
-    "warning_items": []
+    "warning_items": [
+      {
+        "status": "warning",
+        "file_name": "申请书.pdf",
+        "file_type": "application",
+        "message": "识别到 3 个案件，期望 288 个",
+        "details": {
+          "file_name": "申请书.pdf",
+          "total_pages": 6,
+          "expected_cases": 288,
+          "detected_cases": 3,
+          "keywords_found": [
+            "强制执行申请书",
+            "名称"
+          ]
+        },
+        "suggestions": [
+          "检查申请书页数是否正确（应为 2 页/案件）",
+          "检查是否有缺失或多余的案件",
+          "当前页数: 6 页",
+          "期望页数: 576 页（288 案件 × 2 页）"
+        ],
+        "timing": {
+          "total_duration": 57.951605558395386,
+          "method": "ultra_fast",
+          "pages_timings": [
+            40.6956307888031,
+            35.71486043930054,
+            40.29851055145264,
+            32.428672552108765,
+            19.56416344642639,
+            16.15241050720215
+          ],
+          "avg_time_per_page": 30.809041380882263
+        },
+        "accuracy": {
+          "text_quality": "good",
+          "case_detection_accuracy": 1.0416666666666665,
+          "keyword_detection_rate": 100.0
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "授权书.pdf",
+        "file_type": "authorization",
+        "message": "页数不匹配: 实际 3 页，期望 288 页",
+        "details": {
+          "file_name": "授权书.pdf",
+          "total_pages": 3,
+          "expected_count": 288,
+          "doc_type": "authorization",
+          "keywords_found": [
+            "授权委托书"
+          ]
+        },
+        "suggestions": [
+          "检查 authorization 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 288 页（288 公司 × 1 页）"
+        ],
+        "timing": {
+          "total_duration": 21.533421516418457,
+          "method": "ultra_fast",
+          "pages_timings": [
+            17.512330770492554,
+            16.934311866760254,
+            16.187922954559326
+          ],
+          "avg_time_per_page": 16.878188530604046
+        },
+        "accuracy": {
+          "text_quality": "good",
+          "keyword_detection_rate": 100.0,
+          "page_count_match": false
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "所函.pdf",
+        "file_type": "letter",
+        "message": "页数不匹配: 实际 3 页，期望 288 页",
+        "details": {
+          "file_name": "所函.pdf",
+          "total_pages": 3,
+          "expected_count": 288,
+          "doc_type": "letter",
+          "keywords_found": [
+            "岭南律师事务所"
+          ]
+        },
+        "suggestions": [
+          "检查 letter 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 288 页（288 公司 × 1 页）"
+        ],
+        "timing": {
+          "total_duration": 20.61797261238098,
+          "method": "ultra_fast",
+          "pages_timings": [
+            17.073606729507446,
+            14.680739879608154,
+            16.305529594421387
+          ],
+          "avg_time_per_page": 16.01995873451233
+        },
+        "accuracy": {
+          "text_quality": "good",
+          "keyword_detection_rate": 50.0,
+          "page_count_match": false
+        }
+      }
+    ]
   },
   "output_folders": {
     "输出文件（所函）": [

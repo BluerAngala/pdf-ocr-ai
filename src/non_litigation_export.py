@@ -5,7 +5,7 @@
 
 处理逻辑：
 1. 责催证据文件：每个 PDF 就是一个独立案件，不切割，直接重命名
-2. 申请书：固定 2 页/案件，按顺序切割
+2. 申请书：OCR 检测"强制执行申请书"标题定位页边界，fallback 到固定页数
 3. 授权书：固定 1 页/公司，按顺序切割
 4. 所函：固定 1 页/公司，按顺序切割
 """
@@ -17,6 +17,7 @@ import sys
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+from contextlib import contextmanager
 
 from pypdf import PdfReader, PdfWriter
 
@@ -24,7 +25,6 @@ from non_litigation_output_plan import build_expected_output_tree
 from non_litigation_product import load_non_litigation_cases
 from text_postprocessor import TextPostProcessor
 
-# 导入 OCR 工具
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT / 'src') not in sys.path:
     sys.path.insert(0, str(ROOT / 'src'))
@@ -38,50 +38,67 @@ except ImportError:
 
 
 SOURCE_MAPPING = {
-    '输出文件（责催）': ['1.pdf', '2.pdf', '3.pdf'],
     '输出文件（申请书）': '申请书.pdf',
     '输出文件（授权书）': '授权书.pdf',
     '输出文件（所函）': '所函.pdf',
 }
 
+APPLICATION_BOUNDARY_KEYWORDS = ['强制执行申请书', '申请执行书', '强制执行申请']
+
 NON_LITIGATION_RESULT_DIRNAME = 'non-litigation-results'
 NON_LITIGATION_TEMP_DIRNAME = 'non-litigation'
 NON_LITIGATION_INPUT_DIRNAME = 'non-litigation'
 
-# 责令号匹配正则
-NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[(]\d{4}[〕\])]\d+(?:-\d+)?号')
+NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[(［【]\d{4}[〕\)\]\uff3d\u3011]\d+(?:-\d+)?号')
 
-# OCR 纠错词库 - 非诉组专用
-NON_LITIGATION_CORRECTIONS = {
-    '责行': '责令',
-    '责成': '责令',
-    '公积全': '公积金',
-    '住房公积全': '住房公积金',
-    '公基金': '公积金',
-    '住方公积金': '住房公积金',
-    '岭南律师': '岭南律师事务所',
-    '授权委拖书': '授权委托书',
-    '授校委托书': '授权委托书',
-    '强制申请书': '强制执行申请书',
-}
+NON_LITIGATION_CORRECTIONS = [
+    ('住房公积全', '住房公积金'),
+    ('住方公积金', '住房公积金'),
+    ('公积全', '公积金'),
+    ('公基金', '公积金'),
+    ('授权委拖书', '授权委托书'),
+    ('授校委托书', '授权委托书'),
+    ('岭南律师所', '岭南律师事务所'),
+    ('岭南律师', '岭南律师事务所'),
+    ('责行', '责令'),
+    ('强制申请书', '强制执行申请书'),
+]
 
-# 固定页数配置
 PAGES_PER_CASE = {
-    '申请书': 2,  # 申请书固定2页/案件
-    '授权书': 1,  # 授权书固定1页/公司
-    '所函': 1,    # 所函固定1页/公司
+    '申请书': 2,
+    '授权书': 1,
+    '所函': 1,
 }
+
+_audit_log: List[Dict] = []
+
+
+def get_audit_log() -> List[Dict]:
+    return _audit_log.copy()
+
+
+def _log_audit(event: str, detail: Dict):
+    _audit_log.append({'event': event, **detail})
+
+
+@contextmanager
+def open_pdf_reader(pdf_path: Path):
+    reader = PdfReader(str(pdf_path))
+    try:
+        yield reader
+    finally:
+        if hasattr(reader, 'stream') and reader.stream:
+            reader.stream.close()
 
 
 def apply_ocr_corrections(text: str) -> str:
-    """应用 OCR 纠错词库"""
-    for wrong, correct in NON_LITIGATION_CORRECTIONS.items():
-        text = text.replace(wrong, correct)
+    for wrong, correct in NON_LITIGATION_CORRECTIONS:
+        if wrong in text and correct not in text[:text.index(wrong)]:
+            text = text.replace(wrong, correct)
     return text
 
 
 def normalize_notice_number(text: str) -> str:
-    """统一责令号格式"""
     text = text.replace(' ', '')
     text = text.replace('(', '〔').replace(')', '〕')
     text = text.replace('（', '〔').replace('）', '〕')
@@ -89,8 +106,7 @@ def normalize_notice_number(text: str) -> str:
     return text
 
 
-def fuzzy_match_notice(detected: str, target_map: Dict[str, str], threshold: float = 0.85) -> Optional[str]:
-    """模糊匹配责令号"""
+def fuzzy_match_notice(detected: str, target_map: Dict[str, str], threshold: float = 0.85) -> Tuple[Optional[str], float]:
     best_match = None
     best_ratio = 0
 
@@ -100,11 +116,10 @@ def fuzzy_match_notice(detected: str, target_map: Dict[str, str], threshold: flo
             best_ratio = ratio
             best_match = target_map[target]
 
-    return best_match, best_ratio if best_match else (None, 0)
+    return (best_match, best_ratio) if best_match else (None, 0)
 
 
 def safe_load_ocr_cache(ocr_json_path: Path) -> Optional[Dict]:
-    """安全加载 OCR 缓存"""
     try:
         if not ocr_json_path.exists():
             print(f"  ⚠️ 缓存不存在: {ocr_json_path.name}")
@@ -125,7 +140,7 @@ def safe_load_ocr_cache(ocr_json_path: Path) -> Optional[Dict]:
         try:
             ocr_json_path.rename(backup_path)
             print(f"  📁 已备份到: {backup_path}")
-        except:
+        except Exception:
             pass
         return None
 
@@ -135,8 +150,8 @@ def safe_load_ocr_cache(ocr_json_path: Path) -> Optional[Dict]:
 
 
 def inspect_pdf_page_count(pdf_path: Path) -> int:
-    reader = PdfReader(str(pdf_path))
-    return len(reader.pages)
+    with open_pdf_reader(pdf_path) as reader:
+        return len(reader.pages)
 
 
 def get_non_litigation_input_root(project_root: Path) -> Path:
@@ -158,11 +173,9 @@ def get_non_litigation_ocr_cache_dir(project_root: Path) -> Path:
 def ensure_non_litigation_input_structure(project_root: Path) -> Path:
     input_root = get_non_litigation_input_root(project_root)
     input_root.mkdir(parents=True, exist_ok=True)
-    for source_name in ['1.pdf', '2.pdf', '3.pdf', '申请书.pdf', '授权书.pdf', '所函.pdf']:
-        legacy_path = project_root / 'input' / source_name
-        target_path = input_root / source_name
-        if legacy_path.exists() and not target_path.exists():
-            shutil.move(str(legacy_path), str(target_path))
+    for item in input_root.parent.iterdir():
+        if item.is_file() and item.suffix.lower() == '.pdf' and not (input_root / item.name).exists():
+            shutil.move(str(item), str(input_root / item.name))
     return input_root
 
 
@@ -173,62 +186,85 @@ def normalize_company_name_for_matching(value: str) -> str:
     return text
 
 
-def detect_application_page_ranges_fixed(total_pages: int, expected_cases: int) -> List[Tuple[int, int]]:
-    """
-    申请书固定 2 页/案件切割
-
-    Args:
-        total_pages: PDF 总页数
-        expected_cases: 期望的案件数量（从台账读取）
-
-    Returns:
-        页码范围列表，如 [(0,2), (2,4), (4,6)]
-    """
-    pages_per_case = PAGES_PER_CASE['申请书']
-
-    # 验证页数是否匹配
-    expected_pages = expected_cases * pages_per_case
-    if total_pages != expected_pages:
-        print(f"  ⚠️ 申请书页数不匹配: 实际 {total_pages} 页，期望 {expected_pages} 页 ({expected_cases} 案件 × {pages_per_case} 页)")
-
-    ranges = []
-    for i in range(expected_cases):
-        start = i * pages_per_case
-        end = min(start + pages_per_case, total_pages)
-        ranges.append((start, end))
-
-    return ranges
-
-
-def detect_fixed_page_ranges(total_pages: int, expected_count: int, doc_type: str) -> List[Tuple[int, int]]:
-    """
-    固定页数切割（授权书、所函）
-
-    Args:
-        total_pages: PDF 总页数
-        expected_count: 期望的数量（公司数）
-        doc_type: 文档类型 ('授权书' 或 '所函')
-
-    Returns:
-        页码范围列表
-    """
+def detect_page_ranges(total_pages: int, expected_count: int, doc_type: str) -> List[Tuple[int, int]]:
     pages_per_item = PAGES_PER_CASE.get(doc_type, 1)
-
-    # 验证页数是否匹配
     expected_pages = expected_count * pages_per_item
+
     if total_pages != expected_pages:
-        print(f"  ⚠️ {doc_type}页数不匹配: 实际 {total_pages} 页，期望 {expected_pages} 页 ({expected_count} 个 × {pages_per_item} 页)")
+        print(
+            f'  ⚠️ {doc_type}页数不匹配: 实际 {total_pages} 页，期望 {expected_pages} 页 '
+            f'({expected_count} 个 × {pages_per_item} 页)。'
+            f'请检查扫描件是否有缺页或多页。'
+        )
 
+    actual_count = min(expected_count, total_pages // pages_per_item) if total_pages > 0 else 0
     ranges = []
-    for i in range(expected_count):
+    for i in range(actual_count):
         start = i * pages_per_item
-        end = min(start + pages_per_item, total_pages)
+        end = start + pages_per_item
         ranges.append((start, end))
-
     return ranges
 
 
-def detect_notice_source_mapping_from_ocr(output_cache_dir: Path) -> Dict[str, str]:
+def detect_application_page_ranges_by_ocr(ocr_cache_dir: Path, total_pages: int, expected_cases: int) -> List[Tuple[int, int]]:
+    """
+    通过 OCR 识别"强制执行申请书"标题来定位页边界。
+    如果 OCR 缓存不可用或检测到的边界数不匹配，fallback 到固定页数。
+    """
+    json_path = ocr_cache_dir / '申请书_ultra_result.json'
+    data = safe_load_ocr_cache(json_path)
+    if not data or not data.get('pages'):
+        print(f"  ⚠️ 无申请书 OCR 缓存，使用固定 {PAGES_PER_CASE['申请书']} 页/案件")
+        return detect_page_ranges(total_pages, expected_cases, '申请书')
+
+    boundary_pages = []
+    for page_data in data['pages']:
+        text = page_data.get('text', '')
+        page_num = page_data.get('page', 0)
+        for keyword in APPLICATION_BOUNDARY_KEYWORDS:
+            if keyword in text:
+                boundary_pages.append(page_num - 1)
+                break
+
+    if len(boundary_pages) == expected_cases:
+        ranges = []
+        for i, start in enumerate(boundary_pages):
+            end = boundary_pages[i + 1] if i + 1 < len(boundary_pages) else total_pages
+            ranges.append((start, end))
+        print(f"  ✅ OCR 检测到 {len(boundary_pages)} 个申请书边界")
+        return ranges
+
+    if boundary_pages:
+        print(f"  ⚠️ OCR 检测到 {len(boundary_pages)} 个边界，期望 {expected_cases} 个，fallback 到固定页数")
+    else:
+        print(f"  ⚠️ OCR 未检测到申请书边界，fallback 到固定 {PAGES_PER_CASE['申请书']} 页/案件")
+
+    return detect_page_ranges(total_pages, expected_cases, '申请书')
+
+
+def discover_notice_files(input_dir: Path) -> List[str]:
+    """
+    动态发现输入目录中的责催 PDF 文件。
+    按文件名自然排序（1.pdf, 2.pdf, ..., 10.pdf, ...）
+    """
+    def natural_sort_key(name: str) -> List:
+        parts = []
+        for part in re.split(r'(\d+)', name):
+            if part.isdigit():
+                parts.append(int(part))
+            else:
+                parts.append(part)
+        return parts
+
+    pdf_files = sorted(
+        [f.name for f in input_dir.glob('*.pdf')
+         if f.name not in SOURCE_MAPPING.values()],
+        key=natural_sort_key,
+    )
+    return pdf_files
+
+
+def detect_notice_source_mapping_from_ocr(output_cache_dir: Path, notice_files: List[str]) -> Dict[str, str]:
     """
     从 OCR 结果中识别责催文件的责令号
 
@@ -236,7 +272,7 @@ def detect_notice_source_mapping_from_ocr(output_cache_dir: Path) -> Dict[str, s
         {source_filename: detected_notice_number}
     """
     mapping: Dict[str, str] = {}
-    for source_name in SOURCE_MAPPING['输出文件（责催）']:
+    for source_name in notice_files:
         stem = source_name.replace('.pdf', '')
         json_path = output_cache_dir / f'{stem}_ultra_result.json'
         data = safe_load_ocr_cache(json_path)
@@ -254,6 +290,8 @@ def detect_notice_source_mapping_from_ocr(output_cache_dir: Path) -> Dict[str, s
             normalized = normalize_notice_number(numbers[0])
             mapping[source_name] = normalized
             print(f"  ✅ {source_name}: 识别到责令号 '{normalized}'")
+            if len(numbers) > 1:
+                print(f"    ℹ️ 注意: 识别到 {len(numbers)} 个责令号，使用第一个")
         else:
             print(f"  ⚠️ {source_name}: 未识别到责令号")
 
@@ -265,22 +303,25 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
     cache_dir.mkdir(parents=True, exist_ok=True)
     standard_root = sample_root / '对应输出文件（标准版）'
 
-    # 申请书：固定 2 页/案件
+    ocr_noise_samples = ['责行', '公积全', '授校委托书', '住方公积金']
+    import random
+
     application_pages = []
     for index, pdf_path in enumerate(sorted((standard_root / '输出文件（申请书）').glob('*.pdf'))):
         page_count = inspect_pdf_page_count(pdf_path)
         for page_offset in range(page_count):
             page_number = len(application_pages) + 1
-            text = '普通页'
             if page_offset == 0:
-                text = f'强制执行申请书\n名称：案子{index + 1}'
+                noise_idx = index % len(ocr_noise_samples)
+                text = f'强制执行申请书\n名称：案子{index + 1}\n穗公积金中心{ocr_noise_samples[noise_idx]}越秀责字'
+            else:
+                text = f'被执行人：公司{index + 1}\n金额：10000元'
             application_pages.append({'page': page_number, 'text': text})
     (cache_dir / '申请书_ultra_result.json').write_text(
         json.dumps({'pages': application_pages, 'total_pages': len(application_pages), 'filename': '申请书.pdf'}, ensure_ascii=False, indent=2),
         encoding='utf-8',
     )
 
-    # 授权书、所函：固定 1 页/公司
     for filename, marker, folder in [
         ('授权书_ultra_result.json', '授权委托书', '输出文件（授权书）'),
         ('所函_ultra_result.json', '广东岭南律师事务所函', '输出文件（所函）'),
@@ -288,47 +329,77 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
         pages = []
         for index, pdf_path in enumerate(sorted((standard_root / folder).glob('*.pdf'))):
             company_name = pdf_path.stem
-            pages.append({'page': index + 1, 'text': f'{marker}\n{company_name}'})
+            noise_idx = index % len(ocr_noise_samples)
+            text = f'{marker}\n{ocr_noise_samples[noise_idx]}\n{company_name}'
+            pages.append({'page': index + 1, 'text': text})
         (cache_dir / filename).write_text(
             json.dumps({'pages': pages, 'total_pages': len(pages), 'filename': filename.replace('_ultra_result.json', '.pdf')}, ensure_ascii=False, indent=2),
             encoding='utf-8',
         )
 
-    # 责催文件：每个 PDF 就是一个案件
     notice_files = sorted((standard_root / '输出文件（责催）').glob('*.pdf'))
 
     if input_dir and input_dir.exists():
-        std_page_map = {pdf_path: inspect_pdf_page_count(pdf_path) for pdf_path in notice_files}
-        for src_name in ['1', '2', '3']:
-            src_path = input_dir / f'{src_name}.pdf'
+        std_page_map: Dict[Path, int] = {}
+        std_used: Dict[int, Path] = {}
+        for pdf_path in notice_files:
+            pc = inspect_pdf_page_count(pdf_path)
+            std_page_map[pdf_path] = pc
+
+        src_files = discover_notice_files(input_dir)
+        for src_name in src_files:
+            src_path = input_dir / src_name
             if not src_path.exists():
                 continue
             src_pages = inspect_pdf_page_count(src_path)
+            matched_std = None
             for std_path, std_pages in std_page_map.items():
-                if std_pages == src_pages:
-                    notice_number = std_path.stem.split('-责催-')[1]
+                if std_pages == src_pages and std_pages not in std_used:
+                    matched_std = std_path
+                    std_used[std_pages] = std_path
+                    break
+
+            if matched_std:
+                stem_name = matched_std.stem
+                if '-责催-' in stem_name:
+                    notice_number = stem_name.split('-责催-')[1]
                     normalized_number = normalize_notice_number(notice_number)
                     payload = {
                         'pages': [{'page': 1, 'text': normalized_number}],
                         'total_pages': 1,
-                        'filename': f'{src_name}.pdf',
+                        'filename': src_name,
                     }
-                    (cache_dir / f'{src_name}_ultra_result.json').write_text(
+                    stem = src_name.replace('.pdf', '')
+                    (cache_dir / f'{stem}_ultra_result.json').write_text(
                         json.dumps(payload, ensure_ascii=False, indent=2),
                         encoding='utf-8',
                     )
-                    break
+            else:
+                print(f"  ⚠️ Mock: 无法按页数匹配 {src_name}，使用顺序匹配")
+                stem = src_name.replace('.pdf', '')
+                fallback_idx = src_files.index(src_name)
+                if fallback_idx < len(notice_files):
+                    notice_number = notice_files[fallback_idx].stem.split('-责催-')[1]
+                    normalized_number = normalize_notice_number(notice_number)
+                    payload = {
+                        'pages': [{'page': 1, 'text': normalized_number}],
+                        'total_pages': 1,
+                        'filename': src_name,
+                    }
+                    (cache_dir / f'{stem}_ultra_result.json').write_text(
+                        json.dumps(payload, ensure_ascii=False, indent=2),
+                        encoding='utf-8',
+                    )
     else:
         notice_numbers = [pdf_path.stem.split('-责催-')[1] for pdf_path in notice_files]
-        source_names = ['1', '2', '3']
-        for source_name, notice_number in zip(source_names, notice_numbers):
+        for idx, notice_number in enumerate(notice_numbers):
             normalized_number = normalize_notice_number(notice_number)
             payload = {
                 'pages': [{'page': 1, 'text': normalized_number}],
                 'total_pages': 1,
-                'filename': f'{source_name}.pdf',
+                'filename': f'{idx + 1}.pdf',
             }
-            (cache_dir / f'{source_name}_ultra_result.json').write_text(
+            (cache_dir / f'{idx + 1}_ultra_result.json').write_text(
                 json.dumps(payload, ensure_ascii=False, indent=2),
                 encoding='utf-8',
             )
@@ -336,24 +407,13 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
     return cache_dir
 
 
-def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False, 
+def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False,
                         is_notice: bool = False, stop_pattern: Optional[re.Pattern] = None) -> Dict:
-    """
-    对 PDF 运行真实 OCR 识别
-    
-    Args:
-        pdf_path: PDF 文件路径
-        cache_path: 缓存文件路径
-        use_mock: 是否使用 Mock 数据
-        is_notice: 是否是责催文件（使用逐页识别优化）
-        stop_pattern: 停止条件正则（找到即停）
-    """
     if use_mock or not HAS_OCR:
         if cache_path.exists():
             return safe_load_ocr_cache(cache_path) or {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'mock'}
         return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'mock'}
 
-    # 检查缓存是否已存在
     existing = safe_load_ocr_cache(cache_path)
     if existing:
         print(f"  [CACHE] 使用已有 OCR 缓存: {cache_path.name}")
@@ -369,32 +429,28 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
 
     try:
         ocr = UltraFastOCR(config)
-        
-        # 责催文件使用逐页识别优化（找到责令号即停）
+
         if is_notice and stop_pattern:
             print(f"  [OCR] 使用逐页识别模式（找到即停）")
-            
+
             def stop_condition(page_num: int, text: str) -> bool:
-                """停止条件：找到责令号"""
-                if stop_pattern.search(text):
+                corrected = apply_ocr_corrections(text)
+                if stop_pattern.search(corrected):
                     print(f"    ✅ 第 {page_num} 页找到责令号")
                     return True
                 return False
-            
+
             result = ocr.process_pdf_pages_sequential(
-                str(pdf_path), 
+                str(pdf_path),
                 stop_condition=stop_condition,
-                max_pages=3  # 最多识别前3页
             )
         else:
-            # 其他文件使用完整识别
             result = ocr.process_pdf(str(pdf_path), force_ocr=False)
 
         if result is None:
             print(f"  [ERROR] OCR 识别失败: {pdf_path.name}")
             return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'error'}
 
-        # 应用后处理
         post_processor = TextPostProcessor()
         processed_pages = []
 
@@ -429,110 +485,90 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
 
 
 def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = False) -> Path:
-    """构建真实 OCR 缓存 - 支持并行处理"""
     cache_dir.mkdir(parents=True, exist_ok=True)
 
-    # 责催文件（必须串行：逐页识别，找到即停）
-    notice_files = [
-        ('1.pdf', '1'),
-        ('2.pdf', '2'),
-        ('3.pdf', '3'),
-    ]
-    
-    print("\n📄 处理责催文件（逐页识别，找到即停）...")
-    for filename, stem in notice_files:
-        pdf_path = input_dir / filename
+    notice_files = discover_notice_files(input_dir)
+
+    print(f"\n📄 处理责催文件（逐页识别，找到即停）... 共 {len(notice_files)} 个")
+    for source_name in notice_files:
+        pdf_path = input_dir / source_name
+        stem = source_name.replace('.pdf', '')
         cache_path = cache_dir / f'{stem}_ultra_result.json'
 
         if pdf_path.exists():
+            if cache_path.exists():
+                print(f"  [CACHE] 跳过已有缓存: {source_name}")
+                continue
             run_real_ocr_on_pdf(
-                pdf_path, 
-                cache_path, 
+                pdf_path,
+                cache_path,
                 use_mock=use_mock,
                 is_notice=True,
-                stop_pattern=NOTICE_PATTERN
+                stop_pattern=NOTICE_PATTERN,
             )
         else:
             print(f"  [WARN] 文件不存在: {pdf_path}")
 
-    # 其他文件（可以并行处理）
     other_files = [
         ('申请书.pdf', '申请书'),
         ('授权书.pdf', '授权书'),
         ('所函.pdf', '所函'),
     ]
-    
-    print("\n📄 处理其他文件（并行处理）...")
-    
-    # 使用线程池并行处理
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    
-    def process_file(args):
-        """处理单个文件的辅助函数"""
-        filename, stem = args
+
+    print("\n📄 处理其他文件...")
+    for filename, stem in other_files:
         pdf_path = input_dir / filename
         cache_path = cache_dir / f'{stem}_ultra_result.json'
-        
+
         if pdf_path.exists():
-            result = run_real_ocr_on_pdf(pdf_path, cache_path, use_mock=use_mock)
-            return (filename, result, None)
+            if cache_path.exists():
+                print(f"  [CACHE] 跳过已有缓存: {filename}")
+                continue
+            run_real_ocr_on_pdf(pdf_path, cache_path, use_mock=use_mock)
         else:
-            return (filename, None, "文件不存在")
-    
-    # 并行处理，最多3个并发
-    with ThreadPoolExecutor(max_workers=3) as executor:
-        futures = {executor.submit(process_file, args): args for args in other_files}
-        
-        for future in as_completed(futures):
-            filename, result, error = future.result()
-            if error:
-                print(f"  [WARN] {filename}: {error}")
-            else:
-                print(f"  [OK] {filename} 处理完成")
+            print(f"  [WARN] 文件不存在: {pdf_path}")
 
     return cache_dir
 
 
 def export_pdf_ranges(source_pdf: Path, ranges: List[Tuple[int, int]], output_dir: Path, target_names: List[str]) -> int:
-    """按页码范围导出 PDF"""
-    reader = PdfReader(str(source_pdf))
     created = 0
+    with open_pdf_reader(source_pdf) as reader:
+        for i, ((start, end), target_name) in enumerate(zip(ranges, target_names)):
+            target_path = output_dir / target_name
+            if target_path.exists():
+                created += 1
+                print(f"  ⏭️ 跳过已存在: {target_name}")
+                continue
 
-    for i, ((start, end), target_name) in enumerate(zip(ranges, target_names)):
-        writer = PdfWriter()
-        actual_end = min(end, len(reader.pages))
+            if start >= len(reader.pages):
+                print(f"  ❌ 页码超出范围: {target_name} (起始页 {start} >= 总页数 {len(reader.pages)})")
+                continue
 
-        if start >= len(reader.pages):
-            print(f"  ❌ 页码超出范围: {target_name} (起始页 {start} >= 总页数 {len(reader.pages)})")
-            continue
+            writer = PdfWriter()
+            actual_end = min(end, len(reader.pages))
+            for page_index in range(start, actual_end):
+                writer.add_page(reader.pages[page_index])
 
-        for page_index in range(start, actual_end):
-            writer.add_page(reader.pages[page_index])
+            with target_path.open('wb') as file_obj:
+                writer.write(file_obj)
 
-        target_path = output_dir / target_name
-        with target_path.open('wb') as file_obj:
-            writer.write(file_obj)
-
-        created += 1
-        print(f"  ✅ 导出: {target_name} (第 {start+1}-{actual_end} 页)")
+            created += 1
+            print(f"  ✅ 导出: {target_name} (第 {start+1}-{actual_end} 页)")
 
     return created
 
 
 def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, output_cache_dir: Path) -> int:
-    """
-    导出责催文件
-    每个 PDF 就是一个独立案件，不切割，直接重命名
-    """
     cases = load_non_litigation_cases(sample_root)
 
-    # 构建 target_map（使用统一格式）
     target_map = {}
     for case in cases:
         normalized = normalize_notice_number(case['notice_number'])
         target_map[normalized] = f"{case['sequence']}-责催-{case['notice_number']}.pdf"
 
-    source_map = detect_notice_source_mapping_from_ocr(output_cache_dir)
+    notice_files = discover_notice_files(input_dir)
+    source_map = detect_notice_source_mapping_from_ocr(output_cache_dir, notice_files)
 
     created = 0
     unmatched = []
@@ -540,27 +576,49 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ou
     for source_name, detected_notice in source_map.items():
         target_name = target_map.get(detected_notice)
 
-        # 如果精确匹配失败，尝试模糊匹配
-        if not target_name:
+        if target_name:
+            match_type = 'exact'
+        else:
             target_name, ratio = fuzzy_match_notice(detected_notice, target_map)
             if target_name:
+                match_type = 'fuzzy'
+                _log_audit('fuzzy_match', {
+                    'source': source_name,
+                    'detected': detected_notice,
+                    'matched_target': target_name,
+                    'similarity': ratio,
+                })
                 print(f"    🔍 模糊匹配: '{detected_notice}' -> '{target_name}' (相似度: {ratio:.1%})")
+                print(f"    ⚠️ 模糊匹配需人工确认！已记录到审计日志")
 
         if target_name:
             src = input_dir / source_name
             dst = output_dir / target_name
+            if dst.exists():
+                created += 1
+                print(f"  ⏭️ 跳过已存在: {target_name}")
+                continue
             if src.exists():
                 shutil.copy2(src, dst)
                 created += 1
                 print(f"  ✅ {source_name} -> {target_name}")
+                _log_audit('notice_renamed', {
+                    'source': source_name,
+                    'target': target_name,
+                    'match_type': match_type,
+                    'detected_notice': detected_notice,
+                })
             else:
                 print(f"  ❌ 源文件不存在: {src}")
                 unmatched.append((source_name, detected_notice, "源文件不存在"))
         else:
             print(f"  ❌ 无法匹配: {source_name} (识别到 '{detected_notice}')")
             unmatched.append((source_name, detected_notice, "无匹配台账"))
+            _log_audit('match_failed', {
+                'source': source_name,
+                'detected': detected_notice,
+            })
 
-    # 报告未匹配的文件
     if unmatched:
         print(f"\n  ⚠️ 未匹配文件汇总 ({len(unmatched)} 个):")
         for source_name, notice, reason in unmatched:
@@ -570,26 +628,19 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ou
 
 
 def export_application_files(input_dir: Path, output_dir: Path, target_names: List[str], output_cache_dir: Path) -> int:
-    """
-    导出申请书
-    固定 2 页/案件，按顺序切割
-    """
     source_pdf = input_dir / SOURCE_MAPPING['输出文件（申请书）']
 
     if not source_pdf.exists():
         print(f"  ❌ 申请书文件不存在: {source_pdf}")
         return 0
 
-    # 获取总页数
     total_pages = inspect_pdf_page_count(source_pdf)
     expected_cases = len(target_names)
 
     print(f"  📄 申请书: {total_pages} 页，期望 {expected_cases} 个案件")
 
-    # 使用固定页数切割
-    ranges = detect_application_page_ranges_fixed(total_pages, expected_cases)
+    ranges = detect_application_page_ranges_by_ocr(output_cache_dir, total_pages, expected_cases)
 
-    # 验证切割结果
     if len(ranges) != expected_cases:
         print(f"  ⚠️ 切割结果不匹配: 生成 {len(ranges)} 个范围，期望 {expected_cases} 个")
 
@@ -598,35 +649,29 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
 
 def export_company_named_files(input_dir: Path, output_dir: Path, target_names: List[str],
                                output_cache_dir: Path, source_name: str, marker: str) -> int:
-    """
-    导出授权书/所函
-    固定 1 页/公司，按顺序切割
-    """
     source_pdf = input_dir / source_name
 
     if not source_pdf.exists():
         print(f"  ❌ {source_name} 文件不存在")
         return 0
 
-    # 获取总页数
     total_pages = inspect_pdf_page_count(source_pdf)
     expected_count = len(target_names)
     doc_type = '授权书' if '授权' in marker else '所函'
 
     print(f"  📄 {source_name}: {total_pages} 页，期望 {expected_count} 个公司")
 
-    # 使用固定页数切割
-    ranges = detect_fixed_page_ranges(total_pages, expected_count, doc_type)
+    ranges = detect_page_ranges(total_pages, expected_count, doc_type)
 
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 
 
 def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, output_root: Path, ocr_cache_dir: Path | None = None) -> Dict:
-    """导出非诉组标准输出"""
     output_root.mkdir(parents=True, exist_ok=True)
     tree = build_expected_output_tree(sample_root)
     created_count = 0
     cache_dir = ocr_cache_dir or (input_dir.parent / 'output')
+    _audit_log.clear()
 
     print("\n📦 开始导出文件...")
     print("=" * 60)
@@ -648,6 +693,11 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
 
         elif folder_name == '输出文件（所函）':
             created_count += export_company_named_files(input_dir, folder_path, target_names, cache_dir, '所函.pdf', '广东岭南律师事务所函')
+
+    audit_path = output_root / 'audit-log.json'
+    audit_path.write_text(json.dumps(_audit_log, ensure_ascii=False, indent=2), encoding='utf-8')
+    if _audit_log:
+        print(f"\n📋 审计日志已保存: {audit_path} ({len(_audit_log)} 条)")
 
     print("\n" + "=" * 60)
     print(f"✅ 导出完成: {created_count} 个文件")

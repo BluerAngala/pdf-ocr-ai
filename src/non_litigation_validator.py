@@ -14,6 +14,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
+from non_litigation_export import normalize_notice_number, discover_notice_files
+
 
 class ValidationStatus(Enum):
     """验证状态"""
@@ -39,7 +41,7 @@ class NonLitigationValidator:
     """非诉组识别结果验证器"""
     
     # 责令号标准格式
-    NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[(]\d{4}[〕\])]\d+(?:-\d+)?号')
+    NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号')
     
     # 申请书必须包含的关键字
     APPLICATION_KEYWORDS = ['强制执行申请书', '名称']
@@ -537,37 +539,40 @@ class NonLitigationValidator:
         print(f"\n📄 验证报告已保存: {output_path}")
 
 
-def normalize_notice_number(text: str) -> str:
-    """统一责令号格式"""
-    text = text.replace(' ', '')
-    text = text.replace('(', '〔').replace(')', '〕')
-    text = text.replace('（', '〔').replace('）', '〕')
-    text = text.replace('[', '〔').replace(']', '〕')
-    return text
-
-
-# 便捷函数
-def validate_ocr_results(cases: List[Dict], ocr_cache_dir: Path, 
+# 便捷函数 (validate_ocr_results 已在上方定义)
+def validate_ocr_results(cases: List[Dict], ocr_cache_dir: Path,
+                         input_dir: Optional[Path] = None,
                          output_report_path: Optional[Path] = None) -> Dict:
     """
     验证所有 OCR 结果
-    
+
     Args:
         cases: 台账案件列表
         ocr_cache_dir: OCR 缓存目录
+        input_dir: 输入目录（用于动态发现责催文件）
         output_report_path: 报告输出路径
-        
+
     Returns:
         验证报告字典
     """
     validator = NonLitigationValidator(cases)
-    
-    # 验证责催文件
-    for i in range(1, 4):  # 1.pdf, 2.pdf, 3.pdf
-        cache_file = ocr_cache_dir / f'{i}_ultra_result.json'
+
+    # 验证责催文件 - 动态发现
+    if input_dir and input_dir.exists():
+        notice_files = discover_notice_files(input_dir)
+    else:
+        notice_files = []
+        for cache_file in sorted(ocr_cache_dir.glob('*_ultra_result.json')):
+            name = cache_file.stem.replace('_ultra_result', '')
+            if name not in ('申请书', '授权书', '所函'):
+                notice_files.append(f'{name}.pdf')
+
+    for source_name in notice_files:
+        stem = source_name.replace('.pdf', '')
+        cache_file = ocr_cache_dir / f'{stem}_ultra_result.json'
         if cache_file.exists():
             ocr_result = json.loads(cache_file.read_text(encoding='utf-8'))
-            result = validator.validate_notice_ocr(f'{i}.pdf', ocr_result)
+            result = validator.validate_notice_ocr(source_name, ocr_result)
             validator.validation_report.append(result)
     
     # 验证申请书

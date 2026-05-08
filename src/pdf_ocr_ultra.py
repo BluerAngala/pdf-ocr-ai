@@ -42,10 +42,14 @@ except ImportError:
     HAS_PDF2IMAGE = False
 
 try:
-    from rapidocr import RapidOCR
+    from rapidocr_onnxruntime import RapidOCR
     HAS_RAPIDOCR = True
 except ImportError:
-    HAS_RAPIDOCR = False
+    try:
+        from rapidocr import RapidOCR
+        HAS_RAPIDOCR = True
+    except ImportError:
+        HAS_RAPIDOCR = False
 
 try:
     from PIL import Image, ImageEnhance, ImageFilter
@@ -236,12 +240,19 @@ class UltraFastOCR:
                 
                 engine = get_ocr_engine()
                 result = engine(str(temp_img))
-                
+
                 texts = []
-                if result and hasattr(result, 'txts') and result.txts:
-                    for text in result.txts:
-                        if text and str(text).strip():
-                            texts.append(str(text))
+                if result:
+                    if isinstance(result, tuple) and len(result) >= 1 and result[0]:
+                        for item in result[0]:
+                            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                                text = str(item[1]).strip()
+                                if text:
+                                    texts.append(text)
+                    elif hasattr(result, 'txts') and result.txts:
+                        for text in result.txts:
+                            if text and str(text).strip():
+                                texts.append(str(text))
                 
                 temp_img.unlink(missing_ok=True)
                 try:
@@ -427,12 +438,19 @@ class UltraFastOCR:
                     _ocr_engine = RapidOCR()
                 
                 result = _ocr_engine(str(temp_img))
-                
+
                 texts = []
-                if result and hasattr(result, 'txts') and result.txts:
-                    for text in result.txts:
-                        if text and str(text).strip():
-                            texts.append(str(text))
+                if result:
+                    if isinstance(result, tuple) and len(result) >= 1 and result[0]:
+                        for item in result[0]:
+                            if isinstance(item, (list, tuple)) and len(item) >= 2:
+                                text = str(item[1]).strip()
+                                if text:
+                                    texts.append(text)
+                    elif hasattr(result, 'txts') and result.txts:
+                        for text in result.txts:
+                            if text and str(text).strip():
+                                texts.append(str(text))
                 
                 temp_img.unlink(missing_ok=True)
                 
@@ -525,23 +543,27 @@ class UltraFastOCR:
         
         total_start = time.time()
         
-        # 先尝试pdfplumber提取前几页
-        if HAS_PDFPLUMBER and max_pages and max_pages <= 5:
-            print(f"  📄 尝试 pdfplumber 提取前 {max_pages} 页...")
+        pdfplumber_limit = min(max_pages, 5) if max_pages else 5
+        if HAS_PDFPLUMBER:
+            print(f"  📄 尝试 pdfplumber 提取前 {pdfplumber_limit} 页...")
             try:
                 pages = []
+                scanned_detected = False
                 with pdfplumber.open(str(pdf_path)) as pdf:
-                    for i, page in enumerate(pdf.pages[:max_pages], 1):
+                    for i, page in enumerate(pdf.pages[:pdfplumber_limit], 1):
                         text = page.extract_text() or ""
+                        text = text.strip()
+                        if i == 1 and not text and stop_condition:
+                            scanned_detected = True
+                            break
                         pages.append({
                             'page': i,
-                            'text': text.strip(),
+                            'text': text,
                             'method': 'pdfplumber',
                             'duration': 0,
                             'error': ''
                         })
                         
-                        # 检查停止条件
                         if stop_condition and stop_condition(i, text):
                             print(f"  ✅ 第 {i} 页满足停止条件，提前结束")
                             total_duration = time.time() - total_start
@@ -556,7 +578,7 @@ class UltraFastOCR:
                                 'stopped_at': i
                             }
                 
-                if pages and any(p['text'] for p in pages):
+                if not scanned_detected and pages and any(p['text'] for p in pages):
                     total_duration = time.time() - total_start
                     print(f"  ✅ pdfplumber 完成 ({total_duration:.2f}秒)")
                     return {
@@ -577,7 +599,7 @@ class UltraFastOCR:
         try:
             from pdf2image import convert_from_path
             
-            max_pages_to_process = max_pages or 3  # 默认最多处理前3页
+            max_pages_to_process = max_pages if max_pages is not None else 999
             pages = []
             
             for page_num in range(1, max_pages_to_process + 1):

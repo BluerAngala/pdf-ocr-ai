@@ -62,9 +62,6 @@ def build_run_summary(root_dir: Path, use_real_ocr: bool = False) -> Dict:
     result_root = get_non_litigation_result_root(root_dir)
     ocr_cache_dir = get_non_litigation_ocr_cache_dir(root_dir)
 
-    # 清理旧输出
-    if result_root.exists():
-        shutil.rmtree(result_root)
     result_root.mkdir(parents=True, exist_ok=True)
 
     # 构建 OCR 缓存
@@ -96,7 +93,7 @@ def build_run_summary(root_dir: Path, use_real_ocr: bool = False) -> Dict:
     # OCR 结果验证
     print("\n🔍 验证 OCR 识别结果...")
     cases = load_non_litigation_cases(SAMPLE_ROOT)
-    validation_result = validate_ocr_results(cases, ocr_cache_dir)
+    validation_result = validate_ocr_results(cases, ocr_cache_dir, input_dir=input_root)
     
     # 生成 HTML 报告
     html_report_path = root_dir / 'output' / 'ocr-validation-report.html'

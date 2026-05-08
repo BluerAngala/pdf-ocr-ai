@@ -28,8 +28,6 @@ def load_non_litigation_cases(sample_root: Path) -> List[Dict]:
             'notice_number': notice_number,
             'company_name': company_name,
         })
-        if len(cases) == 3:
-            break
     return cases
 
 

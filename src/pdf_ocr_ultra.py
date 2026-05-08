@@ -487,6 +487,128 @@ class UltraFastOCR:
             print(f"   支持的格式: PDF, PNG, JPG, JPEG")
             return None
 
+    def process_pdf_pages_sequential(self, pdf_path: str, stop_condition: Optional[callable] = None, max_pages: Optional[int] = None) -> Optional[Dict]:
+        """
+        逐页顺序处理PDF，支持提前停止条件
+        
+        Args:
+            pdf_path: PDF文件路径
+            stop_condition: 停止条件函数，接收(page_num, text)返回True则停止
+            max_pages: 最大处理页数
+            
+        Returns:
+            OCR结果字典，包含已处理的页面
+        """
+        pdf_path = Path(pdf_path)
+        if not pdf_path.exists():
+            print(f"❌ 文件不存在: {pdf_path}")
+            return None
+        
+        print(f"\n{'='*60}")
+        print(f"🚀 顺序逐页处理: {pdf_path.name}")
+        print(f"{'='*60}")
+        
+        total_start = time.time()
+        
+        # 先尝试pdfplumber提取前几页
+        if HAS_PDFPLUMBER and max_pages and max_pages <= 5:
+            print(f"  📄 尝试 pdfplumber 提取前 {max_pages} 页...")
+            try:
+                pages = []
+                with pdfplumber.open(str(pdf_path)) as pdf:
+                    for i, page in enumerate(pdf.pages[:max_pages], 1):
+                        text = page.extract_text() or ""
+                        pages.append({
+                            'page': i,
+                            'text': text.strip(),
+                            'method': 'pdfplumber',
+                            'duration': 0,
+                            'error': ''
+                        })
+                        
+                        # 检查停止条件
+                        if stop_condition and stop_condition(i, text):
+                            print(f"  ✅ 第 {i} 页满足停止条件，提前结束")
+                            total_duration = time.time() - total_start
+                            return {
+                                'filename': pdf_path.name,
+                                'filepath': str(pdf_path),
+                                'total_pages': len(pages),
+                                'method': 'pdfplumber_sequential',
+                                'total_duration': total_duration,
+                                'pages': pages,
+                                'full_text': "\n\n".join([f"=== 第{p['page']}页 ===\n{p['text']}" for p in pages]),
+                                'stopped_at': i
+                            }
+                
+                if pages and any(p['text'] for p in pages):
+                    total_duration = time.time() - total_start
+                    print(f"  ✅ pdfplumber 完成 ({total_duration:.2f}秒)")
+                    return {
+                        'filename': pdf_path.name,
+                        'filepath': str(pdf_path),
+                        'total_pages': len(pages),
+                        'method': 'pdfplumber_sequential',
+                        'total_duration': total_duration,
+                        'pages': pages,
+                        'full_text': "\n\n".join([f"=== 第{p['page']}页 ===\n{p['text']}" for p in pages])
+                    }
+            except Exception as e:
+                print(f"  ⚠️ pdfplumber 提取失败: {e}")
+        
+        # 使用OCR逐页处理
+        print(f"  🔍 使用OCR逐页处理...")
+        
+        try:
+            # 只转换需要的页数
+            pages_to_convert = max_pages or 3  # 默认先转前3页
+            print(f"  📄 转换PDF前 {pages_to_convert} 页 (DPI={self.config.dpi})...")
+            
+            from pdf2image import convert_from_path
+            images = convert_from_path(
+                str(pdf_path),
+                dpi=self.config.dpi,
+                poppler_path=self.config.poppler_path,
+                first_page=1,
+                last_page=pages_to_convert
+            )
+            
+            print(f"  ✅ 共转换 {len(images)} 页")
+            
+            pages = []
+            for page_num, image in enumerate(images, 1):
+                print(f"  📝 识别第 {page_num} 页...", end=" ")
+                page_start = time.time()
+                
+                result = self._process_single_image(image, page_num)
+                pages.append(asdict(result))
+                
+                page_duration = time.time() - page_start
+                print(f"({page_duration:.2f}s)")
+                
+                # 检查停止条件
+                if stop_condition and stop_condition(page_num, result.text):
+                    print(f"  ✅ 第 {page_num} 页满足停止条件，提前结束")
+                    break
+            
+            total_duration = time.time() - total_start
+            print(f"\n  📊 处理统计: 共 {len(pages)} 页, 总耗时 {total_duration:.2f}秒")
+            
+            return {
+                'filename': pdf_path.name,
+                'filepath': str(pdf_path),
+                'total_pages': len(pages),
+                'method': 'sequential_ocr',
+                'total_duration': total_duration,
+                'pages': pages,
+                'full_text': "\n\n".join([f"=== 第{p['page']}页 ===\n{p['text']}" for p in pages]),
+                'stopped_early': stop_condition is not None and len(pages) < len(images)
+            }
+            
+        except Exception as e:
+            print(f"❌ OCR处理失败: {e}")
+            return None
+
     def save_result(self, result: Dict, apply_postprocess: bool = True) -> Dict[str, Path]:
         """保存结果"""
         output_dir = Path(self.config.output_dir)

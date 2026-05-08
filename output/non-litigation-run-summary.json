@@ -2,7 +2,7 @@
   "input_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\input\\non-litigation",
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
-  "runtime_seconds": 0.2736,
+  "runtime_seconds": 0.3833,
   "created_count": 12,
   "quality": {
     "total_files": 12,

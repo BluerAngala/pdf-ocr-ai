@@ -4,36 +4,29 @@
 import json
 import time
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict
 
-from notice_product import build_notice_product_payload
-from ruling_product import build_ruling_product_payload
+from non_litigation_export import export_non_litigation_standard_outputs, inspect_pdf_page_count
+from non_litigation_output_plan import build_expected_output_tree
 
 
-def evaluate_notice_quality(payload: Dict) -> Dict:
-    total = payload['summary']['total']
-    matched = payload['summary']['matched']
-    rate = matched / total if total else 0
+def evaluate_non_litigation_quality(root_dir: Path, output_root: Path) -> Dict:
+    standard_root = root_dir / '样本材料' / '非诉组自动化样本材料' / '对应输出文件（标准版）'
+    tree = build_expected_output_tree(root_dir / '样本材料' / '非诉组自动化样本材料')
+    total = 0
+    matched = 0
+    for folder, names in tree.items():
+        mapped_folder = folder
+        for name in names:
+            total += 1
+            actual = output_root / mapped_folder / name
+            expected = standard_root / mapped_folder / name
+            if actual.exists() and expected.exists() and inspect_pdf_page_count(actual) == inspect_pdf_page_count(expected):
+                matched += 1
     return {
-        'total': total,
-        'matched': matched,
-        'unmatched': payload['summary']['unmatched'],
-        'match_rate': round(rate, 4),
-    }
-
-
-def evaluate_ruling_quality(payload: Dict) -> Dict:
-    rows = payload['rows']
-    filled_case_no = sum(1 for row in rows if row.get('行政审查案号'))
-    filled_judge = sum(1 for row in rows if row.get('审批员/法官助理'))
-    filled_date = sum(1 for row in rows if row.get('执行时间'))
-    total = len(rows)
-    return {
-        'total_rows': total,
-        'matched_count': payload['matched_count'],
-        'case_no_fill_rate': round(filled_case_no / total, 4) if total else 0,
-        'judge_fill_rate': round(filled_judge / total, 4) if total else 0,
-        'execution_date_fill_rate': round(filled_date / total, 4) if total else 0,
+        'total_files': total,
+        'page_count_matched': matched,
+        'page_count_match_rate': round(matched / total, 4) if total else 0,
     }
 
 
@@ -67,55 +60,41 @@ def collect_ocr_speed_metrics(output_dir: Path) -> Dict:
 def build_test_health() -> Dict:
     return {
         'active_regression_suite': [
-            'test_regression_artifacts.py',
-            'test_notice_ledger_excel.py',
-            'test_notice_product.py',
-            'test_notice_product_cli.py',
-            'test_decision_number_normalization.py',
-            'test_ruling_excel_workflow.py',
-            'test_ruling_match_workflow.py',
-            'test_ruling_product.py',
-            'test_ruling_product_cli.py',
+            'test_non_litigation_product.py',
+            'test_non_litigation_output_plan.py',
+            'test_non_litigation_export.py',
+            'test_non_litigation_splitting.py',
+            'test_non_litigation_company_split.py',
+            'test_non_litigation_notice_mapping.py',
+            'test_company_name_matching.py',
+            'test_non_litigation_full_compare.py',
             'test_project_evaluation.py',
         ],
-        'status': 'curated-current-real-samples',
+        'status': 'focused-non-litigation-suite',
     }
 
 
 def run_project_evaluation(root_dir: Path) -> Dict:
     output_dir = root_dir / 'output'
+    result_root = output_dir / 'non-litigation-standard'
 
-    notice_start = time.perf_counter()
-    notice_payload = build_notice_product_payload(
-        ledger_excel_path=root_dir / '样本材料' / '非诉组自动化样本材料' / '台账及命名规则.xlsx',
+    start = time.perf_counter()
+    export_non_litigation_standard_outputs(
+        sample_root=root_dir / '样本材料' / '非诉组自动化样本材料',
         input_dir=root_dir / 'input',
-        output_dir=output_dir,
+        output_root=result_root,
     )
-    notice_duration = round(time.perf_counter() - notice_start, 4)
-
-    ruling_text_paths = sorted(output_dir.glob('（2025）粤7101行审*_ultra_result.txt'))
-    ruling_texts = [path.read_text(encoding='utf-8') for path in ruling_text_paths]
-    ruling_start = time.perf_counter()
-    ruling_payload = build_ruling_product_payload(
-        excel_path=root_dir / '样本材料' / '强制组-自动化' / '提取信息' / '非诉表格.xlsx',
-        ocr_texts=ruling_texts,
-    )
-    ruling_duration = round(time.perf_counter() - ruling_start, 4)
+    export_duration = round(time.perf_counter() - start, 4)
 
     report = {
-        'notice': {
-            'runtime_seconds': notice_duration,
-            'quality': evaluate_notice_quality(notice_payload),
-        },
-        'ruling': {
-            'runtime_seconds': ruling_duration,
-            'quality': evaluate_ruling_quality(ruling_payload),
-            'ocr_text_count': len(ruling_text_paths),
+        'non_litigation': {
+            'runtime_seconds': export_duration,
+            'quality': evaluate_non_litigation_quality(root_dir, result_root),
         },
         'ocr_speed': collect_ocr_speed_metrics(output_dir),
         'code_quality': {
             'tests_status': 'see pytest',
-            'focus': ['decision-number-normalization', 'real-sample-regression', 'workflow-payload-output'],
+            'focus': ['ocr-driven-splitting', 'company-name-matching', 'notice-number-matching'],
             'test_health': build_test_health(),
         },
     }

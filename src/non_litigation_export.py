@@ -4,13 +4,27 @@
 import json
 import re
 import shutil
+import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 
 from pypdf import PdfReader, PdfWriter
 
 from non_litigation_output_plan import build_expected_output_tree
 from non_litigation_product import load_non_litigation_cases
+from text_postprocessor import TextPostProcessor
+
+# 导入 OCR 工具
+ROOT = Path(__file__).resolve().parent.parent
+if str(ROOT / 'src') not in sys.path:
+    sys.path.insert(0, str(ROOT / 'src'))
+
+try:
+    from pdf_ocr_ultra import UltraFastOCR, OCRConfig
+    HAS_OCR = True
+except ImportError:
+    HAS_OCR = False
+    print("[WARN] pdf_ocr_ultra 导入失败，将使用 Mock OCR")
 
 
 SOURCE_MAPPING = {
@@ -26,6 +40,28 @@ NON_LITIGATION_INPUT_DIRNAME = 'non-litigation'
 
 
 NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[]\d{4}[〕\]]\d+(?:-\d+)?号')
+
+# OCR 纠错词库 - 非诉组专用
+NON_LITIGATION_CORRECTIONS = {
+    '责行': '责令',
+    '责成': '责令',
+    '公积全': '公积金',
+    '住房公积全': '住房公积金',
+    '公基金': '公积金',
+    '住方公积金': '住房公积金',
+    '岭南律师': '岭南律师事务所',
+    '授权委拖书': '授权委托书',
+    '授校委托书': '授权委托书',
+    '强制执行申请书': '强制执行申请书',
+    '强制申请书': '强制执行申请书',
+}
+
+
+def apply_ocr_corrections(text: str) -> str:
+    """应用 OCR 纠错词库"""
+    for wrong, correct in NON_LITIGATION_CORRECTIONS.items():
+        text = text.replace(wrong, correct)
+    return text
 
 
 def inspect_pdf_page_count(pdf_path: Path) -> int:
@@ -123,6 +159,7 @@ def detect_company_page_ranges_from_ocr(ocr_json_path: Path, expected_company_na
 
 
 def build_mock_ocr_cache(sample_root: Path, cache_dir: Path) -> Path:
+    """构建 Mock OCR 缓存（用于测试）"""
     cache_dir.mkdir(parents=True, exist_ok=True)
     standard_root = sample_root / '对应输出文件（标准版）'
 
@@ -168,6 +205,117 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path) -> Path:
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding='utf-8',
         )
+
+    return cache_dir
+
+
+def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False) -> Dict:
+    """
+    对 PDF 运行真实 OCR 识别
+
+    Args:
+        pdf_path: PDF 文件路径
+        cache_path: 缓存文件路径
+        use_mock: 是否使用 Mock 数据（用于测试）
+
+    Returns:
+        OCR 结果字典
+    """
+    if use_mock or not HAS_OCR:
+        # 如果缓存存在，直接读取
+        if cache_path.exists():
+            return json.loads(cache_path.read_text(encoding='utf-8'))
+        # 否则返回空结果
+        return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'mock'}
+
+    # 检查缓存是否已存在
+    if cache_path.exists():
+        print(f"  [CACHE] 使用已有 OCR 缓存: {cache_path.name}")
+        return json.loads(cache_path.read_text(encoding='utf-8'))
+
+    print(f"  [OCR] 开始识别: {pdf_path.name}")
+
+    # 配置 OCR
+    config = OCRConfig(
+        dpi=250,
+        max_image_size=1024,
+        parallel_workers=4,
+    )
+
+    # 运行 OCR
+    ocr = UltraFastOCR(config)
+    result = ocr.process_pdf(str(pdf_path), force_ocr=False)
+
+    if result is None:
+        print(f"  [ERROR] OCR 识别失败: {pdf_path.name}")
+        return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'error'}
+
+    # 应用后处理
+    post_processor = TextPostProcessor()
+
+    processed_pages = []
+    for page_data in result['pages']:
+        text = page_data.get('text', '')
+        # 应用 OCR 纠错
+        text = apply_ocr_corrections(text)
+        # 应用文本后处理
+        processed = post_processor.process(text)
+
+        processed_pages.append({
+            'page': page_data['page'],
+            'text': processed['processed'],
+            'original_text': text,
+            'method': page_data.get('method', 'unknown'),
+            'duration': page_data.get('duration', 0),
+        })
+
+    output = {
+        'pages': processed_pages,
+        'total_pages': result['total_pages'],
+        'filename': result['filename'],
+        'method': result['method'],
+        'total_duration': result['total_duration'],
+    }
+
+    # 保存缓存
+    cache_path.write_text(json.dumps(output, ensure_ascii=False, indent=2), encoding='utf-8')
+    print(f"  [OCR] 完成: {pdf_path.name} ({result['total_duration']:.2f}s)")
+
+    return output
+
+
+def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = False) -> Path:
+    """
+    构建真实 OCR 缓存
+
+    Args:
+        input_dir: 输入 PDF 目录
+        cache_dir: 缓存目录
+        use_mock: 是否使用 Mock 数据
+
+    Returns:
+        缓存目录路径
+    """
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # 定义需要识别的文件
+    files_to_process = [
+        ('申请书.pdf', '申请书'),
+        ('授权书.pdf', '授权书'),
+        ('所函.pdf', '所函'),
+        ('1.pdf', '1'),
+        ('2.pdf', '2'),
+        ('3.pdf', '3'),
+    ]
+
+    for filename, stem in files_to_process:
+        pdf_path = input_dir / filename
+        cache_path = cache_dir / f'{stem}_ultra_result.json'
+
+        if pdf_path.exists():
+            run_real_ocr_on_pdf(pdf_path, cache_path, use_mock=use_mock)
+        else:
+            print(f"  [WARN] 文件不存在: {pdf_path}")
 
     return cache_dir
 

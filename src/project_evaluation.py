@@ -6,7 +6,15 @@ import time
 from pathlib import Path
 from typing import Dict
 
-from non_litigation_export import export_non_litigation_standard_outputs, inspect_pdf_page_count
+from non_litigation_export import (
+    build_mock_ocr_cache,
+    ensure_non_litigation_input_structure,
+    export_non_litigation_standard_outputs,
+    get_non_litigation_input_root,
+    get_non_litigation_ocr_cache_dir,
+    get_non_litigation_result_root,
+    inspect_pdf_page_count,
+)
 from non_litigation_output_plan import build_expected_output_tree
 
 
@@ -60,29 +68,37 @@ def collect_ocr_speed_metrics(output_dir: Path) -> Dict:
 def build_test_health() -> Dict:
     return {
         'active_regression_suite': [
-            'test_non_litigation_product.py',
-            'test_non_litigation_output_plan.py',
-            'test_non_litigation_export.py',
-            'test_non_litigation_splitting.py',
-            'test_non_litigation_company_split.py',
-            'test_non_litigation_notice_mapping.py',
-            'test_company_name_matching.py',
-            'test_non_litigation_full_compare.py',
-            'test_project_evaluation.py',
+            'tests/non-litigation/test_non_litigation_product.py',
+            'tests/non-litigation/test_non_litigation_output_plan.py',
+            'tests/non-litigation/test_non_litigation_export.py',
+            'tests/non-litigation/test_non_litigation_splitting.py',
+            'tests/non-litigation/test_non_litigation_company_split.py',
+            'tests/non-litigation/test_non_litigation_notice_mapping.py',
+            'tests/non-litigation/test_company_name_matching.py',
+            'tests/non-litigation/test_non_litigation_full_compare.py',
+            'tests/non-litigation/test_project_evaluation.py',
         ],
         'status': 'focused-non-litigation-suite',
     }
 
 
 def run_project_evaluation(root_dir: Path) -> Dict:
-    output_dir = root_dir / 'output'
-    result_root = output_dir / 'non-litigation-standard'
+    result_root = get_non_litigation_result_root(root_dir)
+    ocr_cache_dir = get_non_litigation_ocr_cache_dir(root_dir)
+    input_dir = ensure_non_litigation_input_structure(root_dir)
+
+    if not any(ocr_cache_dir.glob('*_ultra_result.json')):
+        build_mock_ocr_cache(
+            root_dir / '样本材料' / '非诉组自动化样本材料',
+            ocr_cache_dir,
+        )
 
     start = time.perf_counter()
     export_non_litigation_standard_outputs(
         sample_root=root_dir / '样本材料' / '非诉组自动化样本材料',
-        input_dir=root_dir / 'input',
+        input_dir=input_dir,
         output_root=result_root,
+        ocr_cache_dir=ocr_cache_dir,
     )
     export_duration = round(time.perf_counter() - start, 4)
 
@@ -90,8 +106,11 @@ def run_project_evaluation(root_dir: Path) -> Dict:
         'non_litigation': {
             'runtime_seconds': export_duration,
             'quality': evaluate_non_litigation_quality(root_dir, result_root),
+            'input_root': str(get_non_litigation_input_root(root_dir)),
+            'result_root': str(result_root),
+            'ocr_cache_dir': str(ocr_cache_dir),
         },
-        'ocr_speed': collect_ocr_speed_metrics(output_dir),
+        'ocr_speed': collect_ocr_speed_metrics(ocr_cache_dir),
         'code_quality': {
             'tests_status': 'see pytest',
             'focus': ['ocr-driven-splitting', 'company-name-matching', 'notice-number-matching'],

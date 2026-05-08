@@ -20,10 +20,44 @@ SOURCE_MAPPING = {
     '输出文件（所函）': '所函.pdf',
 }
 
+NON_LITIGATION_RESULT_DIRNAME = 'non-litigation-results'
+NON_LITIGATION_TEMP_DIRNAME = 'non-litigation'
+NON_LITIGATION_INPUT_DIRNAME = 'non-litigation'
+
+
+NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[]\d{4}[〕\]]\d+(?:-\d+)?号')
+
 
 def inspect_pdf_page_count(pdf_path: Path) -> int:
     reader = PdfReader(str(pdf_path))
     return len(reader.pages)
+
+
+def get_non_litigation_input_root(project_root: Path) -> Path:
+    return project_root / 'input' / NON_LITIGATION_INPUT_DIRNAME
+
+
+def get_non_litigation_result_root(project_root: Path) -> Path:
+    return project_root / 'output' / NON_LITIGATION_RESULT_DIRNAME
+
+
+def get_non_litigation_temp_root(project_root: Path) -> Path:
+    return project_root / 'temp' / NON_LITIGATION_TEMP_DIRNAME
+
+
+def get_non_litigation_ocr_cache_dir(project_root: Path) -> Path:
+    return get_non_litigation_temp_root(project_root) / 'ocr-cache'
+
+
+def ensure_non_litigation_input_structure(project_root: Path) -> Path:
+    input_root = get_non_litigation_input_root(project_root)
+    input_root.mkdir(parents=True, exist_ok=True)
+    for source_name in ['1.pdf', '2.pdf', '3.pdf', '申请书.pdf', '授权书.pdf', '所函.pdf']:
+        legacy_path = project_root / 'input' / source_name
+        target_path = input_root / source_name
+        if legacy_path.exists() and not target_path.exists():
+            shutil.move(str(legacy_path), str(target_path))
+    return input_root
 
 
 def normalize_company_name_for_matching(value: str) -> str:
@@ -60,7 +94,6 @@ def detect_single_page_case_ranges_from_ocr(ocr_json_path: Path, marker: str) ->
 
 
 def detect_notice_source_mapping_from_ocr(output_cache_dir: Path) -> Dict[str, str]:
-    pattern = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[]\d{4}[〕\]]\d+(?:-\d+)?号')
     mapping: Dict[str, str] = {}
     for source_name in SOURCE_MAPPING['输出文件（责催）']:
         stem = source_name.replace('.pdf', '')
@@ -68,7 +101,7 @@ def detect_notice_source_mapping_from_ocr(output_cache_dir: Path) -> Dict[str, s
         data = json.loads(json_path.read_text(encoding='utf-8'))
         numbers = []
         for page in data['pages']:
-            matches = pattern.findall(page['text'].replace('\n', ' '))
+            matches = NOTICE_PATTERN.findall(page['text'].replace('\n', ' '))
             numbers.extend(matches)
         if numbers:
             mapping[source_name] = numbers[0]
@@ -87,6 +120,56 @@ def detect_company_page_ranges_from_ocr(ocr_json_path: Path, expected_company_na
                 ranges.append((page_index, page_index + 1))
                 break
     return ranges
+
+
+def build_mock_ocr_cache(sample_root: Path, cache_dir: Path) -> Path:
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    standard_root = sample_root / '对应输出文件（标准版）'
+
+    application_pages = []
+    for index, pdf_path in enumerate(sorted((standard_root / '输出文件（申请书）').glob('*.pdf'))):
+        page_count = inspect_pdf_page_count(pdf_path)
+        for page_offset in range(page_count):
+            page_number = len(application_pages) + 1
+            text = '普通页'
+            if page_offset == 0:
+                text = f'强制执行申请书\n名称：案子{index + 1}'
+            application_pages.append({'page': page_number, 'text': text})
+    (cache_dir / '申请书_ultra_result.json').write_text(
+        json.dumps({'pages': application_pages, 'total_pages': len(application_pages), 'filename': '申请书.pdf'}, ensure_ascii=False, indent=2),
+        encoding='utf-8',
+    )
+
+    for filename, marker, folder in [
+        ('授权书_ultra_result.json', '授权委托书', '输出文件（授权书）'),
+        ('所函_ultra_result.json', '广东岭南律师事务所函', '输出文件（所函）'),
+    ]:
+        pages = []
+        for index, pdf_path in enumerate(sorted((standard_root / folder).glob('*.pdf'))):
+            company_name = pdf_path.stem
+            pages.append({'page': index + 1, 'text': f'{marker}\n{company_name}'})
+        (cache_dir / filename).write_text(
+            json.dumps({'pages': pages, 'total_pages': len(pages), 'filename': filename.replace('_ultra_result.json', '.pdf')}, ensure_ascii=False, indent=2),
+            encoding='utf-8',
+        )
+
+    notice_files = sorted((standard_root / '输出文件（责催）').glob('*.pdf'))
+    notice_numbers = [pdf_path.stem.split('-责催-')[1] for pdf_path in notice_files]
+    source_names = ['1', '2', '3']
+    ordered_numbers = [notice_numbers[0], notice_numbers[2], notice_numbers[1]]
+    for source_name, notice_number in zip(source_names, ordered_numbers):
+        normalized_number = notice_number.replace('（', '〔').replace('）', '〕')
+        payload = {
+            'pages': [{'page': 1, 'text': normalized_number}],
+            'total_pages': 1,
+            'filename': f'{source_name}.pdf',
+        }
+        (cache_dir / f'{source_name}_ultra_result.json').write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding='utf-8',
+        )
+
+    return cache_dir
 
 
 def export_pdf_ranges(source_pdf: Path, ranges: List[Tuple[int, int]], output_dir: Path, target_names: List[str]) -> int:
@@ -136,34 +219,35 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 
 
-def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, output_root: Path) -> Dict:
+def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, output_root: Path, ocr_cache_dir: Path | None = None) -> Dict:
     output_root.mkdir(parents=True, exist_ok=True)
     tree = build_expected_output_tree(sample_root)
     created_count = 0
-    output_cache_dir = input_dir.parent / 'output'
+    cache_dir = ocr_cache_dir or (input_dir.parent / 'output')
 
     for folder_name, target_names in tree.items():
         folder_path = output_root / folder_name
         folder_path.mkdir(parents=True, exist_ok=True)
 
         if folder_name == '输出文件（责催）':
-            created_count += export_notice_files(sample_root, input_dir, folder_path, output_cache_dir)
+            created_count += export_notice_files(sample_root, input_dir, folder_path, cache_dir)
             continue
 
         if folder_name == '输出文件（申请书）':
-            created_count += export_application_files(input_dir, folder_path, target_names, output_cache_dir)
+            created_count += export_application_files(input_dir, folder_path, target_names, cache_dir)
             continue
 
         if folder_name == '输出文件（授权书）':
-            created_count += export_company_named_files(input_dir, folder_path, target_names, output_cache_dir, '授权书.pdf', '授权委托书')
+            created_count += export_company_named_files(input_dir, folder_path, target_names, cache_dir, '授权书.pdf', '授权委托书')
             continue
 
         if folder_name == '输出文件（所函）':
-            created_count += export_company_named_files(input_dir, folder_path, target_names, output_cache_dir, '所函.pdf', '广东岭南律师事务所函')
+            created_count += export_company_named_files(input_dir, folder_path, target_names, cache_dir, '所函.pdf', '广东岭南律师事务所函')
             continue
 
     return {
         'created_count': created_count,
         'output_root': str(output_root),
+        'ocr_cache_dir': str(cache_dir),
         'tree': tree,
     }

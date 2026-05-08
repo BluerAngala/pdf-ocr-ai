@@ -1,0 +1,34 @@
+{
+  "input_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\input\\non-litigation",
+  "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
+  "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
+  "runtime_seconds": 0.314,
+  "created_count": 12,
+  "quality": {
+    "total_files": 12,
+    "page_count_matched": 12,
+    "page_count_match_rate": 1.0
+  },
+  "output_folders": {
+    "输出文件（所函）": [
+      "北京华图宏阳教育文化发展股份有限公司广东分公司.pdf",
+      "广州吾能学网络科技有限公司.pdf",
+      "广州市严静殡葬服务有限公司.pdf"
+    ],
+    "输出文件（授权书）": [
+      "北京华图宏阳教育文化发展股份有限公司广东分公司.pdf",
+      "广州吾能学网络科技有限公司.pdf",
+      "广州市严静殡葬服务有限公司.pdf"
+    ],
+    "输出文件（申请书）": [
+      "7-申请书pdf-穗公积金中心越秀责字（2024）914-1号.pdf",
+      "8-申请书pdf-穗公积金中心越秀责字（2025）856号.pdf",
+      "9-申请书pdf-穗公积金中心越秀责字（2025）1107号.pdf"
+    ],
+    "输出文件（责催）": [
+      "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+      "8-责催-穗公积金中心越秀责字（2025）856号.pdf",
+      "9-责催-穗公积金中心越秀责字（2025）1107号.pdf"
+    ]
+  }
+}

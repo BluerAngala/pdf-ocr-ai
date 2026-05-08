@@ -17,6 +17,7 @@ pillow>=9.0.0
 
 # 工具库
 numpy>=1.21.0
+requests>=2.28.0       # HTTP请求
 
 # 测试工具
 pytest>=8.0.0

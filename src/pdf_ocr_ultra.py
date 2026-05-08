@@ -17,7 +17,7 @@ import time
 import argparse
 import threading
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Any, Union
+from typing import List, Dict, Optional, Tuple, Any, Union, Callable
 from dataclasses import dataclass, asdict
 from multiprocessing import Pool, cpu_count
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -116,9 +116,15 @@ def show_poppler_setup_guide():
 
 class ImagePreprocessor:
     """图像预处理器 - 减少OCR计算量"""
-    
+
     @staticmethod
-    def optimize_for_ocr(image: Image.Image, target_size: Tuple[int, int] = (800, 800)) -> Image.Image:
+    def optimize_for_ocr(
+        image: Image.Image,
+        target_size: Tuple[int, int] = (800, 800),
+        *,
+        apply_enhancement: bool = True,
+        apply_sharpen: bool = False,
+    ) -> Image.Image:
         """
         优化图像以加速OCR - 优化版
         
@@ -136,13 +142,13 @@ class ImagePreprocessor:
             new_size = (int(original_size[0] * scale), int(original_size[1] * scale))
             image = image.resize(new_size, Image.Resampling.LANCZOS)
         
-        # 对比度增强
-        enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(1.15)  # 从1.2降低到1.15，减少处理时间
-        
-        # 可选：跳过锐化进一步加速（文字清晰时可省略）
-        # image = image.filter(ImageFilter.SHARPEN)
-        
+        if apply_enhancement:
+            enhancer = ImageEnhance.Contrast(image)
+            image = enhancer.enhance(1.15)  # 从1.2降低到1.15，减少处理时间
+
+        if apply_sharpen:
+            image = image.filter(ImageFilter.SHARPEN)
+
         return image
 
 
@@ -156,7 +162,8 @@ class OCRConfig:
     max_image_size: int = 800  # 降低到800px，与预处理器保持一致
     parallel_workers: int = min(cpu_count(), 4)
     max_retries: int = 2
-    
+    small_pdf_page_threshold: int = 6
+
     # 新增：快速模式配置
     fast_mode: bool = True  # 启用快速模式
     skip_cls: bool = True  # 跳过方向分类（对于正向文档可提升30%速度）
@@ -222,52 +229,62 @@ class UltraFastOCR:
                 dummy_path.unlink()
         print(f"  [OK] 预热完成 ({time.time()-start:.2f}秒)")
     
-    def _process_single_image(self, image: Image.Image, page_num: int = 1) -> PageResult:
+    def _extract_texts_from_result(self, result: Any) -> List[str]:
+        texts = []
+        if result:
+            if isinstance(result, tuple) and len(result) >= 1 and result[0]:
+                for item in result[0]:
+                    if isinstance(item, (list, tuple)) and len(item) >= 2:
+                        text = str(item[1]).strip()
+                        if text:
+                            texts.append(text)
+            elif hasattr(result, 'txts') and result.txts:
+                for text in result.txts:
+                    if text and str(text).strip():
+                        texts.append(str(text))
+        return texts
+
+    def _process_single_image(
+        self,
+        image: Image.Image,
+        page_num: int = 1,
+        *,
+        max_image_size: Optional[int] = None,
+        apply_enhancement: bool = True,
+        apply_sharpen: bool = False,
+        method: str = "rapidocr",
+        optimize_output: bool = True,
+    ) -> PageResult:
         """处理单张图片"""
         start = time.time()
-        
+        target_max_size = max_image_size or self.config.max_image_size
+
         for attempt in range(self.config.max_retries + 1):
+            temp_img = None
             try:
                 optimized_img = self.preprocessor.optimize_for_ocr(
-                    image, 
-                    target_size=(self.config.max_image_size, self.config.max_image_size)
+                    image,
+                    target_size=(target_max_size, target_max_size),
+                    apply_enhancement=apply_enhancement,
+                    apply_sharpen=apply_sharpen,
                 )
-                
+
                 temp_dir = Path(self.config.output_dir) / "_temp"
                 temp_dir.mkdir(exist_ok=True)
-                temp_img = temp_dir / f"_page_{page_num}_opt.png"
-                optimized_img.save(temp_img, 'PNG', optimize=True)
-                
-                engine = get_ocr_engine()
-                result = engine(str(temp_img))
+                temp_img = temp_dir / f"_page_{page_num}_{threading.get_ident()}_opt.png"
+                optimized_img.save(temp_img, 'PNG', optimize=optimize_output)
 
-                texts = []
-                if result:
-                    if isinstance(result, tuple) and len(result) >= 1 and result[0]:
-                        for item in result[0]:
-                            if isinstance(item, (list, tuple)) and len(item) >= 2:
-                                text = str(item[1]).strip()
-                                if text:
-                                    texts.append(text)
-                    elif hasattr(result, 'txts') and result.txts:
-                        for text in result.txts:
-                            if text and str(text).strip():
-                                texts.append(str(text))
-                
-                temp_img.unlink(missing_ok=True)
-                try:
-                    temp_dir.rmdir()
-                except:
-                    pass
-                
+                engine = get_ocr_engine()
+                texts = self._extract_texts_from_result(engine(str(temp_img)))
+
                 duration = time.time() - start
                 return PageResult(
                     page=page_num,
                     text="\n".join(texts),
-                    method="rapidocr",
+                    method=method,
                     duration=duration
                 )
-                
+
             except Exception as e:
                 if attempt < self.config.max_retries:
                     print(f"  ⚠️ 第 {page_num} 页处理失败，重试 {attempt + 1}/{self.config.max_retries}...")
@@ -282,7 +299,14 @@ class UltraFastOCR:
                         duration=time.time() - start,
                         error=error_detail
                     )
-        
+            finally:
+                if temp_img:
+                    temp_img.unlink(missing_ok=True)
+                    try:
+                        temp_img.parent.rmdir()
+                    except:
+                        pass
+
         return PageResult(page=page_num, text="", method="error", duration=time.time() - start)
     
     def process_page_parallel(self, args: Tuple[int, Any]) -> PageResult:
@@ -298,6 +322,27 @@ class UltraFastOCR:
                 method="error",
                 error=str(e)
             )
+
+    def recognize_image_region(
+        self,
+        image: Image.Image,
+        page_num: int = 1,
+        *,
+        max_image_size: Optional[int] = None,
+        apply_enhancement: bool = False,
+        apply_sharpen: bool = False,
+        method: str = "rapidocr_region",
+        optimize_output: bool = False,
+    ) -> PageResult:
+        return self._process_single_image(
+            image,
+            page_num,
+            max_image_size=max_image_size,
+            apply_enhancement=apply_enhancement,
+            apply_sharpen=apply_sharpen,
+            method=method,
+            optimize_output=optimize_output,
+        )
 
     def process_image(self, image_path: str) -> Optional[Dict]:
         """处理图片文件"""
@@ -378,9 +423,13 @@ class UltraFastOCR:
         if len(images) == 1:
             result = self._process_single_image(images[0], 1)
             pages.append(result)
+        elif len(images) <= self.config.small_pdf_page_threshold:
+            print(f"  🔄 顺序处理小页数文档 ({len(images)} 页)...")
+            for i, image in enumerate(images, 1):
+                pages.append(self._process_single_image(image, i))
         else:
             args_list = [(i, img) for i, img in enumerate(images, 1)]
-            
+
             with Pool(
                 processes=self.config.parallel_workers,
                 initializer=init_worker
@@ -438,19 +487,7 @@ class UltraFastOCR:
                     _ocr_engine = RapidOCR()
                 
                 result = _ocr_engine(str(temp_img))
-
-                texts = []
-                if result:
-                    if isinstance(result, tuple) and len(result) >= 1 and result[0]:
-                        for item in result[0]:
-                            if isinstance(item, (list, tuple)) and len(item) >= 2:
-                                text = str(item[1]).strip()
-                                if text:
-                                    texts.append(text)
-                    elif hasattr(result, 'txts') and result.txts:
-                        for text in result.txts:
-                            if text and str(text).strip():
-                                texts.append(str(text))
+                texts = self._extract_texts_from_result(result)
                 
                 temp_img.unlink(missing_ok=True)
                 
@@ -520,7 +557,7 @@ class UltraFastOCR:
             print(f"   支持的格式: PDF, PNG, JPG, JPEG")
             return None
 
-    def process_pdf_pages_sequential(self, pdf_path: str, stop_condition: Optional[callable] = None, max_pages: Optional[int] = None) -> Optional[Dict]:
+    def process_pdf_pages_sequential(self, pdf_path: str, stop_condition: Optional[Callable[[int, str], bool]] = None, max_pages: Optional[int] = None) -> Optional[Dict]:
         """
         逐页顺序处理PDF，支持提前停止条件
         

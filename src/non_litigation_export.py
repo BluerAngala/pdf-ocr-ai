@@ -14,9 +14,12 @@ import json
 import re
 import shutil
 import sys
+import time
 from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional
+
+from region_extractor import RegionExtractor, REGIONS
 from contextlib import contextmanager
 
 from pypdf import PdfReader, PdfWriter
@@ -50,6 +53,61 @@ NON_LITIGATION_CORRECTIONS = _cfg.ocr_corrections
 PAGES_PER_CASE = _cfg.pages_per_case
 
 _audit_log: List[Dict] = []
+
+
+def _get_doc_regions(doc_type: str):
+    return [REGIONS[name] for name in _cfg.ocr_doc_regions.get(doc_type, []) if name in REGIONS]
+
+
+def _build_ocr_config() -> "OCRConfig":
+    return OCRConfig(
+        dpi=_cfg.ocr_dpi,
+        max_image_size=_cfg.ocr_max_image_size,
+        parallel_workers=_cfg.ocr_parallel_workers,
+        small_pdf_page_threshold=_cfg.ocr_small_pdf_page_threshold,
+    )
+
+
+def _build_ocr_processors() -> Tuple["UltraFastOCR", RegionExtractor]:
+    config = _build_ocr_config()
+    return UltraFastOCR(config), RegionExtractor(dpi=_cfg.ocr_region_dpi, poppler_path=config.poppler_path)
+
+
+def _collect_region_texts(
+    ocr: "UltraFastOCR",
+    extractor: RegionExtractor,
+    pdf_path: Path,
+    page_num: int,
+    doc_type: str,
+) -> Tuple[str, List[Dict]]:
+    regions = _get_doc_regions(doc_type)
+    if not regions:
+        return "", []
+
+    images = extractor.extract_multiple_regions(pdf_path, page_num, regions)
+    pieces = []
+    logs = []
+    for region, image in zip(regions, images):
+        result = ocr.recognize_image_region(
+            image,
+            page_num=page_num,
+            max_image_size=max(_cfg.ocr_max_image_size, 1200),
+            apply_enhancement=False,
+            apply_sharpen=False,
+            method=f"region:{region.name}",
+            optimize_output=False,
+        )
+        text = result.text.strip()
+        if text:
+            pieces.append(text)
+        logs.append({
+            'region': region.name,
+            'method': result.method,
+            'duration': result.duration,
+            'text_length': len(text),
+        })
+
+    return "\n".join(pieces), logs
 
 
 def get_audit_log() -> List[Dict]:
@@ -387,7 +445,8 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
 
 
 def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False,
-                        is_notice: bool = False, stop_pattern: Optional[re.Pattern] = None) -> Dict:
+                        is_notice: bool = False, stop_pattern: Optional[re.Pattern] = None,
+                        doc_type: Optional[str] = None) -> Dict:
     if use_mock or not HAS_OCR:
         if cache_path.exists():
             return safe_load_ocr_cache(cache_path) or {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'mock'}
@@ -400,14 +459,8 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
 
     print(f"  [OCR] 开始识别: {pdf_path.name}")
 
-    config = OCRConfig(
-        dpi=250,
-        max_image_size=1024,
-        parallel_workers=4,
-    )
-
     try:
-        ocr = UltraFastOCR(config)
+        ocr, region_extractor = _build_ocr_processors()
 
         if is_notice and stop_pattern:
             print(f"  [OCR] 使用逐页识别模式（找到即停）")
@@ -419,10 +472,123 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
                     return True
                 return False
 
-            result = ocr.process_pdf_pages_sequential(
-                str(pdf_path),
-                stop_condition=stop_condition,
-            )
+            if _cfg.ocr_enable_region_first:
+                pages = []
+                total_start = time.perf_counter()
+                page_num = 1
+                stopped_early = False
+                while True:
+                    try:
+                        full_image = region_extractor.extract_full_page(pdf_path, page_num)
+                    except Exception:
+                        break
+
+                    page_logs = []
+                    region_text = ''
+                    if doc_type:
+                        region_text, page_logs = _collect_region_texts(ocr, region_extractor, pdf_path, page_num, doc_type)
+                    region_text = apply_ocr_corrections(region_text)
+
+                    duration = sum(item['duration'] for item in page_logs)
+                    text = region_text
+                    method = 'region_first'
+                    matched = bool(text) and stop_condition(page_num, text)
+
+                    if not matched:
+                        full_result = ocr.recognize_image_region(
+                            full_image,
+                            page_num=page_num,
+                            apply_enhancement=True,
+                            method='full_page_fallback',
+                            optimize_output=True,
+                        )
+                        full_text = apply_ocr_corrections(full_result.text)
+                        duration += full_result.duration
+                        if full_text:
+                            text = full_text
+                            method = full_result.method
+                            matched = stop_condition(page_num, text)
+
+                    pages.append({
+                        'page': page_num,
+                        'text': text,
+                        'method': method,
+                        'duration': duration,
+                        'region_attempts': page_logs,
+                    })
+
+                    if matched:
+                        stopped_early = True
+                        break
+                    page_num += 1
+
+                result = {
+                    'filename': pdf_path.name,
+                    'filepath': str(pdf_path),
+                    'total_pages': len(pages),
+                    'method': 'region_first_sequential',
+                    'total_duration': time.perf_counter() - total_start,
+                    'pages': pages,
+                    'full_text': "\n\n".join([f"=== 第{p['page']}页 ===\n{p['text']}" for p in pages if p['text']]),
+                    'stopped_early': stopped_early,
+                }
+            else:
+                result = ocr.process_pdf_pages_sequential(
+                    str(pdf_path),
+                    stop_condition=stop_condition,
+                )
+        elif doc_type in {'申请书', '授权书', '所函'} and _cfg.ocr_enable_region_first:
+            total_pages = inspect_pdf_page_count(pdf_path)
+            pages = []
+            total_start = time.perf_counter()
+            fallback_used = False
+            for page_num in range(1, total_pages + 1):
+                region_text, page_logs = _collect_region_texts(ocr, region_extractor, pdf_path, page_num, doc_type)
+                corrected_region_text = apply_ocr_corrections(region_text)
+                needs_fallback = not corrected_region_text
+
+                if doc_type == '申请书':
+                    needs_fallback = needs_fallback or not any(keyword in corrected_region_text for keyword in APPLICATION_BOUNDARY_KEYWORDS)
+                else:
+                    doc_cfg = _cfg.doc_type_map[doc_type]
+                    if doc_cfg.content_marker:
+                        needs_fallback = needs_fallback or doc_cfg.content_marker not in corrected_region_text
+
+                text = corrected_region_text
+                method = 'region_first'
+                duration = sum(item['duration'] for item in page_logs)
+
+                if needs_fallback and _cfg.ocr_allow_full_page_fallback:
+                    fallback_used = True
+                    full_image = region_extractor.extract_full_page(pdf_path, page_num)
+                    full_result = ocr.recognize_image_region(
+                        full_image,
+                        page_num=page_num,
+                        apply_enhancement=True,
+                        method='full_page_fallback',
+                        optimize_output=True,
+                    )
+                    text = apply_ocr_corrections(full_result.text)
+                    method = full_result.method
+                    duration += full_result.duration
+
+                pages.append({
+                    'page': page_num,
+                    'text': text,
+                    'method': method,
+                    'duration': duration,
+                    'region_attempts': page_logs,
+                })
+
+            result = {
+                'filename': pdf_path.name,
+                'filepath': str(pdf_path),
+                'total_pages': len(pages),
+                'method': 'region_first' if not fallback_used else 'region_first_with_fallback',
+                'total_duration': time.perf_counter() - total_start,
+                'pages': pages,
+                'full_text': "\n\n".join([f"=== 第{p['page']}页 ===\n{p['text']}" for p in pages if p['text']]),
+            }
         else:
             result = ocr.process_pdf(str(pdf_path), force_ocr=False)
 
@@ -444,6 +610,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
                 'original_text': text,
                 'method': page_data.get('method', 'unknown'),
                 'duration': page_data.get('duration', 0),
+                'region_attempts': page_data.get('region_attempts', []),
             })
 
         output = {
@@ -484,6 +651,7 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                 use_mock=use_mock,
                 is_notice=True,
                 stop_pattern=NOTICE_PATTERN,
+                doc_type='责催',
             )
         else:
             print(f"  [WARN] 文件不存在: {pdf_path}")
@@ -502,7 +670,8 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
             if cache_path.exists():
                 print(f"  [CACHE] 跳过已有缓存: {filename}")
                 continue
-            run_real_ocr_on_pdf(pdf_path, cache_path, use_mock=use_mock)
+            doc_type = stem if stem in {'申请书', '授权书', '所函'} else None
+            run_real_ocr_on_pdf(pdf_path, cache_path, use_mock=use_mock, doc_type=doc_type)
         else:
             print(f"  [WARN] 文件不存在: {pdf_path}")
 

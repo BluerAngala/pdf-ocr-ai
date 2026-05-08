@@ -97,13 +97,14 @@ REGIONS = {
 
 class RegionExtractor:
     """区域提取器"""
-    
-    def __init__(self, dpi: int = 200):
+
+    def __init__(self, dpi: int = 200, poppler_path: Optional[str] = None):
         """
         Args:
             dpi: PDF转图片的DPI
         """
         self.dpi = dpi
+        self.poppler_path = poppler_path
         
         if not HAS_PDF2IMAGE:
             raise ImportError("pdf2image 未安装，请运行: pip install pdf2image")
@@ -129,7 +130,8 @@ class RegionExtractor:
             str(pdf_path),
             dpi=self.dpi,
             first_page=page_num,
-            last_page=page_num
+            last_page=page_num,
+            poppler_path=self.poppler_path,
         )
         
         if not images:
@@ -167,7 +169,8 @@ class RegionExtractor:
             str(pdf_path),
             dpi=self.dpi,
             first_page=page_num,
-            last_page=page_num
+            last_page=page_num,
+            poppler_path=self.poppler_path,
         )
         
         if not images:
@@ -199,7 +202,8 @@ class RegionExtractor:
             str(pdf_path),
             dpi=self.dpi,
             first_page=page_num,
-            last_page=page_num
+            last_page=page_num,
+            poppler_path=self.poppler_path,
         )
         
         if not images:
@@ -214,5 +218,5 @@ class RegionExtractor:
                 return len(pdf.pages)
         else:
             # 使用pdf2image获取页数
-            images = convert_from_path(str(pdf_path), dpi=50)
+            images = convert_from_path(str(pdf_path), dpi=50, poppler_path=self.poppler_path)
             return len(images)

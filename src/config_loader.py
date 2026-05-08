@@ -70,6 +70,11 @@ class NonLitigationConfig:
     ocr_dpi: int = 250
     ocr_max_image_size: int = 1024
     ocr_parallel_workers: int = 4
+    ocr_small_pdf_page_threshold: int = 6
+    ocr_enable_region_first: bool = True
+    ocr_allow_full_page_fallback: bool = True
+    ocr_region_dpi: int = 200
+    ocr_doc_regions: Dict[str, List[str]] = field(default_factory=dict)
 
     result_dirname: str = 'non-litigation-results'
     temp_dirname: str = 'non-litigation'
@@ -161,10 +166,18 @@ def load_config() -> NonLitigationConfig:
     cfg.fuzzy_match_threshold = validation.get('fuzzy_match_threshold', 0.85)
     cfg.text_quality = validation.get('text_quality', {})
 
-    ocr_engine = raw.get('ocr', {}).get('engine', {})
+    ocr = raw.get('ocr', {})
+    ocr_engine = ocr.get('engine', {})
     cfg.ocr_dpi = ocr_engine.get('dpi', 250)
     cfg.ocr_max_image_size = ocr_engine.get('max_image_size', 1024)
     cfg.ocr_parallel_workers = ocr_engine.get('parallel_workers', 4)
+    cfg.ocr_small_pdf_page_threshold = ocr_engine.get('small_pdf_page_threshold', 6)
+
+    optimization = ocr.get('optimization', {})
+    cfg.ocr_enable_region_first = optimization.get('enable_region_first', True)
+    cfg.ocr_allow_full_page_fallback = optimization.get('allow_full_page_fallback', True)
+    cfg.ocr_region_dpi = optimization.get('region_dpi', 200)
+    cfg.ocr_doc_regions = optimization.get('doc_regions', {})
 
     paths = raw.get('paths', {})
     dirs = paths.get('directories', {})

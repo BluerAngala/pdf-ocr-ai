@@ -122,6 +122,22 @@ ocr:
     dpi: 250
     max_image_size: 1024
     parallel_workers: 4
+    small_pdf_page_threshold: 6
+  optimization:
+    enable_region_first: true
+    allow_full_page_fallback: true
+    region_dpi: 200
+    doc_regions:
+      责催:
+        - notice_header
+      申请书:
+        - application_title
+      授权书:
+        - company_top
+        - company_middle
+      所函:
+        - company_top
+        - company_middle
 
 text_processing:
   company_keywords:

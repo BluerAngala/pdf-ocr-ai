@@ -22,11 +22,41 @@ git clone https://gitcode.com/BluerAngala/pdf-ocr-ai.git
 cd pdf-ocr-ai
 ```
 
-### 2. 安装依赖
+### 2. 准备 Python 环境
+
+本项目使用 **Python 3.12**（见 `.python-version` 文件）。
+
+#### 方式一：使用 uv（推荐，最快）
 
 ```bash
-pip install -r requirements.txt
+# 安装 uv（如未安装）
+pip install uv
+
+# 创建虚拟环境并安装依赖
+uv venv --python 3.12
+uv pip install -r requirements.txt
 ```
+
+#### 方式二：使用 venv（标准库）
+
+**Windows:**
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+**macOS/Linux:**
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
+```
+
+#### IDE 配置
+
+- **Trae / VS Code**: 选择 `.venv\Scripts\python.exe`（Windows）或 `.venv/bin/python`（macOS/Linux）
+- **PyCharm**: 设置 Project Interpreter 为 `.venv` 目录下的 Python
 
 ### 3. 配置 Poppler（Windows 必需）
 
@@ -169,6 +199,21 @@ python src/pdf_ocr_ultra.py large.pdf --dpi 200 --workers 2
 ### Q: 支持哪些图片格式？
 
 支持 PNG、JPG、JPEG 格式的图片直接识别。
+
+## 开发
+
+### 运行测试
+
+```bash
+# 运行所有测试
+pytest tests/
+
+# 运行特定模块测试
+pytest tests/non-litigation/
+
+# 运行测试并生成覆盖率报告
+pytest tests/ --cov=src --cov-report=html
+```
 
 ## 许可证
 

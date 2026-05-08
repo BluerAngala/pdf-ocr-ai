@@ -39,7 +39,9 @@ pytest tests/ --cov=src --cov-report=html
 ## 架构
 
 ```
+config.yaml                  # 统一业务配置（文书类型、正则、纠错词表、页数等）
 src/
+├── config_loader.py         # 配置加载器，提供 NonLitigationConfig 对象
 ├── pdf_ocr_ultra.py          # 主程序入口，OCR 核心逻辑
 ├── text_postprocessor.py     # OCR 文本后处理（括号统一、纠错、案号规范化）
 ├── non_litigation_product.py # 非诉组：从台账 Excel 加载案件数据
@@ -50,7 +52,7 @@ src/
 └── report_generator.py       # HTML 验证报告生成
 ```
 
-**模块依赖链**：`non_litigation_product` → `non_litigation_output_plan` → `non_litigation_export` → `non_litigation_validator` → `report_generator`
+**模块依赖链**：`config_loader` ← 所有非诉组模块；`non_litigation_product` → `non_litigation_output_plan` → `non_litigation_export` → `non_litigation_validator` → `report_generator`
 
 `text_postprocessor` 被 `non_litigation_export` 直接引用。
 
@@ -61,8 +63,23 @@ src/
 ## 开发注意事项
 
 - `src/` 下的模块用 `sys.path.insert` 方式互相导入（无 `__init__.py`、无包安装），测试也靠 `conftest.py` 手动加 `src/` 到 `sys.path`
-- 业务逻辑围绕中文法律文书，OCR 纠错词库在 `text_postprocessor.py` 中硬编码（如"责行"→"责令"、"公积全"→"公积金"）
+- **所有业务配置集中在 `config.yaml`**，通过 `config_loader.py` 的 `load_config()` 加载。换案件材料只需改 config.yaml，不需改代码
+- OCR 纠错词库分两层：通用（`text_postprocessor.py` 中的括号归一化、间距修复）+ 业务特定（`config.yaml` 的 `ocr_corrections`）
+- 责催 stop_condition 机制：逐页 OCR → `apply_ocr_corrections` 纠错 → `NOTICE_PATTERN` 匹配 → 命中即停
+- `NOTICE_PATTERN` 支持 6 种括号格式：`〔〕` `()` `[]` `［］` `【】` 及混合
 - 括号格式：业务默认中文括号 `（）`，匹配时统一后再比较
 - `样本材料/` 含测试用的真实样本 PDF 和标准输出，测试依赖这些文件
-- `models/` 下有本地 GGUF 模型文件（可选 LLM 功能），已被 `.gitignore` 排除
 - 输出到 `output/` 和 `temp/`，均已被 git 忽略
+- 断点续跑：已存在的文件/缓存自动跳过，不会清空重跑
+
+## 换案件材料检查清单
+
+更换案件材料时，需修改 `config.yaml` 中以下配置项：
+
+1. `regex_patterns.notice_number` — 责令号正则（城市名、文书类别字）
+2. `doc_types` — 文书类型列表（关键词、页数、文件名模式、输出目录名）
+3. `ocr_corrections.non_litigation` — OCR 常见误识纠错词表
+4. `ocr_corrections.company_name_corrections` — 公司名称纠错（替换为本批次公司）
+5. `excel_parsing` — 台账 Excel 列索引、过滤关键词
+6. `validation.keywords` — 各文书类型校验关键词（所函关键词应改为对应律所名）
+7. `paths.files.excel_filename` — 台账文件名（若不同）

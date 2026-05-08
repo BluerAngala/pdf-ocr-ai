@@ -31,9 +31,12 @@ except ImportError:
 
 from region_extractor import RegionExtractor, REGIONS
 
+from config_loader import load_config
 
-# 责令号正则
-NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号')
+_cfg = load_config()
+
+
+NOTICE_PATTERN = _cfg.notice_pattern
 
 
 @dataclass
@@ -307,7 +310,7 @@ class ApplicationExtractor:
                 info['method'] = 'region_ocr'
             else:
                 # 第二步：奇数页检查（回退到全页OCR）
-                if page_num % 2 == 1:  # 奇数页
+                if page_num % _cfg.pages_per_case['申请书'] == 1:
                     found = self._try_full_page_ocr(pdf_path, page_num)
                     if found:
                         start_pages.append(page_num)

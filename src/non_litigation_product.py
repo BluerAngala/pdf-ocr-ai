@@ -6,20 +6,24 @@ from typing import Dict, List
 
 from openpyxl import load_workbook
 
+from config_loader import load_config
+
+_cfg = load_config()
+
 
 def load_non_litigation_cases(sample_root: Path) -> List[Dict]:
-    excel_path = sample_root / '台账及命名规则.xlsx'
+    excel_path = sample_root / _cfg.excel_filename
     workbook = load_workbook(excel_path, data_only=True)
     sheet = workbook.active
     cases: List[Dict] = []
     for row in sheet.iter_rows(values_only=True):
         values = [str(item).strip() if item is not None else '' for item in row]
-        if len(values) < 5:
+        if len(values) < _cfg.excel_min_columns:
             continue
-        original_notice = values[1]
-        renamed_notice = values[2]
-        company_name = values[4]
-        if '责字' not in original_notice or '责催-' not in renamed_notice or not company_name:
+        original_notice = values[_cfg.excel_column_original_notice]
+        renamed_notice = values[_cfg.excel_column_renamed_notice]
+        company_name = values[_cfg.excel_column_company_name]
+        if _cfg.excel_filter_original_notice not in original_notice or _cfg.excel_filter_renamed_notice not in renamed_notice or not company_name:
             continue
         sequence = renamed_notice.split('-责催-')[0].replace(' ', '')
         notice_number = original_notice.replace(' ', '')
@@ -33,30 +37,25 @@ def load_non_litigation_cases(sample_root: Path) -> List[Dict]:
 
 def build_non_litigation_standard_plan(sample_root: Path) -> Dict[str, List[Dict]]:
     cases = load_non_litigation_cases(sample_root)
-    plan = {
-        '责催': [],
-        '申请书': [],
-        '授权书': [],
-        '所函': [],
-    }
+    plan = {dt.key: [] for dt in _cfg.doc_types}
     for case in cases:
         sequence = case['sequence']
         notice_number = case['notice_number']
         company_name = case['company_name']
-        plan['责催'].append({
-            'target_filename': f'{sequence}-责催-{notice_number}.pdf',
+        plan[_cfg.notice_doc_type.key].append({
+            'target_filename': _cfg.notice_doc_type.filename_pattern.format(sequence=sequence, notice_number=notice_number),
             'company_name': company_name,
         })
-        plan['申请书'].append({
-            'target_filename': f'{sequence}-申请书pdf-{notice_number}.pdf',
+        plan[_cfg.doc_type_map['申请书'].key].append({
+            'target_filename': _cfg.doc_type_map['申请书'].filename_pattern.format(sequence=sequence, notice_number=notice_number),
             'company_name': company_name,
         })
-        plan['授权书'].append({
-            'target_filename': f'{company_name}.pdf',
+        plan[_cfg.doc_type_map['授权书'].key].append({
+            'target_filename': _cfg.doc_type_map['授权书'].filename_pattern.format(company_name=company_name),
             'company_name': company_name,
         })
-        plan['所函'].append({
-            'target_filename': f'{company_name}.pdf',
+        plan[_cfg.doc_type_map['所函'].key].append({
+            'target_filename': _cfg.doc_type_map['所函'].filename_pattern.format(company_name=company_name),
             'company_name': company_name,
         })
     return plan

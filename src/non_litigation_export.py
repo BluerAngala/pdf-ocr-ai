@@ -29,6 +29,9 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT / 'src') not in sys.path:
     sys.path.insert(0, str(ROOT / 'src'))
 
+from config_loader import load_config
+_cfg = load_config()
+
 try:
     from pdf_ocr_ultra import UltraFastOCR, OCRConfig
     HAS_OCR = True
@@ -37,38 +40,14 @@ except ImportError:
     print("[WARN] pdf_ocr_ultra 导入失败，将使用 Mock OCR")
 
 
-SOURCE_MAPPING = {
-    '输出文件（申请书）': '申请书.pdf',
-    '输出文件（授权书）': '授权书.pdf',
-    '输出文件（所函）': '所函.pdf',
-}
-
-APPLICATION_BOUNDARY_KEYWORDS = ['强制执行申请书', '申请执行书', '强制执行申请']
-
-NON_LITIGATION_RESULT_DIRNAME = 'non-litigation-results'
-NON_LITIGATION_TEMP_DIRNAME = 'non-litigation'
-NON_LITIGATION_INPUT_DIRNAME = 'non-litigation'
-
-NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[(［【]\d{4}[〕\)\]\uff3d\u3011]\d+(?:-\d+)?号')
-
-NON_LITIGATION_CORRECTIONS = [
-    ('住房公积全', '住房公积金'),
-    ('住方公积金', '住房公积金'),
-    ('公积全', '公积金'),
-    ('公基金', '公积金'),
-    ('授权委拖书', '授权委托书'),
-    ('授校委托书', '授权委托书'),
-    ('岭南律师所', '岭南律师事务所'),
-    ('岭南律师', '岭南律师事务所'),
-    ('责行', '责令'),
-    ('强制申请书', '强制执行申请书'),
-]
-
-PAGES_PER_CASE = {
-    '申请书': 2,
-    '授权书': 1,
-    '所函': 1,
-}
+SOURCE_MAPPING = _cfg.source_mapping
+APPLICATION_BOUNDARY_KEYWORDS = _cfg.boundary_keywords.get('申请书', [])
+NON_LITIGATION_RESULT_DIRNAME = _cfg.result_dirname
+NON_LITIGATION_TEMP_DIRNAME = _cfg.temp_dirname
+NON_LITIGATION_INPUT_DIRNAME = _cfg.input_dirname
+NOTICE_PATTERN = _cfg.notice_pattern
+NON_LITIGATION_CORRECTIONS = _cfg.ocr_corrections
+PAGES_PER_CASE = _cfg.pages_per_case
 
 _audit_log: List[Dict] = []
 
@@ -301,13 +280,13 @@ def detect_notice_source_mapping_from_ocr(output_cache_dir: Path, notice_files: 
 def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | None = None) -> Path:
     """构建 Mock OCR 缓存（用于测试）"""
     cache_dir.mkdir(parents=True, exist_ok=True)
-    standard_root = sample_root / '对应输出文件（标准版）'
+    standard_root = sample_root / _cfg.standard_output_dirname
 
-    ocr_noise_samples = ['责行', '公积全', '授校委托书', '住方公积金']
+    ocr_noise_samples = _cfg.mock_noise_samples
     import random
 
     application_pages = []
-    for index, pdf_path in enumerate(sorted((standard_root / '输出文件（申请书）').glob('*.pdf'))):
+    for index, pdf_path in enumerate(sorted((standard_root / _cfg.directory_mapping['申请书']).glob('*.pdf'))):
         page_count = inspect_pdf_page_count(pdf_path)
         for page_offset in range(page_count):
             page_number = len(application_pages) + 1
@@ -323,8 +302,8 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
     )
 
     for filename, marker, folder in [
-        ('授权书_ultra_result.json', '授权委托书', '输出文件（授权书）'),
-        ('所函_ultra_result.json', '广东岭南律师事务所函', '输出文件（所函）'),
+        (f'授权书{_cfg.ocr_cache_suffix}', _cfg.doc_type_map['授权书'].content_marker, _cfg.directory_mapping['授权书']),
+        (f'所函{_cfg.ocr_cache_suffix}', _cfg.doc_type_map['所函'].content_marker, _cfg.directory_mapping['所函']),
     ]:
         pages = []
         for index, pdf_path in enumerate(sorted((standard_root / folder).glob('*.pdf'))):
@@ -337,7 +316,7 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
             encoding='utf-8',
         )
 
-    notice_files = sorted((standard_root / '输出文件（责催）').glob('*.pdf'))
+    notice_files = sorted((standard_root / _cfg.directory_mapping['责催']).glob('*.pdf'))
 
     if input_dir and input_dir.exists():
         std_page_map: Dict[Path, int] = {}
@@ -510,9 +489,8 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
             print(f"  [WARN] 文件不存在: {pdf_path}")
 
     other_files = [
-        ('申请书.pdf', '申请书'),
-        ('授权书.pdf', '授权书'),
-        ('所函.pdf', '所函'),
+        (pdf_name, pdf_name.replace('.pdf', ''))
+        for pdf_name in _cfg.source_mapping.values()
     ]
 
     print("\n📄 处理其他文件...")
@@ -682,17 +660,17 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
 
         print(f"\n📁 {folder_name} ({len(target_names)} 个文件)")
 
-        if folder_name == '输出文件（责催）':
+        if folder_name == _cfg.directory_mapping['责催']:
             created_count += export_notice_files(sample_root, input_dir, folder_path, cache_dir)
 
-        elif folder_name == '输出文件（申请书）':
+        elif folder_name == _cfg.directory_mapping['申请书']:
             created_count += export_application_files(input_dir, folder_path, target_names, cache_dir)
 
-        elif folder_name == '输出文件（授权书）':
-            created_count += export_company_named_files(input_dir, folder_path, target_names, cache_dir, '授权书.pdf', '授权委托书')
+        elif folder_name == _cfg.directory_mapping['授权书']:
+            created_count += export_company_named_files(input_dir, folder_path, target_names, cache_dir, _cfg.doc_type_map['授权书'].source_pdf, _cfg.doc_type_map['授权书'].content_marker)
 
-        elif folder_name == '输出文件（所函）':
-            created_count += export_company_named_files(input_dir, folder_path, target_names, cache_dir, '所函.pdf', '广东岭南律师事务所函')
+        elif folder_name == _cfg.directory_mapping['所函']:
+            created_count += export_company_named_files(input_dir, folder_path, target_names, cache_dir, _cfg.doc_type_map['所函'].source_pdf, _cfg.doc_type_map['所函'].content_marker)
 
     audit_path = output_root / 'audit-log.json'
     audit_path.write_text(json.dumps(_audit_log, ensure_ascii=False, indent=2), encoding='utf-8')

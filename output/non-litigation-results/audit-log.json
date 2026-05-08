@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "event": "notice_renamed",
+    "source": "1.pdf",
+    "target": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+    "match_type": "exact",
+    "detected_notice": "穗公积金中心越秀责字〔2024〕914-1号"
+  },
+  {
+    "event": "notice_renamed",
+    "source": "2.pdf",
+    "target": "9-责催-穗公积金中心越秀责字（2025）1107号.pdf",
+    "match_type": "exact",
+    "detected_notice": "穗公积金中心越秀责字〔2025〕1107号"
+  },
+  {
+    "event": "notice_renamed",
+    "source": "3.pdf",
+    "target": "8-责催-穗公积金中心越秀责字（2025）856号.pdf",
+    "match_type": "exact",
+    "detected_notice": "穗公积金中心越秀责字〔2025〕856号"
+  }
+]

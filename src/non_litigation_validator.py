@@ -14,7 +14,10 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
+from config_loader import load_config
 from non_litigation_export import normalize_notice_number, discover_notice_files
+
+_cfg = load_config()
 
 
 class ValidationStatus(Enum):
@@ -41,16 +44,11 @@ class NonLitigationValidator:
     """非诉组识别结果验证器"""
     
     # 责令号标准格式
-    NOTICE_PATTERN = re.compile(r'穗公积金中心[^\s，。；、《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号')
-    
-    # 申请书必须包含的关键字
-    APPLICATION_KEYWORDS = ['强制执行申请书', '名称']
-    
-    # 授权书必须包含的关键字
-    AUTHORIZATION_KEYWORDS = ['授权委托书']
-    
-    # 所函必须包含的关键字
-    LETTER_KEYWORDS = ['广东岭南律师事务所函', '岭南律师事务所']
+    NOTICE_PATTERN = _cfg.notice_pattern
+    APPLICATION_KEYWORDS = _cfg.doc_type_map['申请书'].validation_keywords
+    AUTHORIZATION_KEYWORDS = _cfg.doc_type_map['授权书'].validation_keywords
+    LETTER_KEYWORDS = _cfg.doc_type_map['所函'].validation_keywords
+    _DOC_TYPE_KEY_MAP = {'authorization': '授权书', 'letter': '所函'}
     
     def __init__(self, cases: List[Dict]):
         """
@@ -140,9 +138,9 @@ class NonLitigationValidator:
         details['full_text_preview'] = full_text[:500] if full_text else ''
         
         # 评估文本质量
-        if len(full_text) > 100:
+        if len(full_text) > _cfg.text_quality['notice']['good']:
             accuracy['text_quality'] = 'good'
-        elif len(full_text) > 50:
+        elif len(full_text) > _cfg.text_quality['notice']['fair']:
             accuracy['text_quality'] = 'fair'
         else:
             accuracy['text_quality'] = 'poor'
@@ -195,7 +193,7 @@ class NonLitigationValidator:
         else:
             # 尝试模糊匹配
             best_match, ratio = self._fuzzy_match_notice(normalized_detected[0])
-            if best_match and ratio >= 0.85:
+            if best_match and ratio >= _cfg.fuzzy_match_threshold:
                 details['fuzzy_match'] = {'target': best_match, 'ratio': ratio}
                 accuracy['match_confidence'] = int(ratio * 100)
                 return ValidationResult(
@@ -282,9 +280,9 @@ class NonLitigationValidator:
         accuracy['keyword_detection_rate'] = len(keywords_found) / len(self.APPLICATION_KEYWORDS) * 100
         
         # 评估文本质量
-        if len(full_text) > 500:
+        if len(full_text) > _cfg.text_quality['application']['good']:
             accuracy['text_quality'] = 'good'
-        elif len(full_text) > 200:
+        elif len(full_text) > _cfg.text_quality['application']['fair']:
             accuracy['text_quality'] = 'fair'
         else:
             accuracy['text_quality'] = 'poor'
@@ -326,7 +324,7 @@ class NonLitigationValidator:
                     '检查申请书页数是否正确（应为 2 页/案件）',
                     '检查是否有缺失或多余的案件',
                     f'当前页数: {details["total_pages"]} 页',
-                    f'期望页数: {expected_cases * 2} 页（{expected_cases} 案件 × 2 页）'
+                    f'期望页数: {expected_cases * _cfg.pages_per_case["申请书"]} 页（{expected_cases} 案件 × {_cfg.pages_per_case["申请书"]} 页）'
                 ],
                 timing=timing,
                 accuracy=accuracy
@@ -398,16 +396,17 @@ class NonLitigationValidator:
         accuracy['keyword_detection_rate'] = len(keywords_found) / len(keywords) * 100 if keywords else 0
         
         # 评估文本质量
-        if len(full_text) > 100:
+        if len(full_text) > _cfg.text_quality['company_doc']['good']:
             accuracy['text_quality'] = 'good'
-        elif len(full_text) > 50:
+        elif len(full_text) > _cfg.text_quality['company_doc']['fair']:
             accuracy['text_quality'] = 'fair'
         else:
             accuracy['text_quality'] = 'poor'
         
         # 验证页数
         actual_pages = ocr_result.get('total_pages', 0)
-        expected_pages = expected_count  # 1 页/公司
+        doc_cfg_key = self._DOC_TYPE_KEY_MAP.get(doc_type, doc_type)
+        expected_pages = expected_count * _cfg.pages_per_case[doc_cfg_key]
         accuracy['page_count_match'] = (actual_pages == expected_pages)
         
         if actual_pages != expected_pages:
@@ -418,10 +417,10 @@ class NonLitigationValidator:
                 message=f'页数不匹配: 实际 {actual_pages} 页，期望 {expected_pages} 页',
                 details=details,
                 suggestions=[
-                    f'检查 {doc_type} 页数是否正确（应为 1 页/公司）',
+                    f'检查 {doc_type} 页数是否正确（应为 {_cfg.pages_per_case[doc_cfg_key]} 页/公司）',
                     '确认台账公司数量是否正确',
                     f'实际页数: {actual_pages} 页',
-                    f'期望页数: {expected_pages} 页（{expected_count} 公司 × 1 页）'
+                    f'期望页数: {expected_pages} 页（{expected_count} 公司 × {_cfg.pages_per_case[doc_cfg_key]} 页）'
                 ],
                 timing=timing,
                 accuracy=accuracy
@@ -564,7 +563,7 @@ def validate_ocr_results(cases: List[Dict], ocr_cache_dir: Path,
         notice_files = []
         for cache_file in sorted(ocr_cache_dir.glob('*_ultra_result.json')):
             name = cache_file.stem.replace('_ultra_result', '')
-            if name not in ('申请书', '授权书', '所函'):
+            if name not in tuple(dt.key for dt in _cfg.doc_types if not dt.is_notice):
                 notice_files.append(f'{name}.pdf')
 
     for source_name in notice_files:
@@ -575,30 +574,20 @@ def validate_ocr_results(cases: List[Dict], ocr_cache_dir: Path,
             result = validator.validate_notice_ocr(source_name, ocr_result)
             validator.validation_report.append(result)
     
-    # 验证申请书
-    cache_file = ocr_cache_dir / '申请书_ultra_result.json'
-    if cache_file.exists():
-        ocr_result = json.loads(cache_file.read_text(encoding='utf-8'))
-        result = validator.validate_application_ocr('申请书.pdf', ocr_result, len(cases))
-        validator.validation_report.append(result)
-    
-    # 验证授权书
-    cache_file = ocr_cache_dir / '授权书_ultra_result.json'
-    if cache_file.exists():
-        ocr_result = json.loads(cache_file.read_text(encoding='utf-8'))
-        result = validator.validate_company_document_ocr(
-            '授权书.pdf', ocr_result, len(cases), 'authorization'
-        )
-        validator.validation_report.append(result)
-    
-    # 验证所函
-    cache_file = ocr_cache_dir / '所函_ultra_result.json'
-    if cache_file.exists():
-        ocr_result = json.loads(cache_file.read_text(encoding='utf-8'))
-        result = validator.validate_company_document_ocr(
-            '所函.pdf', ocr_result, len(cases), 'letter'
-        )
-        validator.validation_report.append(result)
+    for dt in _cfg.doc_types:
+        if dt.is_notice:
+            continue
+        cache_file = ocr_cache_dir / f'{dt.key}{_cfg.ocr_cache_suffix}'
+        if cache_file.exists():
+            ocr_result = json.loads(cache_file.read_text(encoding='utf-8'))
+            if dt.key == '申请书':
+                result = validator.validate_application_ocr(f'{dt.key}.pdf', ocr_result, len(cases))
+            else:
+                doc_type_str = 'authorization' if dt.key == '授权书' else 'letter'
+                result = validator.validate_company_document_ocr(
+                    f'{dt.key}.pdf', ocr_result, len(cases), doc_type_str
+                )
+            validator.validation_report.append(result)
     
     # 生成报告
     report = validator.generate_report()

@@ -2,7 +2,7 @@
   "input_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\input\\non-litigation",
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
-  "runtime_seconds": 0.3035,
+  "runtime_seconds": 0.3954,
   "created_count": 12,
   "quality": {
     "total_files": 1152,
@@ -19,31 +19,31 @@
     },
     "timing_statistics": {
       "notice": {
-        "total": 20.27582812309265,
-        "avg": 6.758609374364217,
-        "min": 6.125699758529663,
-        "max": 7.367512941360474,
+        "total": 21.566715955734253,
+        "avg": 7.188905318578084,
+        "min": 6.604951858520508,
+        "max": 7.80843186378479,
         "count": 3
       },
       "application": {
-        "total": 57.951605558395386,
-        "avg": 57.951605558395386,
-        "min": 57.951605558395386,
-        "max": 57.951605558395386,
+        "total": 59.89253354072571,
+        "avg": 59.89253354072571,
+        "min": 59.89253354072571,
+        "max": 59.89253354072571,
         "count": 1
       },
       "authorization": {
-        "total": 21.533421516418457,
-        "avg": 21.533421516418457,
-        "min": 21.533421516418457,
-        "max": 21.533421516418457,
+        "total": 23.453506469726562,
+        "avg": 23.453506469726562,
+        "min": 23.453506469726562,
+        "max": 23.453506469726562,
         "count": 1
       },
       "letter": {
-        "total": 20.61797261238098,
-        "avg": 20.61797261238098,
-        "min": 20.61797261238098,
-        "max": 20.61797261238098,
+        "total": 21.221713304519653,
+        "avg": 21.221713304519653,
+        "min": 21.221713304519653,
+        "max": 21.221713304519653,
         "count": 1
       }
     },
@@ -68,12 +68,12 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 7.367512941360474,
+          "total_duration": 7.80843186378479,
           "method": "sequential_ocr_optimized",
           "pages_timings": [
-            6.678675651550293
+            7.13091778755188
           ],
-          "avg_time_per_page": 6.678675651550293
+          "avg_time_per_page": 7.13091778755188
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -102,12 +102,12 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 6.782615423202515,
+          "total_duration": 7.153332233428955,
           "method": "sequential_ocr_optimized",
           "pages_timings": [
-            5.890838146209717
+            6.264986038208008
           ],
-          "avg_time_per_page": 5.890838146209717
+          "avg_time_per_page": 6.264986038208008
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -136,12 +136,12 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 6.125699758529663,
+          "total_duration": 6.604951858520508,
           "method": "sequential_ocr_optimized",
           "pages_timings": [
-            5.1139397621154785
+            5.849182605743408
           ],
-          "avg_time_per_page": 5.1139397621154785
+          "avg_time_per_page": 5.849182605743408
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -172,17 +172,17 @@
           "期望页数: 576 页（288 案件 × 2 页）"
         ],
         "timing": {
-          "total_duration": 57.951605558395386,
+          "total_duration": 59.89253354072571,
           "method": "ultra_fast",
           "pages_timings": [
-            40.6956307888031,
-            35.71486043930054,
-            40.29851055145264,
-            32.428672552108765,
-            19.56416344642639,
-            16.15241050720215
+            47.61597204208374,
+            33.97697353363037,
+            44.25765109062195,
+            34.29397130012512,
+            20.49475407600403,
+            18.638384580612183
           ],
-          "avg_time_per_page": 30.809041380882263
+          "avg_time_per_page": 33.21295110384623
         },
         "accuracy": {
           "text_quality": "good",
@@ -211,14 +211,14 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 21.533421516418457,
+          "total_duration": 23.453506469726562,
           "method": "ultra_fast",
           "pages_timings": [
-            17.512330770492554,
-            16.934311866760254,
-            16.187922954559326
+            19.496278524398804,
+            19.367199897766113,
+            16.718199491500854
           ],
-          "avg_time_per_page": 16.878188530604046
+          "avg_time_per_page": 18.527225971221924
         },
         "accuracy": {
           "text_quality": "good",
@@ -236,9 +236,7 @@
           "total_pages": 3,
           "expected_count": 288,
           "doc_type": "letter",
-          "keywords_found": [
-            "岭南律师事务所"
-          ]
+          "keywords_found": []
         },
         "suggestions": [
           "检查 letter 页数是否正确（应为 1 页/公司）",
@@ -247,18 +245,18 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 20.61797261238098,
+          "total_duration": 21.221713304519653,
           "method": "ultra_fast",
           "pages_timings": [
-            17.073606729507446,
-            14.680739879608154,
-            16.305529594421387
+            16.267546892166138,
+            15.000795841217041,
+            16.746526956558228
           ],
-          "avg_time_per_page": 16.01995873451233
+          "avg_time_per_page": 16.0049565633138
         },
         "accuracy": {
           "text_quality": "good",
-          "keyword_detection_rate": 50.0,
+          "keyword_detection_rate": 0.0,
           "page_count_match": false
         }
       }
@@ -287,17 +285,17 @@
           "期望页数: 576 页（288 案件 × 2 页）"
         ],
         "timing": {
-          "total_duration": 57.951605558395386,
+          "total_duration": 59.89253354072571,
           "method": "ultra_fast",
           "pages_timings": [
-            40.6956307888031,
-            35.71486043930054,
-            40.29851055145264,
-            32.428672552108765,
-            19.56416344642639,
-            16.15241050720215
+            47.61597204208374,
+            33.97697353363037,
+            44.25765109062195,
+            34.29397130012512,
+            20.49475407600403,
+            18.638384580612183
           ],
-          "avg_time_per_page": 30.809041380882263
+          "avg_time_per_page": 33.21295110384623
         },
         "accuracy": {
           "text_quality": "good",
@@ -326,14 +324,14 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 21.533421516418457,
+          "total_duration": 23.453506469726562,
           "method": "ultra_fast",
           "pages_timings": [
-            17.512330770492554,
-            16.934311866760254,
-            16.187922954559326
+            19.496278524398804,
+            19.367199897766113,
+            16.718199491500854
           ],
-          "avg_time_per_page": 16.878188530604046
+          "avg_time_per_page": 18.527225971221924
         },
         "accuracy": {
           "text_quality": "good",
@@ -351,9 +349,7 @@
           "total_pages": 3,
           "expected_count": 288,
           "doc_type": "letter",
-          "keywords_found": [
-            "岭南律师事务所"
-          ]
+          "keywords_found": []
         },
         "suggestions": [
           "检查 letter 页数是否正确（应为 1 页/公司）",
@@ -362,18 +358,18 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 20.61797261238098,
+          "total_duration": 21.221713304519653,
           "method": "ultra_fast",
           "pages_timings": [
-            17.073606729507446,
-            14.680739879608154,
-            16.305529594421387
+            16.267546892166138,
+            15.000795841217041,
+            16.746526956558228
           ],
-          "avg_time_per_page": 16.01995873451233
+          "avg_time_per_page": 16.0049565633138
         },
         "accuracy": {
           "text_quality": "good",
-          "keyword_detection_rate": 50.0,
+          "keyword_detection_rate": 0.0,
           "page_count_match": false
         }
       }

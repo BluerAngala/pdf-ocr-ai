@@ -1,0 +1,158 @@
+paths:
+  directories:
+    result_dirname: "non-litigation-results"
+    temp_dirname: "non-litigation"
+    input_dirname: "non-litigation"
+    ocr_cache_dirname: "ocr-cache"
+  files:
+    excel_filename: "台账及命名规则.xlsx"
+    standard_output_dirname: "对应输出文件（标准版）"
+    audit_log_filename: "audit-log.json"
+    ocr_cache_suffix: "_ultra_result.json"
+
+doc_types:
+  - key: "责催"
+    source_pdf: null
+    output_dir: "输出文件（责催）"
+    pages_per_case: null
+    boundary_keywords: []
+    validation_keywords: []
+    filename_pattern: "{sequence}-责催-{notice_number}.pdf"
+    is_notice: true
+  - key: "申请书"
+    source_pdf: "申请书.pdf"
+    output_dir: "输出文件（申请书）"
+    pages_per_case: 2
+    boundary_keywords:
+      - "强制执行申请书"
+      - "申请执行书"
+      - "强制执行申请"
+    validation_keywords:
+      - "强制执行申请书"
+      - "名称"
+    filename_pattern: "{sequence}-申请书pdf-{notice_number}.pdf"
+    is_notice: false
+  - key: "授权书"
+    source_pdf: "授权书.pdf"
+    output_dir: "输出文件（授权书）"
+    pages_per_case: 1
+    boundary_keywords: []
+    validation_keywords:
+      - "授权委托书"
+    filename_pattern: "{company_name}.pdf"
+    content_marker: "授权委托书"
+    is_notice: false
+  - key: "所函"
+    source_pdf: "所函.pdf"
+    output_dir: "输出文件（所函）"
+    pages_per_case: 1
+    boundary_keywords: []
+    validation_keywords:
+      - "律师事务所函"
+    filename_pattern: "{company_name}.pdf"
+    content_marker: "律师事务所函"
+    is_notice: false
+
+excel_parsing:
+  min_columns: 5
+  column_original_notice: 1
+  column_renamed_notice: 2
+  column_company_name: 4
+  filter_keywords:
+    original_notice: "责字"
+    renamed_notice: "责催-"
+
+regex_patterns:
+  notice_number: '穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号'
+  court_case_number: '[(\[]\s*(\d{4})\s*[)\]]\s*(粤|穗)\s*(\d+)\s*(行审|民初|刑初|执|行)\s*(\d+)\s*号'
+  decision_case_number: '(.{2,30}?字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+(?:-\d+)?)\s*号'
+  decision_id_types: "责字|行审|民初|刑初|执字"
+  decision_number_range: '(穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕)(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号'
+  single_decision_number: '(穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕\d+(?:-\d+)?号)'
+
+ocr_corrections:
+  non_litigation:
+    - wrong: "住房公积全"
+      correct: "住房公积金"
+    - wrong: "住方公积金"
+      correct: "住房公积金"
+    - wrong: "公积全"
+      correct: "公积金"
+    - wrong: "公基金"
+      correct: "公积金"
+    - wrong: "授权委拖书"
+      correct: "授权委托书"
+    - wrong: "授校委托书"
+      correct: "授权委托书"
+    - wrong: "责行"
+      correct: "责令"
+    - wrong: "强制申请书"
+      correct: "强制执行申请书"
+    - wrong: "岭南律师所"
+      correct: "岭南律师事务所"
+    - wrong: "岭南律师"
+      correct: "岭南律师事务所"
+  company_name_corrections:
+    - pattern: '广东\\s*润生\\s*箱包\\s*制造\\s*有限公司'
+      replacement: "广东润生箱包制造有限公司"
+    - pattern: '三菱\\s*电机\\s*[(（]\\s*广州\\s*[)）]\\s*压缩机\\s*有限公司'
+      replacement: "三菱电机（广州）压缩机有限公司"
+    - pattern: '广州\\s*住房\\s*公积金\\s*管理\\s*中心'
+      replacement: "广州住房公积金管理中心"
+    - pattern: '广东\\s*省\\s*新闻\\s*工作\\s*者\\s*协会'
+      replacement: "广东省新闻工作者协会"
+    - pattern: '广东\\s*岭南\\s*律师\\s*事务所'
+      replacement: "广东岭南律师事务所"
+
+validation:
+  fuzzy_match_threshold: 0.85
+  text_quality:
+    notice:
+      good: 100
+      fair: 50
+    application:
+      good: 500
+      fair: 200
+    company_doc:
+      good: 100
+      fair: 50
+
+ocr:
+  engine:
+    dpi: 250
+    max_image_size: 1024
+    parallel_workers: 4
+
+text_processing:
+  company_keywords:
+    - "有限责任公司"
+    - "股份有限公司"
+    - "集团有限公司"
+    - "有限公司"
+    - "集团公司"
+    - "股份公司"
+    - "事务所"
+    - "管理中心"
+    - "研究院"
+    - "协会"
+    - "中心"
+    - "公司"
+  document_types:
+    - "行政裁定书"
+    - "责令限期办理决定书"
+    - "催告书"
+    - "授权委托书"
+    - "合作协议"
+    - "合同"
+  noise_prefixes:
+    - "准予强制执行"
+    - "附："
+    - "附件："
+  decision_number_range_max_spread: 20
+
+mock_ocr:
+  noise_samples:
+    - "责行"
+    - "公积全"
+    - "授校委托书"
+    - "住方公积金"

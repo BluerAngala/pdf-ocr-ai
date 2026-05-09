@@ -5,20 +5,20 @@
       "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司",
       "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025]1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司",
       "method": "region_first",
-      "duration": 25.43837547302246,
+      "duration": 14.545130968093872,
       "region_attempts": [
         {
           "region": "责令号区域",
           "region_key": "notice_header",
           "method": "region:责令号区域",
-          "duration": 25.43837547302246,
+          "duration": 14.545130968093872,
           "text_length": 70,
           "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字【2025]1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 25.4384,
+        "total_duration": 14.5451,
         "max_text_length": 70,
         "total_text_length": 70,
         "regions": [
@@ -37,7 +37,7 @@
   "total_pages": 1,
   "filename": "2.pdf",
   "method": "region_first_sequential",
-  "total_duration": 26.04189769999357,
+  "total_duration": 15.032751299993834,
   "fallback_pages": 0,
   "region_pages": 1,
   "optimization_strategy": "region_first_sequential",
@@ -58,14 +58,14 @@
     "doc_type": "责催",
     "file_name": "2.pdf",
     "page_count": 1,
-    "total_duration": 26.0419,
+    "total_duration": 15.0328,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 1,
-    "region_ocr_duration_total": 25.4384,
+    "region_ocr_duration_total": 14.5451,
     "slowest_page": {
       "page": 1,
-      "duration": 25.4384,
+      "duration": 14.5451,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

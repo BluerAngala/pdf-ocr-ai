@@ -5,20 +5,20 @@
       "text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲(律师)",
       "original_text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲（律师）",
       "method": "region_first",
-      "duration": 3.3202600479125977,
+      "duration": 1.8685994148254395,
       "region_attempts": [
         {
           "region": "公司名称（页眉）",
           "region_key": "company_top",
           "method": "region:公司名称（页眉）",
-          "duration": 3.3202600479125977,
+          "duration": 1.8685994148254395,
           "text_length": 48,
           "text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲（律师）"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 3.3203,
+        "total_duration": 1.8686,
         "max_text_length": 48,
         "total_text_length": 48,
         "regions": [
@@ -38,20 +38,20 @@
       "text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲(律师)",
       "original_text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲（律师）",
       "method": "region_first",
-      "duration": 2.3090600967407227,
+      "duration": 1.4438838958740234,
       "region_attempts": [
         {
           "region": "公司名称（页眉）",
           "region_key": "company_top",
           "method": "region:公司名称（页眉）",
-          "duration": 2.3090600967407227,
+          "duration": 1.4438838958740234,
           "text_length": 48,
           "text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲（律师）"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 2.3091,
+        "total_duration": 1.4439,
         "max_text_length": 48,
         "total_text_length": 48,
         "regions": [
@@ -71,20 +71,20 @@
       "text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲(律师)",
       "original_text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲（律师）",
       "method": "region_first",
-      "duration": 1.6044037342071533,
+      "duration": 1.2490346431732178,
       "region_attempts": [
         {
           "region": "公司名称（页眉）",
           "region_key": "company_top",
           "method": "region:公司名称（页眉）",
-          "duration": 1.6044037342071533,
+          "duration": 1.2490346431732178,
           "text_length": 48,
           "text": "授权委托书\n委托人：广州住房公积金管理中心\n法定代表人：冯卫职务：主任\n受委托人：陈妙玲（律师）"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 1.6044,
+        "total_duration": 1.249,
         "max_text_length": 48,
         "total_text_length": 48,
         "regions": [
@@ -103,7 +103,7 @@
   "total_pages": 3,
   "filename": "授权书.pdf",
   "method": "region_first",
-  "total_duration": 8.907973099994706,
+  "total_duration": 5.470595999999205,
   "fallback_pages": 0,
   "region_pages": 3,
   "optimization_strategy": "region_first",
@@ -116,14 +116,14 @@
     "doc_type": "授权书",
     "file_name": "授权书.pdf",
     "page_count": 3,
-    "total_duration": 8.908,
+    "total_duration": 5.4706,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 3,
-    "region_ocr_duration_total": 7.2338,
+    "region_ocr_duration_total": 4.5615,
     "slowest_page": {
       "page": 1,
-      "duration": 3.3203,
+      "duration": 1.8686,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

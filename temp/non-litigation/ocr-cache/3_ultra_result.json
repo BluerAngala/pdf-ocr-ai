@@ -5,20 +5,20 @@
       "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司",
       "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025]856号\n名称：广州吾能学网络科技有限公司",
       "method": "region_first",
-      "duration": 24.388675928115845,
+      "duration": 14.412132978439331,
       "region_attempts": [
         {
           "region": "责令号区域",
           "region_key": "notice_header",
           "method": "region:责令号区域",
-          "duration": 24.388675928115845,
+          "duration": 14.412132978439331,
           "text_length": 59,
           "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2025]856号\n名称：广州吾能学网络科技有限公司"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 24.3887,
+        "total_duration": 14.4121,
         "max_text_length": 59,
         "total_text_length": 59,
         "regions": [
@@ -37,7 +37,7 @@
   "total_pages": 1,
   "filename": "3.pdf",
   "method": "region_first_sequential",
-  "total_duration": 25.264180600002874,
+  "total_duration": 14.906216500006849,
   "fallback_pages": 0,
   "region_pages": 1,
   "optimization_strategy": "region_first_sequential",
@@ -58,14 +58,14 @@
     "doc_type": "责催",
     "file_name": "3.pdf",
     "page_count": 1,
-    "total_duration": 25.2642,
+    "total_duration": 14.9062,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 1,
-    "region_ocr_duration_total": 24.3887,
+    "region_ocr_duration_total": 14.4121,
     "slowest_page": {
       "page": 1,
-      "duration": 24.3887,
+      "duration": 14.4121,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

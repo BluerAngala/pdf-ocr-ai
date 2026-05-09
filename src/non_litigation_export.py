@@ -353,12 +353,21 @@ def _build_region_stats(page_logs: List[Dict]) -> Dict:
 
 def _should_fallback_notice(region_text: str, page_candidate: Optional[Dict]) -> Tuple[bool, Optional[str]]:
     compact = _compact_text(region_text)
+    
     if page_candidate and page_candidate.get('decision_numbers'):
         return False, None
+    
     if len(compact) < _cfg.notice_region_fallback_min_text_length:
+        if '责字' in compact or '责令' in compact or '公积金' in compact or '穗' in compact or '越秀' in compact:
+            return False, 'weak_notice_signal_only'
         return True, 'region_text_too_short'
+    
     if '责字' in compact or '责令' in compact or '公积金' in compact:
         return False, 'weak_notice_signal_only'
+    
+    if '穗' in compact or '越秀' in compact or '中心' in compact:
+        return False, 'weak_location_signal'
+    
     return True, 'no_notice_signal'
 
 
@@ -836,6 +845,27 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
                         full_image = region_extractor.extract_full_page(pdf_path, page_num)
                     except Exception:
                         break
+
+                    if _cfg.ocr_skip_blank_pages:
+                        from pdf_ocr_ultra import ImagePreprocessor
+                        if ImagePreprocessor.is_blank_page(full_image, threshold=_cfg.ocr_blank_page_threshold):
+                            pages.append({
+                                'page': page_num,
+                                'text': '',
+                                'method': 'blank_page_skipped',
+                                'duration': 0,
+                                'region_attempts': [],
+                                'region_stats': {'attempt_count': 0, 'total_duration': 0, 'max_text_length': 0, 'total_text_length': 0, 'regions': []},
+                                'region_text_length': 0,
+                                'fallback_used': False,
+                                'fallback_trigger_reason': None,
+                                'notice_matched': False,
+                                'notice_candidates': [],
+                                'notice_candidate_score': None,
+                                'notice_page_profile': {},
+                            })
+                            page_num += 1
+                            continue
 
                     page_logs = []
                     region_text = ''

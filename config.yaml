@@ -119,20 +119,22 @@ validation:
 
 ocr:
   engine:
-    dpi: 200
-    max_image_size: 900
+    dpi: 150
+    max_image_size: 600
     parallel_workers: 4
     small_pdf_page_threshold: 6
   optimization:
     enable_region_first: true
     allow_full_page_fallback: true
-    region_dpi: 180
-    region_max_image_size: 900
+    region_dpi: 150
+    region_max_image_size: 600
     notice_scan_window_pages: 4
     notice_scan_max_pages: 10
     notice_region_fallback_min_text_length: 8
     application_region_fallback_min_text_length: 5
     company_doc_region_fallback_min_text_length: 6
+    skip_blank_pages: true
+    blank_page_threshold: 0.02
     doc_regions:
       责催:
         - notice_header

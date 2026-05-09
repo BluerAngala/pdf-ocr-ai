@@ -163,7 +163,9 @@ def build_run_summary(
         print('📝 Mock 模式（使用预生成缓存）')
         print('=' * 60)
         build_mock_ocr_cache(sample_root, ocr_cache_dir, input_dir=input_root)
-    phase_timings['ocr_cache_seconds'] = round(time.perf_counter() - ocr_start, 4)
+    ocr_duration = time.perf_counter() - ocr_start
+    phase_timings['ocr_cache_seconds'] = round(ocr_duration, 4)
+    print(f'\n⏱️  OCR 缓存阶段完成: {ocr_duration:.2f}s')
 
     print('\n📦 开始导出文件...')
     export_start = time.perf_counter()
@@ -173,18 +175,24 @@ def build_run_summary(
         output_root=result_root,
         ocr_cache_dir=ocr_cache_dir,
     )
-    export_runtime_seconds = round(time.perf_counter() - export_start, 4)
+    export_duration = time.perf_counter() - export_start
+    export_runtime_seconds = round(export_duration, 4)
     phase_timings['export_seconds'] = export_runtime_seconds
+    print(f'⏱️  导出阶段完成: {export_duration:.2f}s')
 
     evaluation_start = time.perf_counter()
     quality = evaluate_non_litigation_quality(root_dir, result_root, sample_root=sample_root)
-    phase_timings['evaluation_seconds'] = round(time.perf_counter() - evaluation_start, 4)
+    evaluation_duration = time.perf_counter() - evaluation_start
+    phase_timings['evaluation_seconds'] = round(evaluation_duration, 4)
+    print(f'⏱️  质量评估完成: {evaluation_duration:.2f}s')
 
     print('\n🔍 验证 OCR 识别结果...')
     validation_start = time.perf_counter()
     cases = load_non_litigation_cases(sample_root)
     validation_result = validate_ocr_results(cases, ocr_cache_dir, input_dir=input_root)
-    phase_timings['validation_seconds'] = round(time.perf_counter() - validation_start, 4)
+    validation_duration = time.perf_counter() - validation_start
+    phase_timings['validation_seconds'] = round(validation_duration, 4)
+    print(f'⏱️  验证阶段完成: {validation_duration:.2f}s')
 
     report_start = time.perf_counter()
     runtime_seconds = round(time.perf_counter() - total_start, 4)
@@ -194,8 +202,14 @@ def build_run_summary(
         mode='real_ocr' if use_real_ocr else 'mock',
         runtime_seconds=runtime_seconds,
     )
-    phase_timings['report_seconds'] = round(time.perf_counter() - report_start, 4)
+    report_duration = time.perf_counter() - report_start
+    phase_timings['report_seconds'] = round(report_duration, 4)
+    print(f'⏱️  报告生成完成: {report_duration:.2f}s')
+    
     runtime_seconds = round(time.perf_counter() - total_start, 4)
+    print(f'\n' + '=' * 60)
+    print(f'⏱️  总运行时间: {runtime_seconds:.2f}s')
+    print('=' * 60)
 
     folder_items = {
         folder.name: list_pdf_names(folder)

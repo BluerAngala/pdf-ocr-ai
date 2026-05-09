@@ -5,20 +5,20 @@
       "text": "广东岭南律师事务所事务所事务所函",
       "original_text": "广东岭南律师事务所事务所事务所函",
       "method": "region_first",
-      "duration": 1.2901520729064941,
+      "duration": 1.1419918537139893,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 1.2901520729064941,
+          "duration": 1.1419918537139893,
           "text_length": 10,
           "text": "广东岭南律师事务所函"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 1.2902,
+        "total_duration": 1.142,
         "max_text_length": 10,
         "total_text_length": 10,
         "regions": [
@@ -38,20 +38,20 @@
       "text": "广东岭南律师事务所事务所事务所函",
       "original_text": "广东岭南律师事务所事务所事务所函",
       "method": "region_first",
-      "duration": 0.7548031806945801,
+      "duration": 1.3255541324615479,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 0.7548031806945801,
+          "duration": 1.3255541324615479,
           "text_length": 10,
           "text": "广东岭南律师事务所函"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 0.7548,
+        "total_duration": 1.3256,
         "max_text_length": 10,
         "total_text_length": 10,
         "regions": [
@@ -71,20 +71,20 @@
       "text": "广东岭南律师事务所事务所事务所函",
       "original_text": "广东岭南律师事务所事务所事务所函",
       "method": "region_first",
-      "duration": 0.9601113796234131,
+      "duration": 1.1624464988708496,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 0.9601113796234131,
+          "duration": 1.1624464988708496,
           "text_length": 10,
           "text": "广东岭南律师事务所函"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 0.9601,
+        "total_duration": 1.1624,
         "max_text_length": 10,
         "total_text_length": 10,
         "regions": [
@@ -103,7 +103,7 @@
   "total_pages": 3,
   "filename": "所函.pdf",
   "method": "region_first",
-  "total_duration": 4.936549600010039,
+  "total_duration": 4.642650900001172,
   "fallback_pages": 0,
   "region_pages": 3,
   "optimization_strategy": "region_first",
@@ -116,14 +116,14 @@
     "doc_type": "所函",
     "file_name": "所函.pdf",
     "page_count": 3,
-    "total_duration": 4.9365,
+    "total_duration": 4.6427,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 3,
-    "region_ocr_duration_total": 3.0051,
+    "region_ocr_duration_total": 3.63,
     "slowest_page": {
-      "page": 1,
-      "duration": 1.2902,
+      "page": 2,
+      "duration": 1.3256,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

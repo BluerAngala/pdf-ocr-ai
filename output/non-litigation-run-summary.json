@@ -4,112 +4,26 @@
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
   "html_report_path": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\ocr-validation-report.html",
-  "runtime_seconds": 268.8648,
-  "export_runtime_seconds": 0.2923,
+  "runtime_seconds": 2.3302,
+  "export_runtime_seconds": 0.2902,
   "phase_timings": {
-    "ocr_cache_seconds": 268.1321,
-    "export_seconds": 0.2923,
-    "evaluation_seconds": 0.2664,
-    "validation_seconds": 0.1341,
-    "report_seconds": 0.0009
+    "ocr_cache_seconds": 1.6798,
+    "export_seconds": 0.2902,
+    "evaluation_seconds": 0.2406,
+    "validation_seconds": 0.1169,
+    "report_seconds": 0.0017
   },
   "ocr_cache_performance": {
     "stage": "ocr_cache_build",
-    "total_files": 6,
-    "total_duration": 267.9984,
-    "fallback_pages_total": 7,
-    "region_attempts_total": 42,
-    "slowest_files": [
-      {
-        "doc_type": "责催",
-        "file_name": "3.pdf",
-        "page_count": 10,
-        "total_duration": 242.9276,
-        "fallback_pages": 3,
-        "fallback_rate": 0.3,
-        "region_attempts_total": 10,
-        "region_ocr_duration_total": 167.7994,
-        "slowest_page": {
-          "page": 4,
-          "duration": 77.8329,
-          "method": "full_page_fallback",
-          "fallback_used": true,
-          "fallback_trigger_reason": "no_notice_signal"
-        }
-      },
-      {
-        "doc_type": "责催",
-        "file_name": "2.pdf",
-        "page_count": 10,
-        "total_duration": 225.674,
-        "fallback_pages": 3,
-        "fallback_rate": 0.3,
-        "region_attempts_total": 10,
-        "region_ocr_duration_total": 152.3562,
-        "slowest_page": {
-          "page": 9,
-          "duration": 44.3893,
-          "method": "full_page_fallback",
-          "fallback_used": true,
-          "fallback_trigger_reason": "no_notice_signal"
-        }
-      },
-      {
-        "doc_type": "责催",
-        "file_name": "1.pdf",
-        "page_count": 10,
-        "total_duration": 172.4173,
-        "fallback_pages": 1,
-        "fallback_rate": 0.1,
-        "region_attempts_total": 10,
-        "region_ocr_duration_total": 114.6932,
-        "slowest_page": {
-          "page": 7,
-          "duration": 71.3368,
-          "method": "full_page_fallback",
-          "fallback_used": true,
-          "fallback_trigger_reason": "no_notice_signal"
-        }
-      },
-      {
-        "doc_type": "申请书",
-        "file_name": "申请书.pdf",
-        "page_count": 6,
-        "total_duration": 12.4041,
-        "fallback_pages": 0,
-        "fallback_rate": 0.0,
-        "region_attempts_total": 6,
-        "region_ocr_duration_total": 10.3137,
-        "slowest_page": {
-          "page": 4,
-          "duration": 2.3727,
-          "method": "region_first",
-          "fallback_used": false,
-          "fallback_trigger_reason": null
-        }
-      },
-      {
-        "doc_type": "所函",
-        "file_name": "所函.pdf",
-        "page_count": 3,
-        "total_duration": 4.9365,
-        "fallback_pages": 0,
-        "fallback_rate": 0.0,
-        "region_attempts_total": 3,
-        "region_ocr_duration_total": 3.0051,
-        "slowest_page": {
-          "page": 1,
-          "duration": 1.2902,
-          "method": "region_first",
-          "fallback_used": false,
-          "fallback_trigger_reason": null
-        }
-      }
-    ],
+    "total_files": 0,
+    "total_duration": 1.6787,
+    "fallback_pages_total": 0,
+    "region_attempts_total": 0,
+    "slowest_files": [],
     "parallelism": {
-      "workers": 4,
-      "safety_level": "high",
-      "available_memory_gb": 47.72
+      "workers": 1,
+      "safety_level": "serial",
+      "available_memory_gb": 0
     }
   },
   "created_count": 12,
@@ -128,31 +42,31 @@
     },
     "timing_statistics": {
       "notice": {
-        "total": 641.0189231000259,
-        "avg": 213.67297436667528,
-        "min": 172.41733389999717,
-        "max": 242.92755140000372,
+        "total": 499.01375169999665,
+        "avg": 166.3379172333322,
+        "min": 126.01011639999342,
+        "max": 190.9754186999926,
         "count": 3
       },
       "application": {
-        "total": 12.404102500004228,
-        "avg": 12.404102500004228,
-        "min": 12.404102500004228,
-        "max": 12.404102500004228,
+        "total": 12.570474600011948,
+        "avg": 12.570474600011948,
+        "min": 12.570474600011948,
+        "max": 12.570474600011948,
         "count": 1
       },
       "authorization": {
-        "total": 4.790442099998472,
-        "avg": 4.790442099998472,
-        "min": 4.790442099998472,
-        "max": 4.790442099998472,
+        "total": 5.302001899981406,
+        "avg": 5.302001899981406,
+        "min": 5.302001899981406,
+        "max": 5.302001899981406,
         "count": 1
       },
       "letter": {
-        "total": 4.936549600010039,
-        "avg": 4.936549600010039,
-        "min": 4.936549600010039,
-        "max": 4.936549600010039,
+        "total": 4.642650900001172,
+        "avg": 4.642650900001172,
+        "min": 4.642650900001172,
+        "max": 4.642650900001172,
         "count": 1
       }
     },
@@ -161,14 +75,14 @@
       "fuzzy_notice_matches": 0,
       "same_root_remap_warnings": 1,
       "notice_failures": 0,
-      "fallback_pages_total": 7,
+      "fallback_pages_total": 4,
       "boundary_pages_detected": 3,
       "marker_detected_pages": 3
     },
     "optimization_guardrails": {
       "warning_count": 2,
       "failed_count": 0,
-      "fallback_pages_total": 7,
+      "fallback_pages_total": 4,
       "needs_review": true
     },
     "details": [
@@ -186,8 +100,8 @@
             "穗公积金中心越秀责字〔2024〕914号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2024〕914-1号",
-          "fallback_pages": 1,
-          "region_pages": 9,
+          "fallback_pages": 0,
+          "region_pages": 5,
           "stopped_early": false,
           "optimization_strategy": "region_first_sequential",
           "selected_notice": null,
@@ -197,7 +111,7 @@
           "matched_target_notice": "穗公积金中心越秀责字〔2024〕914-1号",
           "export_match_type": "fuzzy",
           "same_root_remap": true,
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积\n\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首页\n信息公开\n工作动态\n通知公告\n办事服务\n下载中心\n业务网点\n互动交流\n当前",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积\n\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首",
           "normalized_notices": [
             "穗公积金中心越秀责字〔2024〕914-1号",
             "穗公积金中心越秀责字〔2024〕914号"
@@ -215,28 +129,28 @@
           "请人工确认台账是否应保留子号命名"
         ],
         "timing": {
-          "total_duration": 172.41733389999717,
+          "total_duration": 126.01011639999342,
           "method": "region_first_sequential",
           "pages_timings": [
-            27.50466513633728,
-            2.1296980381011963,
-            12.909489631652832,
-            0.7855162620544434,
-            9.291361570358276,
-            1.0861766338348389,
-            71.33681774139404,
-            1.2882282733917236,
-            24.942291259765625,
-            1.319117546081543
+            28.68483328819275,
+            0,
+            11.120157957077026,
+            0,
+            14.121504545211792,
+            0,
+            38.24516677856445,
+            0,
+            21.739336490631104,
+            0
           ],
-          "avg_time_per_page": 15.25933620929718
+          "avg_time_per_page": 11.391099905967712
         },
         "accuracy": {
           "ocr_confidence": "N/A",
           "text_quality": "good",
           "extraction_success": true,
-          "fallback_rate": 10.0,
-          "region_first_hit_rate": 90.0,
+          "fallback_rate": 0.0,
+          "region_first_hit_rate": 50.0,
           "match_confidence": 100
         }
       },
@@ -254,8 +168,8 @@
             "穗公积金中心越秀责字〔2025〕1107号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2025〕1107号",
-          "fallback_pages": 3,
-          "region_pages": 7,
+          "fallback_pages": 2,
+          "region_pages": 5,
           "stopped_early": false,
           "optimization_strategy": "region_first_sequential",
           "selected_notice": null,
@@ -265,7 +179,7 @@
           "matched_target_notice": "穗公积金中心越秀责字〔2025〕1107号",
           "export_match_type": "exact",
           "same_root_remap": false,
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张缴存2019年07月至2021年04月期间的住房\n施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国务\n院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管(2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位张璐补缴2019年07月至\n2021年04月期间的单位应缴存部分住房公积金合计10238元到职工住房公积金\n④收寄局存\n国内特快专递\n客服电话：11183\n网站：www.ems.com.cn\n请仔细阅读背面契约条款！\n承运人",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张璐缴存2019年07月至2021年04月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发布\n院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管(2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006)52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位张璐补缴2019年07月至\n2021年04月期间的单位应缴存部分住房公积金合计10238元到职工住房公积金\n国内特快专递\n客服电话：11183\n网站：www.cms.com.cn\n承远人已尽说朋义务，您的\n日\n《住房公积金管\n条",
           "normalized_notices": [
             "穗公积金中心越秀责字〔2025〕1107号",
             "穗公积金中心越秀责字〔2025〕1107号"
@@ -273,28 +187,28 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 225.67403780002496,
+          "total_duration": 182.02821660001064,
           "method": "region_first_sequential",
           "pages_timings": [
-            32.34960317611694,
-            15.09855341911316,
-            0.3232755661010742,
-            36.88222527503967,
-            1.8983078002929688,
-            22.60495162010193,
-            15.988089323043823,
-            2.172628164291382,
-            44.389344930648804,
-            36.25288105010986
+            36.60768485069275,
+            10.05129337310791,
+            0,
+            47.62663197517395,
+            0,
+            19.936176538467407,
+            5.246700048446655,
+            0,
+            26.921139001846313,
+            21.6184823513031
           ],
-          "avg_time_per_page": 20.795986032485963
+          "avg_time_per_page": 16.80081081390381
         },
         "accuracy": {
           "ocr_confidence": "N/A",
           "text_quality": "good",
           "extraction_success": true,
-          "fallback_rate": 30.0,
-          "region_first_hit_rate": 70.0,
+          "fallback_rate": 20.0,
+          "region_first_hit_rate": 50.0,
           "match_confidence": 100
         }
       },
@@ -312,8 +226,8 @@
             "穗公积金中心越秀责字〔2025〕856号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2025〕856号",
-          "fallback_pages": 3,
-          "region_pages": 7,
+          "fallback_pages": 2,
+          "region_pages": 8,
           "stopped_early": false,
           "optimization_strategy": "region_first_sequential",
           "selected_notice": null,
@@ -323,7 +237,7 @@
           "matched_target_notice": "穗公积金中心越秀责字〔2025〕856号",
           "export_match_type": "exact",
           "same_root_remap": false,
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位叶婷婷补缴2019年09月\n至2024年05月期间的单位应缴存部分住房公积金合计14851元到职工住房公积\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首页",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若于具体问题的指导意见》(建金管(2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n贵令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位叶婷婷补缴2019年09月\n至2024年05月期间的单位应缴存部分住房公积金合计14851元到职工住房公积\n广州住房公积金管理中心\n住房公职金\n输入关键字搜索\n首页",
           "normalized_notices": [
             "穗公积金中心越秀责字〔2025〕856号",
             "穗公积金中心越秀责字〔2025〕856号"
@@ -331,28 +245,28 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 242.92755140000372,
+          "total_duration": 190.9754186999926,
           "method": "region_first_sequential",
           "pages_timings": [
-            33.51523017883301,
-            16.30357837677002,
-            11.956106185913086,
-            77.83286237716675,
-            25.73847794532776,
-            11.533809185028076,
-            5.214379787445068,
-            38.7541229724884,
-            11.581788063049316,
-            2.0974771976470947
+            31.061079263687134,
+            11.749037265777588,
+            7.700671434402466,
+            53.0004141330719,
+            16.76061201095581,
+            8.293562889099121,
+            5.344416379928589,
+            38.20995736122131,
+            5.681180000305176,
+            2.080862283706665
           ],
-          "avg_time_per_page": 23.452783226966858
+          "avg_time_per_page": 17.988179302215578
         },
         "accuracy": {
           "ocr_confidence": "N/A",
           "text_quality": "good",
           "extraction_success": true,
-          "fallback_rate": 30.0,
-          "region_first_hit_rate": 70.0,
+          "fallback_rate": 20.0,
+          "region_first_hit_rate": 80.0,
           "match_confidence": 100
         }
       },
@@ -380,17 +294,17 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 12.404102500004228,
+          "total_duration": 12.570474600011948,
           "method": "region_first",
           "pages_timings": [
-            1.8044536113739014,
-            2.189117908477783,
-            1.485304594039917,
-            2.372668743133545,
-            0.9214112758636475,
-            1.5406765937805176
+            1.8337247371673584,
+            2.443291187286377,
+            1.5642378330230713,
+            2.430840253829956,
+            1.3004438877105713,
+            1.4796404838562012
           ],
-          "avg_time_per_page": 1.7189387877782185
+          "avg_time_per_page": 1.8420297304789226
         },
         "accuracy": {
           "text_quality": "fair",
@@ -421,14 +335,14 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 4.790442099998472,
+          "total_duration": 5.302001899981406,
           "method": "region_first",
           "pages_timings": [
-            1.7943503856658936,
-            1.4366099834442139,
-            0.48121213912963867
+            1.8803784847259521,
+            1.3763518333435059,
+            1.1579082012176514
           ],
-          "avg_time_per_page": 1.2373908360799153
+          "avg_time_per_page": 1.4715461730957031
         },
         "accuracy": {
           "text_quality": "good",
@@ -464,14 +378,14 @@
           "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.936549600010039,
+          "total_duration": 4.642650900001172,
           "method": "region_first",
           "pages_timings": [
-            1.2901520729064941,
-            0.7548031806945801,
-            0.9601113796234131
+            1.1419918537139893,
+            1.3255541324615479,
+            1.1624464988708496
           ],
-          "avg_time_per_page": 1.0016888777414958
+          "avg_time_per_page": 1.2099974950154622
         },
         "accuracy": {
           "text_quality": "poor",
@@ -499,8 +413,8 @@
             "穗公积金中心越秀责字〔2024〕914号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2024〕914-1号",
-          "fallback_pages": 1,
-          "region_pages": 9,
+          "fallback_pages": 0,
+          "region_pages": 5,
           "stopped_early": false,
           "optimization_strategy": "region_first_sequential",
           "selected_notice": null,
@@ -510,7 +424,7 @@
           "matched_target_notice": "穗公积金中心越秀责字〔2024〕914-1号",
           "export_match_type": "fuzzy",
           "same_root_remap": true,
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积\n\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首页\n信息公开\n工作动态\n通知公告\n办事服务\n下载中心\n业务网点\n互动交流\n当前",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积\n\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首",
           "normalized_notices": [
             "穗公积金中心越秀责字〔2024〕914-1号",
             "穗公积金中心越秀责字〔2024〕914号"
@@ -528,28 +442,28 @@
           "请人工确认台账是否应保留子号命名"
         ],
         "timing": {
-          "total_duration": 172.41733389999717,
+          "total_duration": 126.01011639999342,
           "method": "region_first_sequential",
           "pages_timings": [
-            27.50466513633728,
-            2.1296980381011963,
-            12.909489631652832,
-            0.7855162620544434,
-            9.291361570358276,
-            1.0861766338348389,
-            71.33681774139404,
-            1.2882282733917236,
-            24.942291259765625,
-            1.319117546081543
+            28.68483328819275,
+            0,
+            11.120157957077026,
+            0,
+            14.121504545211792,
+            0,
+            38.24516677856445,
+            0,
+            21.739336490631104,
+            0
           ],
-          "avg_time_per_page": 15.25933620929718
+          "avg_time_per_page": 11.391099905967712
         },
         "accuracy": {
           "ocr_confidence": "N/A",
           "text_quality": "good",
           "extraction_success": true,
-          "fallback_rate": 10.0,
-          "region_first_hit_rate": 90.0,
+          "fallback_rate": 0.0,
+          "region_first_hit_rate": 50.0,
           "match_confidence": 100
         }
       },
@@ -578,14 +492,14 @@
           "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.936549600010039,
+          "total_duration": 4.642650900001172,
           "method": "region_first",
           "pages_timings": [
-            1.2901520729064941,
-            0.7548031806945801,
-            0.9601113796234131
+            1.1419918537139893,
+            1.3255541324615479,
+            1.1624464988708496
           ],
-          "avg_time_per_page": 1.0016888777414958
+          "avg_time_per_page": 1.2099974950154622
         },
         "accuracy": {
           "text_quality": "poor",

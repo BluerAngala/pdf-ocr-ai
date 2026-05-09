@@ -118,6 +118,28 @@ class ImagePreprocessor:
     """图像预处理器 - 减少OCR计算量"""
 
     @staticmethod
+    def is_blank_page(image: Image.Image, threshold: float = 0.02) -> bool:
+        """
+        检测是否为空白页
+        
+        Args:
+            image: PIL 图像对象
+            threshold: 空白页阈值（非白色像素占比小于此值视为空白页）
+        
+        Returns:
+            True 如果是空白页
+        """
+        import numpy as np
+        
+        img_array = np.array(image.convert('L'))
+        
+        white_pixels = np.sum(img_array > 240)
+        total_pixels = img_array.size
+        non_white_ratio = 1 - (white_pixels / total_pixels)
+        
+        return non_white_ratio < threshold
+
+    @staticmethod
     def optimize_for_ocr(
         image: Image.Image,
         target_size: Tuple[int, int] = (800, 800),

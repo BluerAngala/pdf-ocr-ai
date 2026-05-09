@@ -81,6 +81,8 @@ class NonLitigationConfig:
     notice_region_fallback_min_text_length: int = 8
     application_region_fallback_min_text_length: int = 5
     company_doc_region_fallback_min_text_length: int = 6
+    ocr_skip_blank_pages: bool = True
+    ocr_blank_page_threshold: float = 0.02
     ocr_auto_detect_resources: bool = True
     ocr_max_parallel_workers: int = 4
     ocr_memory_reserve_gb: float = 1.5
@@ -193,6 +195,8 @@ def load_config() -> NonLitigationConfig:
     cfg.notice_region_fallback_min_text_length = optimization.get('notice_region_fallback_min_text_length', 8)
     cfg.application_region_fallback_min_text_length = optimization.get('application_region_fallback_min_text_length', 5)
     cfg.company_doc_region_fallback_min_text_length = optimization.get('company_doc_region_fallback_min_text_length', 6)
+    cfg.ocr_skip_blank_pages = optimization.get('skip_blank_pages', True)
+    cfg.ocr_blank_page_threshold = optimization.get('blank_page_threshold', 0.02)
 
     parallelism = ocr.get('parallelism', {})
     cfg.ocr_auto_detect_resources = parallelism.get('auto_detect_resources', True)

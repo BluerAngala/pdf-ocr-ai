@@ -5,20 +5,20 @@
       "text": "强制执行申请书\n(申请执行用)\n当事人信息",
       "original_text": "强制执行申请书\n（申请执行用）\n当事人信息",
       "method": "region_first",
-      "duration": 1.8337247371673584,
+      "duration": 1.9052560329437256,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 1.8337247371673584,
+          "duration": 1.9052560329437256,
           "text_length": 21,
           "text": "强制执行申请书\n（申请执行用）\n当事人信息"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 1.8337,
+        "total_duration": 1.9053,
         "max_text_length": 21,
         "total_text_length": 21,
         "regions": [
@@ -38,20 +38,20 @@
       "text": "执行依据信息\n民事类：\n文书类型\n刑事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n(注：1.行政处罚决定\n刑事附带民事判决书口刑事附带民事裁定书。刑事附带民事调解书",
       "original_text": "执行依据信息\n民事类：\n文书类型\n刑事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n（注：1.行政处罚决定\n刑事附带民事判决书口刑事附带民事裁定书。刑事附带民事调解书",
       "method": "region_first",
-      "duration": 2.443291187286377,
+      "duration": 2.4984192848205566,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 2.443291187286377,
+          "duration": 2.4984192848205566,
           "text_length": 89,
           "text": "执行依据信息\n民事类：\n文书类型\n刑事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n（注：1.行政处罚决定\n刑事附带民事判决书口刑事附带民事裁定书。刑事附带民事调解书"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 2.4433,
+        "total_duration": 2.4984,
         "max_text_length": 89,
         "total_text_length": 89,
         "regions": [
@@ -71,20 +71,20 @@
       "text": "强制执行申请书\n(申请执行用)\n当事人信息",
       "original_text": "强制执行申请书\n（申请执行用）\n当事人信息",
       "method": "region_first",
-      "duration": 1.5642378330230713,
+      "duration": 1.5006916522979736,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 1.5642378330230713,
+          "duration": 1.5006916522979736,
           "text_length": 21,
           "text": "强制执行申请书\n（申请执行用）\n当事人信息"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 1.5642,
+        "total_duration": 1.5007,
         "max_text_length": 21,
         "total_text_length": 21,
         "regions": [
@@ -104,20 +104,20 @@
       "text": "执行依据信息\n民事类：\n行政处理决定，需先经\n注：1.行政处罚决定\n文书类型\n刑事类：\n判决书\n刑事附带民事判决书。刑事附带民事裁定书。刑事附带民事调解书\n裁定书\n调解书口\n制裁决定\n支付令",
       "original_text": "执行依据信息\n民事类：\n行政处理决定，需先经\n注：1.行政处罚决定\n文书类型\n刑事类：\n判决书\n刑事附带民事判决书。刑事附带民事裁定书。刑事附带民事调解书\n裁定书\n调解书口\n制裁决定\n支付令",
       "method": "region_first",
-      "duration": 2.430840253829956,
+      "duration": 2.311899185180664,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 2.430840253829956,
+          "duration": 2.311899185180664,
           "text_length": 95,
           "text": "执行依据信息\n民事类：\n行政处理决定，需先经\n注：1.行政处罚决定\n文书类型\n刑事类：\n判决书\n刑事附带民事判决书。刑事附带民事裁定书。刑事附带民事调解书\n裁定书\n调解书口\n制裁决定\n支付令"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 2.4308,
+        "total_duration": 2.3119,
         "max_text_length": 95,
         "total_text_length": 95,
         "regions": [
@@ -137,20 +137,20 @@
       "text": "强制执行申请书\n(申请执行用)",
       "original_text": "强制执行申请书\n（申请执行用）",
       "method": "region_first",
-      "duration": 1.3004438877105713,
+      "duration": 1.242640733718872,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 1.3004438877105713,
+          "duration": 1.242640733718872,
           "text_length": 15,
           "text": "强制执行申请书\n（申请执行用）"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 1.3004,
+        "total_duration": 1.2426,
         "max_text_length": 15,
         "total_text_length": 15,
         "regions": [
@@ -170,20 +170,20 @@
       "text": "执行依据信息\n民事类：\n文书类型\n刑事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n(注：1.行政处罚决定",
       "original_text": "执行依据信息\n民事类：\n文书类型\n刑事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n（注：1.行政处罚决定",
       "method": "region_first",
-      "duration": 1.4796404838562012,
+      "duration": 1.4168915748596191,
       "region_attempts": [
         {
           "region": "申请书标题",
           "region_key": "application_title",
           "method": "region:申请书标题",
-          "duration": 1.4796404838562012,
+          "duration": 1.4168915748596191,
           "text_length": 59,
           "text": "执行依据信息\n民事类：\n文书类型\n刑事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n（注：1.行政处罚决定"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 1.4796,
+        "total_duration": 1.4169,
         "max_text_length": 59,
         "total_text_length": 59,
         "regions": [
@@ -202,7 +202,7 @@
   "total_pages": 6,
   "filename": "申请书.pdf",
   "method": "region_first",
-  "total_duration": 12.570474600011948,
+  "total_duration": 12.550281200004974,
   "fallback_pages": 0,
   "region_pages": 6,
   "optimization_strategy": "region_first",
@@ -215,14 +215,14 @@
     "doc_type": "申请书",
     "file_name": "申请书.pdf",
     "page_count": 6,
-    "total_duration": 12.5705,
+    "total_duration": 12.5503,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 6,
-    "region_ocr_duration_total": 11.052,
+    "region_ocr_duration_total": 10.8758,
     "slowest_page": {
       "page": 2,
-      "duration": 2.4433,
+      "duration": 2.4984,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

@@ -720,7 +720,7 @@ class HTMLReportGenerator:
         """保存 HTML 报告"""
         html = self.generate()
         output_path.write_text(html, encoding='utf-8')
-        print(f"\n📄 HTML 报告已保存: {output_path}")
+        print(f"\n[INFO] HTML 报告已保存: {output_path}")
 
 
 def generate_html_report(validation_result: Dict, output_path: Path, 

@@ -190,7 +190,7 @@ class TextPostProcessor:
 
     def expand_decision_number_ranges(self, text: str) -> List[str]:
         results = []
-        pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕)(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号')
+        pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】])(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号')
         for prefix, start, end in pattern.findall(text):
             if '-' in start or '-' in end:
                 if start == end:
@@ -206,7 +206,7 @@ class TextPostProcessor:
     def extract_decision_numbers(self, text: str) -> List[str]:
         numbers = []
         numbers.extend(self.expand_decision_number_ranges(text))
-        single_pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字〔\d{4}〕\d+(?:-\d+)?号)')
+        single_pattern = re.compile(r'(穗公积金中心[^\s，。；、《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号)')
         for match in single_pattern.findall(text):
             numbers.append(self.normalize_decision_number(match))
         cleaned = []

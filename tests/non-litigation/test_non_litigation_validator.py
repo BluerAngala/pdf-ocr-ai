@@ -76,6 +76,8 @@ def test_validate_notice_ocr_should_warn_when_main_number_is_remapped_to_same_ro
 
     assert result.status == ValidationStatus.WARNING
     assert result.details['same_root_remap'] is True
+    assert result.details['diagnostic_category'] == 'basis_mismatch'
+    assert result.details['diagnostic_reason'] == '识别主号成功，但导出目标被同根号子号重映射'
     assert result.details['same_root_remap_summary']['target_notice'] == '穗公积金中心南沙责字〔2025〕1175-2号'
     assert '同根目标导出' in result.message
 
@@ -140,3 +142,74 @@ def test_generate_report_should_count_same_root_remap_warnings():
 
     report = validator.generate_report()
     assert report['accuracy_summary']['same_root_remap_warnings'] == 1
+    assert report['accuracy_summary']['basis_mismatch_warnings'] == 1
+
+
+def test_validate_notice_ocr_should_classify_fuzzy_mapping_warning():
+    validator = NonLitigationValidator(CASES)
+    result = validator.validate_notice_ocr('1.pdf', {
+        'total_pages': 1,
+        'total_duration': 1.0,
+        'method': 'region_first_sequential',
+        'selected_notice': '穗公积金中心南沙责字〔2025〕1176号',
+        'pages': [{'page': 1, 'text': '穗公积金中心南沙责字〔2025〕1176号', 'duration': 1.0, 'method': 'region_first', 'fallback_used': False}],
+    })
+
+    assert result.status == ValidationStatus.WARNING
+    assert result.details['diagnostic_category'] == 'fuzzy_mapping'
+    assert '模糊匹配候选' in result.details['diagnostic_reason']
+
+
+
+def test_validate_notice_ocr_should_classify_ocr_failure_when_notice_missing():
+    validator = NonLitigationValidator(CASES)
+    result = validator.validate_notice_ocr('1.pdf', {
+        'total_pages': 1,
+        'total_duration': 0.5,
+        'method': 'region_first_sequential',
+        'pages': [{'page': 1, 'text': '送达回证正文', 'duration': 0.5, 'method': 'region_first', 'fallback_used': False}],
+    })
+
+    assert result.status == ValidationStatus.FAIL
+    assert result.details['diagnostic_category'] == 'ocr_failure'
+    assert result.details['diagnostic_reason'] == '未识别到责令号'
+
+
+
+def test_generate_report_should_include_new_diagnostic_aggregates():
+    validator = NonLitigationValidator(REMAPPED_CASES)
+    validator.validation_report.append(validator.validate_notice_ocr('basis.pdf', {
+        'total_pages': 1,
+        'total_duration': 1.0,
+        'method': 'region_first_sequential',
+        'selected_notice': '穗公积金中心南沙责字〔2025〕1175号',
+        'matched_target': '1-责催-穗公积金中心南沙责字（2025）1175-2号.pdf',
+        'matched_target_notice': '穗公积金中心南沙责字（2025）1175-2号',
+        'export_match_type': 'same_root_base',
+        'same_root_remap': True,
+        'pages': [{'page': 1, 'text': '穗公积金中心南沙责字〔2025〕1175号', 'duration': 1.0, 'method': 'region_first', 'fallback_used': False}],
+    }))
+    validator.validation_report.append(validator.validate_notice_ocr('fuzzy.pdf', {
+        'total_pages': 1,
+        'total_duration': 1.0,
+        'method': 'region_first_sequential',
+        'selected_notice': '穗公积金中心南沙责字〔2025〕1176号',
+        'pages': [{'page': 1, 'text': '穗公积金中心南沙责字〔2025〕1176号', 'duration': 1.0, 'method': 'region_first', 'fallback_used': False}],
+    }))
+    validator.validation_report.append(validator.validate_notice_ocr('fail.pdf', {
+        'total_pages': 3,
+        'total_duration': 1.5,
+        'method': 'region_first_sequential',
+        'selected_notice': '穗公积金中心南沙责字〔2025〕9999号',
+        'pages': [
+            {'page': 1, 'text': '穗公积金中心南沙责字〔2025〕9999号', 'duration': 0.5, 'method': 'region_first', 'fallback_used': True},
+            {'page': 2, 'text': '正文', 'duration': 0.5, 'method': 'region_first', 'fallback_used': True},
+            {'page': 3, 'text': '附页', 'duration': 0.5, 'method': 'region_first', 'fallback_used': False},
+        ],
+    }))
+
+    report = validator.generate_report()
+    assert report['accuracy_summary']['basis_mismatch_warnings'] == 1
+    assert report['accuracy_summary']['fuzzy_mapping_warnings'] == 1
+    assert report['accuracy_summary']['ocr_or_heuristic_failures'] == 1
+    assert report['accuracy_summary']['documents_with_high_fallback'] == 1

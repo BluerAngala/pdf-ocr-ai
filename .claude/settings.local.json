@@ -12,7 +12,8 @@
       "Bash(PYTHONIOENCODING=utf-8 python \"scripts/run_non_litigation_flow.py\" --real --force --sample-root \"样本材料/非诉组自动化样本材料（第2批）\")",
       "Bash(PYTHONIOENCODING=utf-8 python \"C:/Users/11071/Documents/trae_projects/pdf识别/scripts/run_non_litigation_flow.py\" --clean --all-batches --real --force)",
       "Bash(PYTHONIOENCODING=utf-8 python \"scripts/run_non_litigation_flow.py\" --clean --all-batches --real --force)",
-      "Bash(PYTHONIOENCODING=utf-8 python \"scripts/run_non_litigation_flow.py\" --clean --real --force --sample-root \"样本材料/非诉组自动化样本材料（第2批）\")"
+      "Bash(PYTHONIOENCODING=utf-8 python \"scripts/run_non_litigation_flow.py\" --clean --real --force --sample-root \"样本材料/非诉组自动化样本材料（第2批）\")",
+      "Bash(./.venv312/Scripts/python.exe scripts/run_non_litigation_flow.py --real)"
     ]
   }
 }

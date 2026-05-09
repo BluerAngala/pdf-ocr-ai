@@ -104,6 +104,8 @@ class NonLitigationValidator:
             'matched_target_notice': ocr_result.get('matched_target_notice'),
             'export_match_type': ocr_result.get('export_match_type'),
             'same_root_remap': ocr_result.get('same_root_remap', False),
+            'diagnostic_category': 'basis_mismatch' if ocr_result.get('same_root_remap', False) else None,
+            'diagnostic_reason': '识别主号成功，但导出目标被同根号子号重映射' if ocr_result.get('same_root_remap', False) else '',
         }
         
         # 提取耗时信息
@@ -129,6 +131,8 @@ class NonLitigationValidator:
         # 检查是否识别到任何内容
         if not ocr_result.get('pages'):
             accuracy['text_quality'] = 'empty'
+            details['diagnostic_category'] = 'ocr_failure'
+            details['diagnostic_reason'] = 'OCR 未识别到任何内容'
             return ValidationResult(
                 status=ValidationStatus.FAIL,
                 file_name=file_name,
@@ -166,6 +170,8 @@ class NonLitigationValidator:
         
         # 检查是否识别到责令号
         if not detected_notices:
+            details['diagnostic_category'] = 'ocr_failure'
+            details['diagnostic_reason'] = '未识别到责令号'
             return ValidationResult(
                 status=ValidationStatus.FAIL,
                 file_name=file_name,
@@ -206,6 +212,8 @@ class NonLitigationValidator:
                 'matched_target': details.get('matched_target'),
                 'export_match_type': details.get('export_match_type'),
             }
+            details['diagnostic_category'] = 'basis_mismatch'
+            details['diagnostic_reason'] = '识别主号成功，但导出目标被同根号子号重映射'
 
         # 检查是否匹配台账中的责令号
         matched = False
@@ -222,10 +230,13 @@ class NonLitigationValidator:
         
         primary_notice = selected_notice or (normalized_detected[0] if normalized_detected else None)
 
-        if matched:
+        if matched or same_root_remap:
             status = ValidationStatus.WARNING if same_root_remap else ValidationStatus.PASS
             message = f'成功识别并匹配责令号: {primary_notice}'
             suggestions = []
+            if matched:
+                accuracy['extraction_success'] = True
+                accuracy['match_confidence'] = 100
             if same_root_remap:
                 message = f'识别主号成功，但按同根目标导出: {primary_notice} -> {target_notice}'
                 suggestions = [
@@ -248,6 +259,8 @@ class NonLitigationValidator:
             best_match, ratio = self._fuzzy_match_notice(primary_notice) if primary_notice else (None, 0)
             if best_match and ratio >= _cfg.fuzzy_match_threshold:
                 details['fuzzy_match'] = {'target': best_match, 'ratio': ratio}
+                details['diagnostic_category'] = 'fuzzy_mapping'
+                details['diagnostic_reason'] = f'识别结果未精确命中台账，存在模糊匹配候选: {best_match}'
                 accuracy['match_confidence'] = int(ratio * 100)
                 return ValidationResult(
                     status=ValidationStatus.WARNING,
@@ -264,6 +277,8 @@ class NonLitigationValidator:
                     accuracy=accuracy
                 )
             else:
+                details['diagnostic_category'] = 'heuristic_mismatch'
+                details['diagnostic_reason'] = '识别到责令号，但无法匹配台账中的标准责令号'
                 return ValidationResult(
                     status=ValidationStatus.FAIL,
                     file_name=file_name,
@@ -563,6 +578,10 @@ class NonLitigationValidator:
             'fuzzy_notice_matches': sum(1 for r in self.validation_report if r.file_type == 'notice' and r.details.get('fuzzy_match')),
             'same_root_remap_warnings': sum(1 for r in self.validation_report if r.file_type == 'notice' and r.details.get('same_root_remap')),
             'notice_failures': sum(1 for r in self.validation_report if r.file_type == 'notice' and r.status == ValidationStatus.FAIL),
+            'basis_mismatch_warnings': sum(1 for r in self.validation_report if r.details.get('diagnostic_category') == 'basis_mismatch'),
+            'fuzzy_mapping_warnings': sum(1 for r in self.validation_report if r.details.get('diagnostic_category') == 'fuzzy_mapping'),
+            'ocr_or_heuristic_failures': sum(1 for r in self.validation_report if r.details.get('diagnostic_category') in {'ocr_failure', 'heuristic_mismatch'}),
+            'documents_with_high_fallback': sum(1 for r in self.validation_report if r.details.get('fallback_pages', 0) >= 2),
             'fallback_pages_total': sum(r.details.get('fallback_pages', 0) for r in self.validation_report),
             'boundary_pages_detected': sum(len(r.details.get('boundary_pages_detected', [])) for r in self.validation_report if r.file_type == 'application'),
             'marker_detected_pages': sum(r.details.get('marker_detected_pages', 0) for r in self.validation_report if r.file_type in {'authorization', 'letter'}),

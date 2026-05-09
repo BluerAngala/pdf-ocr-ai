@@ -125,7 +125,36 @@ def clean_rebuildable_outputs() -> List[str]:
 def clear_ocr_cache_if_needed(use_real_ocr: bool, force: bool, ocr_cache_dir: Path):
     if force and use_real_ocr and ocr_cache_dir.exists():
         shutil.rmtree(ocr_cache_dir)
-        print(f"🗑️  已删除旧缓存: {ocr_cache_dir}")
+        print(f"[OK] 已删除旧缓存: {ocr_cache_dir}")
+
+
+def classify_real_ocr_run(ocr_cache_performance: Dict | None) -> Dict:
+    ocr_cache_performance = ocr_cache_performance or {}
+    if not ocr_cache_performance:
+        return {
+            'ocr_run_kind': 'unknown',
+            'ocr_speed_measurable': False,
+            'ocr_newly_processed_count': 0,
+            'ocr_reused_cache_count': 0,
+        }
+
+    processed = ocr_cache_performance.get('processed_files_total', 0)
+    cached = ocr_cache_performance.get('cached_files_total', 0)
+    if ocr_cache_performance.get('fresh_run'):
+        run_kind = 'real_fresh'
+    elif ocr_cache_performance.get('cache_only_run'):
+        run_kind = 'real_cached'
+    elif ocr_cache_performance.get('mixed_run'):
+        run_kind = 'real_mixed'
+    else:
+        run_kind = 'unknown'
+
+    return {
+        'ocr_run_kind': run_kind,
+        'ocr_speed_measurable': run_kind == 'real_fresh',
+        'ocr_newly_processed_count': processed,
+        'ocr_reused_cache_count': cached,
+    }
 
 
 def build_run_summary(
@@ -155,19 +184,19 @@ def build_run_summary(
     ocr_start = time.perf_counter()
     if use_real_ocr:
         print('=' * 60)
-        print('🚀 真实 OCR 模式')
+        print('[INFO] 真实 OCR 模式')
         print('=' * 60)
         build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False)
     else:
         print('=' * 60)
-        print('📝 Mock 模式（使用预生成缓存）')
+        print('[INFO] Mock 模式（使用预生成缓存）')
         print('=' * 60)
         build_mock_ocr_cache(sample_root, ocr_cache_dir, input_dir=input_root)
     ocr_duration = time.perf_counter() - ocr_start
     phase_timings['ocr_cache_seconds'] = round(ocr_duration, 4)
-    print(f'\n⏱️  OCR 缓存阶段完成: {ocr_duration:.2f}s')
+    print(f'\n[INFO] OCR 缓存阶段完成: {ocr_duration:.2f}s')
 
-    print('\n📦 开始导出文件...')
+    print('\n[INFO] 开始导出文件...')
     export_start = time.perf_counter()
     export_result = export_non_litigation_standard_outputs(
         sample_root=sample_root,
@@ -178,21 +207,21 @@ def build_run_summary(
     export_duration = time.perf_counter() - export_start
     export_runtime_seconds = round(export_duration, 4)
     phase_timings['export_seconds'] = export_runtime_seconds
-    print(f'⏱️  导出阶段完成: {export_duration:.2f}s')
+    print(f'[INFO] 导出阶段完成: {export_duration:.2f}s')
 
     evaluation_start = time.perf_counter()
     quality = evaluate_non_litigation_quality(root_dir, result_root, sample_root=sample_root)
     evaluation_duration = time.perf_counter() - evaluation_start
     phase_timings['evaluation_seconds'] = round(evaluation_duration, 4)
-    print(f'⏱️  质量评估完成: {evaluation_duration:.2f}s')
+    print(f'[INFO] 质量评估完成: {evaluation_duration:.2f}s')
 
-    print('\n🔍 验证 OCR 识别结果...')
+    print('\n[INFO] 验证 OCR 识别结果...')
     validation_start = time.perf_counter()
     cases = load_non_litigation_cases(sample_root)
     validation_result = validate_ocr_results(cases, ocr_cache_dir, input_dir=input_root)
     validation_duration = time.perf_counter() - validation_start
     phase_timings['validation_seconds'] = round(validation_duration, 4)
-    print(f'⏱️  验证阶段完成: {validation_duration:.2f}s')
+    print(f'[INFO] 验证阶段完成: {validation_duration:.2f}s')
 
     report_start = time.perf_counter()
     runtime_seconds = round(time.perf_counter() - total_start, 4)
@@ -204,11 +233,11 @@ def build_run_summary(
     )
     report_duration = time.perf_counter() - report_start
     phase_timings['report_seconds'] = round(report_duration, 4)
-    print(f'⏱️  报告生成完成: {report_duration:.2f}s')
-    
+    print(f'[INFO] 报告生成完成: {report_duration:.2f}s')
+
     runtime_seconds = round(time.perf_counter() - total_start, 4)
     print(f'\n' + '=' * 60)
-    print(f'⏱️  总运行时间: {runtime_seconds:.2f}s')
+    print(f'[INFO] 总运行时间: {runtime_seconds:.2f}s')
     print('=' * 60)
 
     folder_items = {
@@ -222,6 +251,13 @@ def build_run_summary(
     if ocr_cache_performance_path.exists():
         ocr_cache_performance = json.loads(ocr_cache_performance_path.read_text(encoding='utf-8'))
 
+    real_ocr_summary = classify_real_ocr_run(ocr_cache_performance) if use_real_ocr else {
+        'ocr_run_kind': 'mock',
+        'ocr_speed_measurable': False,
+        'ocr_newly_processed_count': 0,
+        'ocr_reused_cache_count': 0,
+    }
+
     return {
         'sample_root': str(sample_root),
         'input_root': str(input_root),
@@ -232,6 +268,10 @@ def build_run_summary(
         'export_runtime_seconds': export_runtime_seconds,
         'phase_timings': phase_timings,
         'ocr_cache_performance': ocr_cache_performance,
+        'ocr_run_kind': real_ocr_summary['ocr_run_kind'],
+        'ocr_speed_measurable': real_ocr_summary['ocr_speed_measurable'],
+        'ocr_newly_processed_count': real_ocr_summary['ocr_newly_processed_count'],
+        'ocr_reused_cache_count': real_ocr_summary['ocr_reused_cache_count'],
         'created_count': export_result['created_count'],
         'quality': quality,
         'validation': validation_result,
@@ -263,6 +303,10 @@ def build_aggregate_summary(batch_summaries: List[Dict], mode: str) -> Dict:
                 'export_runtime_seconds': item.get('export_runtime_seconds', item['runtime_seconds']),
                 'phase_timings': item.get('phase_timings', {}),
                 'ocr_cache_performance': item.get('ocr_cache_performance', {}),
+                'ocr_run_kind': item.get('ocr_run_kind', 'unknown'),
+                'ocr_speed_measurable': item.get('ocr_speed_measurable', False),
+                'ocr_newly_processed_count': item.get('ocr_newly_processed_count', 0),
+                'ocr_reused_cache_count': item.get('ocr_reused_cache_count', 0),
                 'quality': item['quality'],
                 'validation_summary': item['validation']['summary'],
                 'accuracy_summary': item['validation'].get('accuracy_summary', {}),
@@ -291,18 +335,25 @@ def build_aggregate_summary(batch_summaries: List[Dict], mode: str) -> Dict:
         'accuracy_summary': {
             'same_root_remap_warnings': sum(item['validation'].get('accuracy_summary', {}).get('same_root_remap_warnings', 0) for item in batch_summaries),
             'notice_failures': sum(item['validation'].get('accuracy_summary', {}).get('notice_failures', 0) for item in batch_summaries),
+            'basis_mismatch_warnings': sum(item['validation'].get('accuracy_summary', {}).get('basis_mismatch_warnings', 0) for item in batch_summaries),
+            'fuzzy_mapping_warnings': sum(item['validation'].get('accuracy_summary', {}).get('fuzzy_mapping_warnings', 0) for item in batch_summaries),
+            'ocr_or_heuristic_failures': sum(item['validation'].get('accuracy_summary', {}).get('ocr_or_heuristic_failures', 0) for item in batch_summaries),
+            'documents_with_high_fallback': sum(item['validation'].get('accuracy_summary', {}).get('documents_with_high_fallback', 0) for item in batch_summaries),
             'fallback_pages_total': sum(item['validation'].get('accuracy_summary', {}).get('fallback_pages_total', 0) for item in batch_summaries),
         },
     }
 
 
 def format_summary(summary: Dict) -> str:
+    ocr_run_kind = summary.get('ocr_run_kind', 'unknown')
+    ocr_speed_measurable = summary.get('ocr_speed_measurable', False)
     lines = [
         '',
         '=' * 60,
-        '📊 处理结果汇总',
+        '[INFO] 处理结果汇总',
         '=' * 60,
         f"运行模式: {summary.get('mode', 'unknown')}",
+        f"OCR 运行类型: {ocr_run_kind}",
         f"样本根目录: {summary.get('sample_root', 'unknown')}",
         f"非诉输入目录: {summary['input_root']}",
         f"非诉输出目录: {summary['result_root']}",
@@ -313,11 +364,14 @@ def format_summary(summary: Dict) -> str:
         f"导出阶段耗时: {summary.get('export_runtime_seconds', summary['runtime_seconds'])} 秒",
         f"验证阶段耗时: {summary.get('phase_timings', {}).get('validation_seconds', 0)} 秒",
         f"报告阶段耗时: {summary.get('phase_timings', {}).get('report_seconds', 0)} 秒",
+        f"新 OCR 文件数: {summary.get('ocr_newly_processed_count', 0)}",
+        f"复用缓存文件数: {summary.get('ocr_reused_cache_count', 0)}",
+        f"OCR 速度评估有效: {'是' if ocr_speed_measurable else '否'}",
         f"生成文件数: {summary['created_count']}",
         f"页数匹配: {summary['quality']['page_count_matched']}/{summary['quality']['total_files']}",
         f"页数匹配率: {summary['quality']['page_count_match_rate']:.2%}",
         '',
-        '📁 输出文件列表:',
+        '[INFO] 输出文件列表:',
     ]
     for folder_name, file_names in summary['output_folders'].items():
         lines.append(f"\n  {folder_name}: {len(file_names)} 个文件")
@@ -329,26 +383,32 @@ def format_summary(summary: Dict) -> str:
         accuracy_summary = validation.get('accuracy_summary', {})
         lines.extend([
             '',
-            '🔍 OCR 识别验证:',
+            '[INFO] OCR 识别验证:',
             f"  总计: {validation['summary']['total']} 个文件",
-            f"  ✅ 通过: {validation['summary']['passed']} 个",
-            f"  ⚠️  警告: {validation['summary']['warnings']} 个",
-            f"  ❌ 失败: {validation['summary']['failed']} 个",
+            f"  [OK] 通过: {validation['summary']['passed']} 个",
+            f"  [WARN] 警告: {validation['summary']['warnings']} 个",
+            f"  [ERROR] 失败: {validation['summary']['failed']} 个",
             f"  通过率: {validation['summary']['pass_rate']:.1%}",
             f"  最终识别准确率: {validation['summary']['pass_rate']:.1%}",
             f"  业务导出准确率: {summary['quality']['page_count_match_rate']:.1%}",
+            f"  评估口径类 warning（台账/映射）: {accuracy_summary.get('basis_mismatch_warnings', 0)}",
+            f"  模糊映射 warning: {accuracy_summary.get('fuzzy_mapping_warnings', 0)}",
+            f"  OCR/规则真实失败: {accuracy_summary.get('ocr_or_heuristic_failures', 0)}",
             f"  同根号重映射警告: {accuracy_summary.get('same_root_remap_warnings', 0)}",
             f"  责令号失败数: {accuracy_summary.get('notice_failures', 0)}",
+            f"  高 fallback 文档数: {accuracy_summary.get('documents_with_high_fallback', 0)}",
             f"  fallback 页数总计: {accuracy_summary.get('fallback_pages_total', 0)}",
         ])
+        if summary.get('mode') == 'real_ocr' and not ocr_speed_measurable:
+            lines.append('  [WARN] 当前不是 fresh OCR run，耗时不适合作为真实 OCR 速度结论；如需测速请使用 --real --force')
 
         if validation['failed_items']:
-            lines.append('\n  ❌ 失败项:')
+            lines.append('\n  [ERROR] 失败项:')
             for item in validation['failed_items']:
                 lines.append(f"    - {item['file_name']}: {item['message']}")
 
         if validation['warning_items']:
-            lines.append('\n  ⚠️  警告项:')
+            lines.append('\n  [WARN] 警告项:')
             for item in validation['warning_items']:
                 lines.append(f"    - {item['file_name']}: {item['message']}")
 
@@ -357,7 +417,11 @@ def format_summary(summary: Dict) -> str:
     if ocr_perf:
         lines.extend([
             '',
-            '⏱️ OCR 缓存性能:',
+            '[INFO] OCR 缓存性能:',
+            f"  请求文件总数: {ocr_perf.get('requested_files_total', 0)}",
+            f"  新处理文件总数: {ocr_perf.get('processed_files_total', 0)}",
+            f"  缓存命中文件总数: {ocr_perf.get('cached_files_total', 0)}",
+            f"  错误文件总数: {ocr_perf.get('error_files_total', 0)}",
             f"  fallback 页数总计: {ocr_perf.get('fallback_pages_total', 0)}",
             f"  region OCR 次数总计: {ocr_perf.get('region_attempts_total', 0)}",
         ])
@@ -376,7 +440,7 @@ def format_all_batches_summary(summary: Dict) -> str:
     lines = [
         '',
         '=' * 60,
-        '📊 双批次处理汇总',
+        '[INFO] 双批次处理汇总',
         '=' * 60,
         f"运行模式: {summary.get('mode', 'unknown')}",
     ]
@@ -392,13 +456,22 @@ def format_all_batches_summary(summary: Dict) -> str:
             f"  Summary JSON: {batch['summary_path']}",
             f"  总耗时: {batch['runtime_seconds']} 秒",
             f"  OCR缓存耗时: {batch.get('phase_timings', {}).get('ocr_cache_seconds', 0)} 秒",
+            f"  OCR 运行类型: {batch.get('ocr_run_kind', 'unknown')}",
+            f"  新 OCR 文件数: {batch.get('ocr_newly_processed_count', 0)}",
+            f"  复用缓存文件数: {batch.get('ocr_reused_cache_count', 0)}",
+            f"  OCR 速度评估有效: {'是' if batch.get('ocr_speed_measurable') else '否'}",
             f"  导出阶段耗时: {batch.get('export_runtime_seconds', batch['runtime_seconds'])} 秒",
             f"  最终识别准确率: {batch['validation_summary']['pass_rate']:.1%}",
             f"  业务导出准确率: {batch['quality']['page_count_match_rate']:.1%}",
+            f"  评估口径类 warning（台账/映射）: {batch['accuracy_summary'].get('basis_mismatch_warnings', 0)}",
+            f"  模糊映射 warning: {batch['accuracy_summary'].get('fuzzy_mapping_warnings', 0)}",
+            f"  OCR/规则真实失败: {batch['accuracy_summary'].get('ocr_or_heuristic_failures', 0)}",
             f"  同根号重映射警告: {batch['accuracy_summary'].get('same_root_remap_warnings', 0)}",
             f"  责令号失败数: {batch['accuracy_summary'].get('notice_failures', 0)}",
             f"  fallback 页数总计: {batch['accuracy_summary'].get('fallback_pages_total', 0)}",
         ])
+        if batch.get('ocr_run_kind') in {'real_mixed', 'real_cached'}:
+            lines.append('  [WARN] 当前批次不是 fresh OCR run，若需测速请使用 --real --force')
 
     lines.extend([
         '',
@@ -407,6 +480,10 @@ def format_all_batches_summary(summary: Dict) -> str:
         f"  两批OCR缓存耗时: {summary.get('phase_timings', {}).get('ocr_cache_seconds', 0)} 秒",
         f"  总体识别准确率: {summary['overall_validation_pass_rate']:.1%}",
         f"  总体业务导出准确率: {summary['overall_page_count_match_rate']:.1%}",
+        f"  评估口径类 warning（台账/映射）: {summary['accuracy_summary']['basis_mismatch_warnings']}",
+        f"  模糊映射 warning: {summary['accuracy_summary']['fuzzy_mapping_warnings']}",
+        f"  OCR/规则真实失败: {summary['accuracy_summary']['ocr_or_heuristic_failures']}",
+        f"  高 fallback 文档数: {summary['accuracy_summary']['documents_with_high_fallback']}",
         f"  同根号重映射警告: {summary['accuracy_summary']['same_root_remap_warnings']}",
         f"  责令号失败数: {summary['accuracy_summary']['notice_failures']}",
         f"  fallback 页数总计: {summary['accuracy_summary']['fallback_pages_total']}",
@@ -434,7 +511,7 @@ def run_single_batch(batch_name: str, use_real_ocr: bool, force: bool) -> Dict:
     )
     save_summary_json(summary, config['summary_path'])
     print(format_summary(summary))
-    print(f"\n📄 详细报告已保存: {config['summary_path']}")
+    print(f"\n[INFO] 详细报告已保存: {config['summary_path']}")
     summary['batch_name'] = batch_name
     summary['label'] = config['label']
     summary['summary_path'] = str(config['summary_path'])
@@ -456,7 +533,7 @@ def run_all_batches(use_real_ocr: bool, force: bool) -> Dict:
     )
     save_summary_json(aggregate, ALL_BATCH_SUMMARY_PATH)
     print(format_all_batches_summary(aggregate))
-    print(f"\n📄 双批次汇总已保存: {ALL_BATCH_SUMMARY_PATH}")
+    print(f"\n[INFO] 双批次汇总已保存: {ALL_BATCH_SUMMARY_PATH}")
     return aggregate
 
 
@@ -466,20 +543,20 @@ def determine_exit_code(summary: Dict) -> int:
     validation = summary.get('validation')
     if validation:
         if validation['summary']['failed'] > 0:
-            print(f"\n❌ OCR 验证失败: {validation['summary']['failed']} 个文件")
-            print('\n💡 处理建议:')
+            print(f"\n[ERROR] OCR 验证失败: {validation['summary']['failed']} 个文件")
+            print('\n[INFO] 处理建议:')
             for item in validation['failed_items']:
                 print(f"\n  【{item['file_name']}】")
                 for suggestion in item['suggestions']:
                     print(f"    - {suggestion}")
             exit_code = 2
         elif validation['summary']['warnings'] > 0:
-            print(f"\n⚠️  OCR 验证警告: {validation['summary']['warnings']} 个文件")
+            print(f"\n[WARN] OCR 验证警告: {validation['summary']['warnings']} 个文件")
         else:
-            print('\n✅ OCR 验证全部通过！')
+            print('\n[OK] OCR 验证全部通过！')
 
     if exit_code == 0:
-        print('\n🎉 所有检查通过，处理成功！')
+        print('\n[OK] 所有检查通过，处理成功！')
 
     return exit_code
 
@@ -487,18 +564,18 @@ def determine_exit_code(summary: Dict) -> int:
 def determine_all_batches_exit_code(summary: Dict) -> int:
     exit_code = 0
     if summary['overall_page_count_match_rate'] < 1.0:
-        print('⚠️  双批次结果中存在页数不匹配')
+        print('[WARN] 双批次结果中存在页数不匹配')
         exit_code = 1
     if summary['validation_totals']['failed'] > 0:
-        print(f"\n❌ 双批次 OCR 验证失败: {summary['validation_totals']['failed']} 个文件")
+        print(f"\n[ERROR] 双批次 OCR 验证失败: {summary['validation_totals']['failed']} 个文件")
         exit_code = 2
     elif summary['validation_totals']['warnings'] > 0:
-        print(f"\n⚠️  双批次 OCR 验证警告: {summary['validation_totals']['warnings']} 个文件")
+        print(f"\n[WARN] 双批次 OCR 验证警告: {summary['validation_totals']['warnings']} 个文件")
     else:
-        print('\n✅ 双批次 OCR 验证全部通过！')
+        print('\n[OK] 双批次 OCR 验证全部通过！')
 
     if exit_code == 0:
-        print('\n🎉 双批次处理成功！')
+        print('\n[OK] 双批次处理成功！')
 
     return exit_code
 
@@ -569,7 +646,7 @@ def main() -> int:
     save_summary_json(summary, path_config['summary_path'])
 
     print(format_summary(summary))
-    print(f"\n📄 详细报告已保存: {path_config['summary_path']}")
+    print(f"\n[INFO] 详细报告已保存: {path_config['summary_path']}")
 
     return determine_exit_code(summary)
 

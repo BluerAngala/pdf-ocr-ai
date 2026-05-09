@@ -17,6 +17,7 @@ from run_non_litigation_flow import (
     build_aggregate_summary,
     build_batch_config,
     build_run_summary,
+    classify_real_ocr_run,
     clean_rebuildable_outputs,
     format_all_batches_summary,
     format_summary,
@@ -57,7 +58,7 @@ def test_build_run_summary_should_use_sample_original_dir_when_present(monkeypat
     monkeypatch.setattr('run_non_litigation_flow.export_non_litigation_standard_outputs', lambda **kwargs: {'created_count': 1})
     monkeypatch.setattr('run_non_litigation_flow.evaluate_non_litigation_quality', lambda *args, **kwargs: {'total_files': 1, 'page_count_matched': 1, 'page_count_match_rate': 1.0})
     monkeypatch.setattr('run_non_litigation_flow.load_non_litigation_cases', lambda sample_root: [{'sequence': '1', 'notice_number': 'X', 'company_name': 'Y'}])
-    monkeypatch.setattr('run_non_litigation_flow.validate_ocr_results', lambda *args, **kwargs: {'summary': {'total': 1, 'passed': 1, 'warnings': 0, 'failed': 0, 'pass_rate': 1.0}, 'failed_items': [], 'warning_items': [], 'accuracy_summary': {'same_root_remap_warnings': 0, 'notice_failures': 0, 'fallback_pages_total': 0}})
+    monkeypatch.setattr('run_non_litigation_flow.validate_ocr_results', lambda *args, **kwargs: {'summary': {'total': 1, 'passed': 1, 'warnings': 0, 'failed': 0, 'pass_rate': 1.0}, 'failed_items': [], 'warning_items': [], 'accuracy_summary': {'same_root_remap_warnings': 0, 'notice_failures': 0, 'basis_mismatch_warnings': 0, 'fuzzy_mapping_warnings': 0, 'ocr_or_heuristic_failures': 0, 'documents_with_high_fallback': 0, 'fallback_pages_total': 0}})
     monkeypatch.setattr('run_non_litigation_flow.generate_html_report', lambda *args, **kwargs: None)
 
     summary = build_run_summary(ROOT, sample_root=batch2_root)
@@ -77,7 +78,7 @@ def test_build_run_summary_should_allow_injected_paths(monkeypatch, tmp_path: Pa
     monkeypatch.setattr('run_non_litigation_flow.export_non_litigation_standard_outputs', lambda **kwargs: {'created_count': 3})
     monkeypatch.setattr('run_non_litigation_flow.evaluate_non_litigation_quality', lambda *args, **kwargs: {'total_files': 3, 'page_count_matched': 3, 'page_count_match_rate': 1.0})
     monkeypatch.setattr('run_non_litigation_flow.load_non_litigation_cases', lambda sample_root: [{'sequence': '1', 'notice_number': 'X', 'company_name': 'Y'}])
-    monkeypatch.setattr('run_non_litigation_flow.validate_ocr_results', lambda *args, **kwargs: {'summary': {'total': 3, 'passed': 3, 'warnings': 0, 'failed': 0, 'pass_rate': 1.0}, 'failed_items': [], 'warning_items': [], 'accuracy_summary': {'same_root_remap_warnings': 0, 'notice_failures': 0, 'fallback_pages_total': 2}})
+    monkeypatch.setattr('run_non_litigation_flow.validate_ocr_results', lambda *args, **kwargs: {'summary': {'total': 3, 'passed': 3, 'warnings': 0, 'failed': 0, 'pass_rate': 1.0}, 'failed_items': [], 'warning_items': [], 'accuracy_summary': {'same_root_remap_warnings': 0, 'notice_failures': 0, 'basis_mismatch_warnings': 0, 'fuzzy_mapping_warnings': 0, 'ocr_or_heuristic_failures': 0, 'documents_with_high_fallback': 1, 'fallback_pages_total': 2}})
     monkeypatch.setattr('run_non_litigation_flow.generate_html_report', lambda *args, **kwargs: None)
 
     summary = build_run_summary(
@@ -155,7 +156,7 @@ def test_build_aggregate_summary_should_merge_batch_metrics():
             'quality': {'total_files': 10, 'page_count_matched': 9, 'page_count_match_rate': 0.9},
             'validation': {
                 'summary': {'total': 10, 'passed': 8, 'warnings': 1, 'failed': 1, 'pass_rate': 0.8},
-                'accuracy_summary': {'same_root_remap_warnings': 1, 'notice_failures': 1, 'fallback_pages_total': 2},
+                'accuracy_summary': {'same_root_remap_warnings': 1, 'notice_failures': 1, 'basis_mismatch_warnings': 1, 'fuzzy_mapping_warnings': 0, 'ocr_or_heuristic_failures': 1, 'documents_with_high_fallback': 1, 'fallback_pages_total': 2},
             },
         },
         {
@@ -171,7 +172,7 @@ def test_build_aggregate_summary_should_merge_batch_metrics():
             'quality': {'total_files': 20, 'page_count_matched': 19, 'page_count_match_rate': 0.95},
             'validation': {
                 'summary': {'total': 20, 'passed': 18, 'warnings': 2, 'failed': 0, 'pass_rate': 0.9},
-                'accuracy_summary': {'same_root_remap_warnings': 2, 'notice_failures': 0, 'fallback_pages_total': 3},
+                'accuracy_summary': {'same_root_remap_warnings': 2, 'notice_failures': 0, 'basis_mismatch_warnings': 2, 'fuzzy_mapping_warnings': 1, 'ocr_or_heuristic_failures': 0, 'documents_with_high_fallback': 1, 'fallback_pages_total': 3},
             },
         },
     ]
@@ -184,6 +185,10 @@ def test_build_aggregate_summary_should_merge_batch_metrics():
     assert summary['overall_validation_pass_rate'] == 0.8667
     assert summary['accuracy_summary']['same_root_remap_warnings'] == 3
     assert summary['accuracy_summary']['notice_failures'] == 1
+    assert summary['accuracy_summary']['basis_mismatch_warnings'] == 3
+    assert summary['accuracy_summary']['fuzzy_mapping_warnings'] == 1
+    assert summary['accuracy_summary']['ocr_or_heuristic_failures'] == 1
+    assert summary['accuracy_summary']['documents_with_high_fallback'] == 2
     assert summary['accuracy_summary']['fallback_pages_total'] == 5
     assert '两批合计总耗时:' in text
     assert '总体识别准确率:' in text
@@ -197,3 +202,117 @@ def test_build_batch_config_should_return_expected_batch_paths():
     assert batch1['summary_path'] == DEFAULT_SUMMARY_PATH
     assert batch2['summary_path'].name == 'non-litigation-run-summary-batch2.json'
     assert ALL_BATCH_SUMMARY_PATH.name == 'non-litigation-run-summary-all-batches.json'
+
+
+
+def test_classify_real_ocr_run_should_distinguish_fresh_mixed_and_cached():
+    fresh = classify_real_ocr_run({'processed_files_total': 3, 'cached_files_total': 0, 'fresh_run': True, 'mixed_run': False, 'cache_only_run': False})
+    mixed = classify_real_ocr_run({'processed_files_total': 2, 'cached_files_total': 1, 'fresh_run': False, 'mixed_run': True, 'cache_only_run': False})
+    cached = classify_real_ocr_run({'processed_files_total': 0, 'cached_files_total': 4, 'fresh_run': False, 'mixed_run': False, 'cache_only_run': True})
+
+    assert fresh['ocr_run_kind'] == 'real_fresh'
+    assert fresh['ocr_speed_measurable'] is True
+    assert mixed['ocr_run_kind'] == 'real_mixed'
+    assert mixed['ocr_speed_measurable'] is False
+    assert cached['ocr_run_kind'] == 'real_cached'
+    assert cached['ocr_reused_cache_count'] == 4
+
+
+
+def test_format_summary_should_use_ascii_labels_and_show_cache_guidance():
+    summary = {
+        'mode': 'real_ocr',
+        'ocr_run_kind': 'real_cached',
+        'ocr_speed_measurable': False,
+        'ocr_newly_processed_count': 0,
+        'ocr_reused_cache_count': 5,
+        'sample_root': 'sample-root',
+        'input_root': 'input-root',
+        'result_root': 'result-root',
+        'ocr_cache_dir': 'cache-root',
+        'html_report_path': 'report.html',
+        'runtime_seconds': 10.0,
+        'export_runtime_seconds': 2.0,
+        'phase_timings': {'ocr_cache_seconds': 1.0, 'validation_seconds': 0.5, 'report_seconds': 0.2},
+        'created_count': 5,
+        'quality': {'page_count_matched': 5, 'total_files': 5, 'page_count_match_rate': 1.0},
+        'output_folders': {'输出文件（申请书）': ['a.pdf']},
+        'ocr_cache_performance': {'requested_files_total': 5, 'processed_files_total': 0, 'cached_files_total': 5, 'error_files_total': 0, 'fallback_pages_total': 0, 'region_attempts_total': 3, 'slowest_files': []},
+        'validation': {
+            'summary': {'total': 5, 'passed': 4, 'warnings': 1, 'failed': 0, 'pass_rate': 0.8},
+            'failed_items': [],
+            'warning_items': [{'file_name': '1.pdf', 'message': 'warning'}],
+            'accuracy_summary': {
+                'same_root_remap_warnings': 1,
+                'notice_failures': 0,
+                'basis_mismatch_warnings': 1,
+                'fuzzy_mapping_warnings': 0,
+                'ocr_or_heuristic_failures': 0,
+                'documents_with_high_fallback': 0,
+                'fallback_pages_total': 0,
+            },
+        },
+    }
+
+    text = format_summary(summary)
+    assert '[INFO] 处理结果汇总' in text
+    assert 'OCR 运行类型: real_cached' in text
+    assert 'OCR 速度评估有效: 否' in text
+    assert 'OCR/规则真实失败: 0' in text
+    assert '🧡' not in text
+    assert '✅' not in text
+
+
+
+def test_format_all_batches_summary_should_show_run_kind_and_diagnostics():
+    summary = {
+        'mode': 'real_ocr',
+        'batches': [
+            {
+                'label': '第一批',
+                'batch_name': 'batch1',
+                'sample_root': 'sample-1',
+                'result_root': 'result-1',
+                'ocr_cache_dir': 'cache-1',
+                'html_report_path': 'report-1.html',
+                'summary_path': 'summary-1.json',
+                'runtime_seconds': 5.0,
+                'export_runtime_seconds': 1.0,
+                'phase_timings': {'ocr_cache_seconds': 1.0},
+                'ocr_run_kind': 'real_mixed',
+                'ocr_speed_measurable': False,
+                'ocr_newly_processed_count': 2,
+                'ocr_reused_cache_count': 3,
+                'validation_summary': {'pass_rate': 0.9},
+                'quality': {'page_count_match_rate': 1.0},
+                'accuracy_summary': {
+                    'basis_mismatch_warnings': 1,
+                    'fuzzy_mapping_warnings': 1,
+                    'ocr_or_heuristic_failures': 0,
+                    'same_root_remap_warnings': 1,
+                    'notice_failures': 0,
+                    'fallback_pages_total': 2,
+                },
+            }
+        ],
+        'total_runtime_seconds': 5.0,
+        'phase_timings': {'ocr_cache_seconds': 1.0},
+        'overall_validation_pass_rate': 0.9,
+        'overall_page_count_match_rate': 1.0,
+        'accuracy_summary': {
+            'basis_mismatch_warnings': 1,
+            'fuzzy_mapping_warnings': 1,
+            'ocr_or_heuristic_failures': 0,
+            'documents_with_high_fallback': 1,
+            'same_root_remap_warnings': 1,
+            'notice_failures': 0,
+            'fallback_pages_total': 2,
+        },
+    }
+
+    text = format_all_batches_summary(summary)
+    assert 'OCR 运行类型: real_mixed' in text
+    assert '评估口径类 warning（台账/映射）: 1' in text
+    assert '模糊映射 warning: 1' in text
+    assert 'OCR/规则真实失败: 0' in text
+    assert '若需测速请使用 --real --force' in text

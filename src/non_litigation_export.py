@@ -223,43 +223,13 @@ def _get_notice_root_number(notice_number: str) -> str:
 def _score_notice_candidate(page_num: int, text: str, post_processor: TextPostProcessor) -> Dict:
     corrected_text = apply_ocr_corrections(text)
     structured = post_processor.extract_notice_fields(corrected_text)
-    page_profile = structured.get('page_profile', {})
     decision_numbers = [normalize_notice_number(item) for item in structured.get('decision_numbers', [])]
-
-    score = 0
-    if page_profile.get('is_notice_main_page'):
-        score += 150
-    if structured.get('document_type') == '责令限期办理决定书':
-        score += 120
-    if structured.get('company_name'):
-        score += 50
-    if '名称' in corrected_text:
-        score += 30
-    if '统一社会信用代码' in corrected_text:
-        score += 35
-    if '责令你单位履行以下义务' in corrected_text:
-        score += 60
-    if decision_numbers:
-        score += 30
-
-    if page_profile.get('is_notice_revoke_page'):
-        score -= 160
-    if page_profile.get('is_notice_delivery_page'):
-        score -= 120
-    if page_profile.get('is_notice_logistics_page'):
-        score -= 180
-
-    score -= max(page_num - 1, 0) * 2
-
+    
     return {
         'page': page_num,
-        'score': score,
         'decision_numbers': decision_numbers,
-        'document_type': structured.get('document_type'),
+        'has_notice': bool(decision_numbers),
         'company_name': structured.get('company_name'),
-        'page_profile': page_profile,
-        'has_uscc_signal': '统一社会信用代码' in corrected_text,
-        'has_duty_signal': '责令你单位履行以下义务' in corrected_text,
     }
 
 
@@ -268,61 +238,25 @@ def _select_notice_candidate(candidate_pages: List[Dict]) -> Dict:
         return {}
 
     all_candidates = []
-    root_best_scores: Dict[str, float] = {}
-    root_has_main_page: Dict[str, bool] = {}
-    root_has_base_number: Dict[str, bool] = {}
-    root_has_company_signal: Dict[str, bool] = {}
-    root_has_uscc_signal: Dict[str, bool] = {}
-    root_has_duty_signal: Dict[str, bool] = {}
-
     for page in candidate_pages:
-        page_profile = page.get('page_profile', {})
-        page_has_company_signal = bool(page.get('company_name'))
-        page_has_uscc_signal = bool(page.get('has_uscc_signal'))
-        page_has_duty_signal = bool(page.get('has_duty_signal'))
         for number in page.get('decision_numbers', []):
             normalized = normalize_notice_number(number)
             root_number = _get_notice_root_number(normalized)
             is_base_number = normalized == root_number
-            score = page.get('score', 0)
-            if is_base_number:
-                score += 80
-            if page_profile.get('is_notice_main_page') and is_base_number:
-                score += 60
-            if page_has_company_signal and is_base_number:
-                score += 35
-            if page_has_uscc_signal and is_base_number:
-                score += 35
-            if page_has_duty_signal and is_base_number:
-                score += 25
             all_candidates.append({
                 'page': page.get('page'),
                 'number': normalized,
                 'root_number': root_number,
-                'score': score,
                 'is_base_number': is_base_number,
-                'page_profile': page_profile,
-                'document_type': page.get('document_type'),
                 'company_name': page.get('company_name'),
             })
-            root_best_scores[root_number] = max(root_best_scores.get(root_number, float('-inf')), score)
-            root_has_main_page[root_number] = root_has_main_page.get(root_number, False) or bool(page_profile.get('is_notice_main_page'))
-            root_has_base_number[root_number] = root_has_base_number.get(root_number, False) or is_base_number
-            root_has_company_signal[root_number] = root_has_company_signal.get(root_number, False) or page_has_company_signal
-            root_has_uscc_signal[root_number] = root_has_uscc_signal.get(root_number, False) or page_has_uscc_signal
-            root_has_duty_signal[root_number] = root_has_duty_signal.get(root_number, False) or page_has_duty_signal
+
+    if not all_candidates:
+        return {}
 
     def candidate_sort_key(item: Dict):
-        root_number = item['root_number']
         return (
-            root_best_scores.get(root_number, float('-inf')),
-            1 if root_has_main_page.get(root_number) else 0,
-            1 if root_has_base_number.get(root_number) else 0,
-            1 if root_has_company_signal.get(root_number) else 0,
-            1 if root_has_uscc_signal.get(root_number) else 0,
-            1 if root_has_duty_signal.get(root_number) else 0,
             1 if item.get('is_base_number') else 0,
-            item.get('score', float('-inf')),
             -item.get('page', 0),
         )
 
@@ -446,32 +380,21 @@ def _is_high_confidence_notice_candidate(page_candidate: Optional[Dict]) -> bool
     decision_numbers = page_candidate.get('decision_numbers', [])
     if not decision_numbers:
         return False
-    page_profile = page_candidate.get('page_profile', {})
     has_base_number = any(
         normalize_notice_number(number) == _get_notice_root_number(number)
         for number in decision_numbers
     )
-    strong_page_signal = bool(page_profile.get('is_notice_main_page'))
-    strong_content_signal = bool(
-        page_candidate.get('company_name')
-        or page_candidate.get('has_uscc_signal')
-        or page_candidate.get('has_duty_signal')
-    )
-    return has_base_number and strong_page_signal and strong_content_signal and page_candidate.get('score', 0) >= 260
+    return has_base_number
 
 
 def _has_decisive_notice_candidate(candidate_pages: List[Dict]) -> bool:
     if not candidate_pages:
         return False
-    selection = _select_notice_candidate(candidate_pages)
-    selected_notice = selection.get('selected_notice')
-    if not selected_notice:
-        return False
-    selected_page = next(
-        (page for page in candidate_pages if selected_notice in page.get('decision_numbers', [])),
-        None,
-    )
-    return _is_high_confidence_notice_candidate(selected_page)
+    for page in candidate_pages:
+        if page.get('decision_numbers'):
+            return True
+    return False
+
 
 
 def fuzzy_match_notice(detected: str, target_map: Dict[str, str], threshold: float = 0.85) -> Tuple[Optional[str], float]:
@@ -496,30 +419,30 @@ def fuzzy_match_notice(detected: str, target_map: Dict[str, str], threshold: flo
 def safe_load_ocr_cache(ocr_json_path: Path) -> Optional[Dict]:
     try:
         if not ocr_json_path.exists():
-            print(f"  ⚠️ 缓存不存在: {ocr_json_path.name}")
+            print(f"  [WARN] 缓存不存在: {ocr_json_path.name}")
             return None
 
         content = ocr_json_path.read_text(encoding='utf-8')
         data = json.loads(content)
 
         if 'pages' not in data or 'total_pages' not in data:
-            print(f"  ⚠️ 缓存格式错误: {ocr_json_path.name}")
+            print(f"  [WARN] 缓存格式错误: {ocr_json_path.name}")
             return None
 
         return data
 
     except json.JSONDecodeError as e:
-        print(f"  ❌ 缓存文件损坏: {ocr_json_path.name} - {e}")
+        print(f"  [ERROR] 缓存文件损坏: {ocr_json_path.name} - {e}")
         backup_path = ocr_json_path.with_suffix('.json.bak')
         try:
             ocr_json_path.rename(backup_path)
-            print(f"  📁 已备份到: {backup_path}")
+            print(f"  [INFO] 已备份到: {backup_path}")
         except Exception:
             pass
         return None
 
     except Exception as e:
-        print(f"  ❌ 读取缓存失败: {ocr_json_path.name} - {e}")
+        print(f"  [ERROR] 读取缓存失败: {ocr_json_path.name} - {e}")
         return None
 
 
@@ -584,7 +507,7 @@ def detect_page_ranges(total_pages: int, expected_count: int, doc_type: str) -> 
 
     if total_pages != expected_pages:
         print(
-            f'  ℹ️ {doc_type}: 实际 {total_pages} 页，台账期望 {expected_pages} 页 '
+            f'  [INFO] {doc_type}: 实际 {total_pages} 页，台账期望 {expected_pages} 页 '
             f'({expected_count} 个 × {pages_per_item} 页)，按实际页数处理'
         )
 
@@ -605,7 +528,7 @@ def detect_application_page_ranges_by_ocr(ocr_cache_dir: Path, total_pages: int,
     json_path = ocr_cache_dir / '申请书_ultra_result.json'
     data = safe_load_ocr_cache(json_path)
     if not data or not data.get('pages'):
-        print(f"  ⚠️ 无申请书 OCR 缓存，使用固定 {PAGES_PER_CASE['申请书']} 页/案件")
+        print(f"  [WARN] 无申请书 OCR 缓存，使用固定 {PAGES_PER_CASE['申请书']} 页/案件")
         return detect_page_ranges(total_pages, expected_cases, '申请书')
 
     boundary_pages = []
@@ -622,13 +545,13 @@ def detect_application_page_ranges_by_ocr(ocr_cache_dir: Path, total_pages: int,
         for i, start in enumerate(boundary_pages):
             end = boundary_pages[i + 1] if i + 1 < len(boundary_pages) else total_pages
             ranges.append((start, end))
-        print(f"  ✅ OCR 检测到 {len(boundary_pages)} 个申请书边界")
+        print(f"  [OK] OCR 检测到 {len(boundary_pages)} 个申请书边界")
         return ranges
 
     if boundary_pages:
-        print(f"  ℹ️ OCR 检测到 {len(boundary_pages)} 个边界，台账期望 {expected_cases} 个，按实际处理")
+        print(f"  [INFO] OCR 检测到 {len(boundary_pages)} 个边界，台账期望 {expected_cases} 个，按实际处理")
     else:
-        print(f"  ℹ️ OCR 未检测到申请书边界，使用固定 {PAGES_PER_CASE['申请书']} 页/案件")
+        print(f"  [INFO] OCR 未检测到申请书边界，使用固定 {PAGES_PER_CASE['申请书']} 页/案件")
 
     return detect_page_ranges(total_pages, expected_cases, '申请书')
 
@@ -684,11 +607,11 @@ def detect_notice_source_mapping_from_ocr(output_cache_dir: Path, notice_files: 
 
         if selected_notice:
             mapping[source_name] = selected_notice
-            print(f"  ✅ {source_name}: 识别到责令号 '{selected_notice}'")
+            print(f"  [OK] {source_name}: 识别到责令号 '{selected_notice}'")
             if selected_page:
-                print(f"    ℹ️ 采用第 {selected_page} 页候选")
+                print(f"    [INFO] 采用第 {selected_page} 页候选")
         else:
-            print(f"  ⚠️ {source_name}: 未识别到责令号")
+            print(f"  [WARN] {source_name}: 未识别到责令号")
 
     return mapping
 
@@ -770,7 +693,7 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
                         encoding='utf-8',
                     )
             else:
-                print(f"  ⚠️ Mock: 无法按页数匹配 {src_name}，使用顺序匹配")
+                print(f"  [WARN] Mock: 无法按页数匹配 {src_name}，使用顺序匹配")
                 stem = src_name.replace('.pdf', '')
                 fallback_idx = src_files.index(src_name)
                 if fallback_idx < len(notice_files):
@@ -909,10 +832,10 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
                             first_hit_page = page_num
                             if high_confidence_hit:
                                 stop_after_page = min(max_scan_pages, page_num + 1)
-                                print(f"    ✅ 第 {page_num} 页高置信命中责令号，继续扫描至第 {stop_after_page} 页")
+                                print(f"    [OK] 第 {page_num} 页高置信命中责令号，继续扫描至第 {stop_after_page} 页")
                             else:
                                 stop_after_page = min(max_scan_pages, page_num + scan_window_pages)
-                                print(f"    ✅ 第 {page_num} 页首次找到责令号，继续扫描至第 {stop_after_page} 页")
+                                print(f"    [OK] 第 {page_num} 页首次找到责令号，继续扫描至第 {stop_after_page} 页")
                         elif high_confidence_hit:
                             stop_after_page = min(stop_after_page or max_scan_pages, page_num)
 
@@ -937,7 +860,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
                         break
                     if page_num >= 3 and _has_decisive_notice_candidate(candidate_pages):
                         stopped_early = True
-                        print(f"    ✅ 前 {page_num} 页已形成高置信责令号候选，提前停止")
+                        print(f"    [OK] 前 {page_num} 页已形成高置信责令号候选，提前停止")
                         break
                     page_num += 1
 
@@ -1219,6 +1142,24 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_start = time.perf_counter()
     performance_records: List[Dict] = []
+    requested_files_total = 0
+    processed_files_total = 0
+    cached_files_total = 0
+    error_files_total = 0
+
+    def record_result(result: Dict, pdf_path: Path, doc_type: Optional[str]) -> None:
+        nonlocal processed_files_total, error_files_total
+        if result.get('error') or result.get('method') == 'error':
+            error_files_total += 1
+            return
+        processed_files_total += 1
+        performance_records.append(result.get('performance_summary', {
+            'doc_type': doc_type,
+            'file_name': pdf_path.name,
+            'page_count': result.get('total_pages', 0),
+            'total_duration': result.get('total_duration', 0),
+            'fallback_pages': result.get('fallback_pages', 0),
+        }))
 
     shared_ocr = None
     shared_region_extractor = None
@@ -1236,9 +1177,12 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
         stem = source_name.replace('.pdf', '')
         cache_path = cache_dir / f'{stem}_ultra_result.json'
         if cache_path.exists():
+            cached_files_total += 1
+            requested_files_total += 1
             print(f"  [CACHE] 跳过已有缓存: {source_name}")
             continue
         if pdf_path.exists():
+            requested_files_total += 1
             uncached_notice_files.append((source_name, pdf_path, cache_path))
         else:
             print(f"  [WARN] 文件不存在: {pdf_path}")
@@ -1262,9 +1206,9 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
         notice_count = len(uncached_notice_files)
         parallel_workers = profile.recommended_workers if notice_count > 1 else 1
 
-        print(f"\n📄 处理责催文件（逐页识别，找到即停）... 共 {notice_count} 个")
-        print(f"  🖥️ 系统资源: {profile}")
-        print(f"  ⚙️ 并发配置: {parallel_workers} 个工作进程")
+        print(f"\n[INFO] 处理责催文件（逐页识别，找到即停）... 共 {notice_count} 个")
+        print(f"  [INFO] 系统资源: {profile}")
+        print(f"  [INFO] 并发配置: {parallel_workers} 个工作进程")
 
         if parallel_workers > 1 and notice_count > 1:
             worker_args = [
@@ -1278,15 +1222,18 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                     source = result['source']
                     status = result['status']
                     perf = result.get('performance')
-                    if perf:
-                        performance_records.append(perf)
                     if status == 'done':
+                        processed_files_total += 1
+                        if perf:
+                            performance_records.append(perf)
                         dur = perf.get('total_duration', 0) if perf else 0
-                        print(f"  ✅ [{completed}/{notice_count}] {source} ({dur:.2f}s)")
+                        print(f"  [OK] [{completed}/{notice_count}] {source} ({dur:.2f}s)")
                     elif status == 'cached':
-                        print(f"  ⏭️ [{completed}/{notice_count}] {source} (已缓存)")
+                        cached_files_total += 1
+                        print(f"  [CACHE] [{completed}/{notice_count}] {source} (已缓存)")
                     elif status == 'error':
-                        print(f"  ❌ [{completed}/{notice_count}] {source}: {result.get('error', '未知错误')}")
+                        error_files_total += 1
+                        print(f"  [ERROR] [{completed}/{notice_count}] {source}: {result.get('error', '未知错误')}")
         else:
             if not use_mock and HAS_OCR:
                 shared_ocr, shared_region_extractor = _build_ocr_processors()
@@ -1303,18 +1250,12 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                     region_extractor=shared_region_extractor,
                     post_processor=shared_post_processor,
                 )
-                performance_records.append(result.get('performance_summary', {
-                    'doc_type': '责催',
-                    'file_name': pdf_path.name,
-                    'page_count': result.get('total_pages', 0),
-                    'total_duration': result.get('total_duration', 0),
-                    'fallback_pages': result.get('fallback_pages', 0),
-                }))
+                record_result(result, pdf_path, '责催')
     elif uncached_notice_files:
         if not use_mock and HAS_OCR:
             shared_ocr, shared_region_extractor = _build_ocr_processors()
             shared_post_processor = TextPostProcessor()
-        print(f"\n📄 处理责催文件... 共 {len(uncached_notice_files)} 个")
+        print(f"\n[INFO] 处理责催文件... 共 {len(uncached_notice_files)} 个")
         for source_name, pdf_path, cache_path in uncached_notice_files:
             result = run_real_ocr_on_pdf(
                 pdf_path,
@@ -1327,20 +1268,14 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                 region_extractor=shared_region_extractor,
                 post_processor=shared_post_processor,
             )
-            performance_records.append(result.get('performance_summary', {
-                'doc_type': '责催',
-                'file_name': pdf_path.name,
-                'page_count': result.get('total_pages', 0),
-                'total_duration': result.get('total_duration', 0),
-                'fallback_pages': result.get('fallback_pages', 0),
-            }))
+            record_result(result, pdf_path, '责催')
 
     other_files = [
         (pdf_name, pdf_name.replace('.pdf', ''))
         for pdf_name in _cfg.source_mapping.values()
     ]
 
-    print("\n📄 处理其他文件...")
+    print("\n[INFO] 处理其他文件...")
     if not use_mock and HAS_OCR and shared_ocr is None:
         shared_ocr, shared_region_extractor = _build_ocr_processors()
         shared_post_processor = TextPostProcessor()
@@ -1349,7 +1284,9 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
         cache_path = cache_dir / f'{stem}_ultra_result.json'
 
         if pdf_path.exists():
+            requested_files_total += 1
             if cache_path.exists():
+                cached_files_total += 1
                 print(f"  [CACHE] 跳过已有缓存: {filename}")
                 continue
             doc_type = stem if stem in {'申请书', '授权书', '所函'} else None
@@ -1362,13 +1299,7 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                 region_extractor=shared_region_extractor,
                 post_processor=shared_post_processor,
             )
-            performance_records.append(result.get('performance_summary', {
-                'doc_type': doc_type,
-                'file_name': pdf_path.name,
-                'page_count': result.get('total_pages', 0),
-                'total_duration': result.get('total_duration', 0),
-                'fallback_pages': result.get('fallback_pages', 0),
-            }))
+            record_result(result, pdf_path, doc_type)
         else:
             print(f"  [WARN] 文件不存在: {pdf_path}")
 
@@ -1377,9 +1308,19 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
         key=lambda item: item.get('total_duration', 0),
         reverse=True,
     )[:5]
+    fresh_run = processed_files_total > 0 and cached_files_total == 0 and error_files_total == 0
+    cache_only_run = requested_files_total > 0 and processed_files_total == 0 and cached_files_total == requested_files_total and error_files_total == 0
+    mixed_run = requested_files_total > 0 and not fresh_run and not cache_only_run
     performance_summary = {
         'stage': 'ocr_cache_build',
         'total_files': len(performance_records),
+        'requested_files_total': requested_files_total,
+        'processed_files_total': processed_files_total,
+        'cached_files_total': cached_files_total,
+        'error_files_total': error_files_total,
+        'fresh_run': fresh_run,
+        'mixed_run': mixed_run,
+        'cache_only_run': cache_only_run,
         'total_duration': round(time.perf_counter() - cache_start, 4),
         'fallback_pages_total': sum(item.get('fallback_pages', 0) for item in performance_records),
         'region_attempts_total': sum(item.get('region_attempts_total', 0) for item in performance_records),
@@ -1395,7 +1336,7 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
         encoding='utf-8',
     )
     if slowest_files:
-        print(f"\n⏱️ OCR缓存阶段完成: {performance_summary['total_duration']:.2f}s, 最慢文件 {slowest_files[0].get('file_name')} {slowest_files[0].get('total_duration', 0):.2f}s")
+        print(f"\n[INFO] OCR缓存阶段完成: {performance_summary['total_duration']:.2f}s, 最慢文件 {slowest_files[0].get('file_name')} {slowest_files[0].get('total_duration', 0):.2f}s")
 
     return cache_dir
 
@@ -1407,11 +1348,11 @@ def export_pdf_ranges(source_pdf: Path, ranges: List[Tuple[int, int]], output_di
             target_path = output_dir / target_name
             if target_path.exists():
                 created += 1
-                print(f"  ⏭️ 跳过已存在: {target_name}")
+                print(f"  [SKIP] 跳过已存在: {target_name}")
                 continue
 
             if start >= len(reader.pages):
-                print(f"  ❌ 页码超出范围: {target_name} (起始页 {start} >= 总页数 {len(reader.pages)})")
+                print(f"  [ERROR] 页码超出范围: {target_name} (起始页 {start} >= 总页数 {len(reader.pages)})")
                 continue
 
             writer = PdfWriter()
@@ -1423,7 +1364,7 @@ def export_pdf_ranges(source_pdf: Path, ranges: List[Tuple[int, int]], output_di
                 writer.write(file_obj)
 
             created += 1
-            print(f"  ✅ 导出: {target_name} (第 {start+1}-{actual_end} 页)")
+            print(f"  [OK] 导出: {target_name} (第 {start+1}-{actual_end} 页)")
 
     return created
 
@@ -1483,8 +1424,8 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ou
                     'matched_target': target_name,
                     'similarity': ratio,
                 })
-                print(f"    🔍 模糊匹配: '{detected_notice}' -> '{target_name}' (相似度: {ratio:.1%})")
-                print(f"    ⚠️ 模糊匹配需人工确认！已记录到审计日志")
+                print(f"    [INFO] 模糊匹配: '{detected_notice}' -> '{target_name}' (相似度: {ratio:.1%})")
+                print(f"    [WARN] 模糊匹配需人工确认！已记录到审计日志")
 
         if target_name:
             target_notice = target_notice_map.get(target_name)
@@ -1510,19 +1451,19 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ou
                     'matched_target': target_name,
                     'match_type': match_type,
                 })
-                print(f"    ⚠️ 主号识别后按同根目标导出: '{detected_notice}' -> '{target_notice}'")
+                print(f"    [WARN] 主号识别后按同根目标导出: '{detected_notice}' -> '{target_notice}'")
             update_notice_cache_export_metadata(source_name, export_metadata)
 
             src = next((path for path in iter_notice_pdf_paths(input_dir) if path.name == source_name), input_dir / source_name)
             dst = output_dir / target_name
             if dst.exists():
                 created += 1
-                print(f"  ⏭️ 跳过已存在: {target_name}")
+                print(f"  [SKIP] 跳过已存在: {target_name}")
                 continue
             if src.exists():
                 shutil.copy2(src, dst)
                 created += 1
-                print(f"  ✅ {source_name} -> {target_name}")
+                print(f"  [OK] {source_name} -> {target_name}")
                 _log_audit('notice_renamed', {
                     'source': source_name,
                     'target': target_name,
@@ -1532,10 +1473,10 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ou
                     'same_root_remap': same_root_remap,
                 })
             else:
-                print(f"  ❌ 源文件不存在: {src}")
+                print(f"  [ERROR] 源文件不存在: {src}")
                 unmatched.append((source_name, detected_notice, "源文件不存在"))
         else:
-            print(f"  ❌ 无法匹配: {source_name} (识别到 '{detected_notice}')")
+            print(f"  [ERROR] 无法匹配: {source_name} (识别到 '{detected_notice}')")
             unmatched.append((source_name, detected_notice, "无匹配台账"))
             _log_audit('match_failed', {
                 'source': source_name,
@@ -1543,7 +1484,7 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ou
             })
 
     if unmatched:
-        print(f"\n  ⚠️ 未匹配文件汇总 ({len(unmatched)} 个):")
+        print(f"\n  [WARN] 未匹配文件汇总 ({len(unmatched)} 个):")
         for source_name, notice, reason in unmatched:
             print(f"    - {source_name}: {reason} (识别: '{notice}')")
 
@@ -1554,18 +1495,18 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
     source_pdf = input_dir / SOURCE_MAPPING['输出文件（申请书）']
 
     if not source_pdf.exists():
-        print(f"  ❌ 申请书文件不存在: {source_pdf}")
+        print(f"  [ERROR] 申请书文件不存在: {source_pdf}")
         return 0
 
     total_pages = inspect_pdf_page_count(source_pdf)
     expected_cases = len(target_names)
 
-    print(f"  📄 申请书: {total_pages} 页，台账期望 {expected_cases} 个案件")
+    print(f"  [INFO] 申请书: {total_pages} 页，台账期望 {expected_cases} 个案件")
 
     ranges = detect_application_page_ranges_by_ocr(output_cache_dir, total_pages, expected_cases)
 
     if len(ranges) != expected_cases:
-        print(f"  ℹ️ 按实际识别到 {len(ranges)} 个案件处理（台账 {expected_cases} 个）")
+        print(f"  [INFO] 按实际识别到 {len(ranges)} 个案件处理（台账 {expected_cases} 个）")
 
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 
@@ -1575,14 +1516,14 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
     source_pdf = input_dir / source_name
 
     if not source_pdf.exists():
-        print(f"  ❌ {source_name} 文件不存在")
+        print(f"  [ERROR] {source_name} 文件不存在")
         return 0
 
     total_pages = inspect_pdf_page_count(source_pdf)
     expected_count = len(target_names)
     doc_type = '授权书' if '授权' in marker else '所函'
 
-    print(f"  📄 {source_name}: {total_pages} 页，期望 {expected_count} 个公司")
+    print(f"  [INFO] {source_name}: {total_pages} 页，期望 {expected_count} 个公司")
 
     ranges = detect_page_ranges(total_pages, expected_count, doc_type)
 
@@ -1596,7 +1537,7 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
     cache_dir = ocr_cache_dir or (input_dir.parent / 'output')
     _audit_log.clear()
 
-    print("\n📦 开始导出文件...")
+    print("\n[INFO] 开始导出文件...")
     print("=" * 60)
 
     export_tasks = []
@@ -1604,7 +1545,7 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
         folder_path = output_root / folder_name
         folder_path.mkdir(parents=True, exist_ok=True)
 
-        print(f"\n📁 {folder_name} ({len(target_names)} 个文件)")
+        print(f"\n[INFO] {folder_name} ({len(target_names)} 个文件)")
 
         if folder_name == _cfg.directory_mapping['责催']:
             count = export_notice_files(sample_root, input_dir, folder_path, cache_dir)
@@ -1627,10 +1568,10 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
     audit_path = output_root / 'audit-log.json'
     audit_path.write_text(json.dumps(_audit_log, ensure_ascii=False, indent=2), encoding='utf-8')
     if _audit_log:
-        print(f"\n📋 审计日志已保存: {audit_path} ({len(_audit_log)} 条)")
+        print(f"\n[INFO] 审计日志已保存: {audit_path} ({len(_audit_log)} 条)")
 
     print("\n" + "=" * 60)
-    print(f"✅ 导出完成: {created_count} 个文件")
+    print(f"[OK] 导出完成: {created_count} 个文件")
 
     return {
         'created_count': created_count,

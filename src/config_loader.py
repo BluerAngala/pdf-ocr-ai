@@ -74,7 +74,16 @@ class NonLitigationConfig:
     ocr_enable_region_first: bool = True
     ocr_allow_full_page_fallback: bool = True
     ocr_region_dpi: int = 200
+    ocr_region_max_image_size: int = 900
     ocr_doc_regions: Dict[str, List[str]] = field(default_factory=dict)
+    notice_scan_window_pages: int = 2
+    notice_scan_max_pages: int = 6
+    notice_region_fallback_min_text_length: int = 8
+    application_region_fallback_min_text_length: int = 5
+    company_doc_region_fallback_min_text_length: int = 6
+    ocr_auto_detect_resources: bool = True
+    ocr_max_parallel_workers: int = 4
+    ocr_memory_reserve_gb: float = 1.5
 
     result_dirname: str = 'non-litigation-results'
     temp_dirname: str = 'non-litigation'
@@ -177,7 +186,18 @@ def load_config() -> NonLitigationConfig:
     cfg.ocr_enable_region_first = optimization.get('enable_region_first', True)
     cfg.ocr_allow_full_page_fallback = optimization.get('allow_full_page_fallback', True)
     cfg.ocr_region_dpi = optimization.get('region_dpi', 200)
+    cfg.ocr_region_max_image_size = optimization.get('region_max_image_size', 900)
     cfg.ocr_doc_regions = optimization.get('doc_regions', {})
+    cfg.notice_scan_window_pages = optimization.get('notice_scan_window_pages', 2)
+    cfg.notice_scan_max_pages = optimization.get('notice_scan_max_pages', 6)
+    cfg.notice_region_fallback_min_text_length = optimization.get('notice_region_fallback_min_text_length', 8)
+    cfg.application_region_fallback_min_text_length = optimization.get('application_region_fallback_min_text_length', 5)
+    cfg.company_doc_region_fallback_min_text_length = optimization.get('company_doc_region_fallback_min_text_length', 6)
+
+    parallelism = ocr.get('parallelism', {})
+    cfg.ocr_auto_detect_resources = parallelism.get('auto_detect_resources', True)
+    cfg.ocr_max_parallel_workers = parallelism.get('max_parallel_workers', 4)
+    cfg.ocr_memory_reserve_gb = parallelism.get('memory_reserve_gb', 1.5)
 
     paths = raw.get('paths', {})
     dirs = paths.get('directories', {})

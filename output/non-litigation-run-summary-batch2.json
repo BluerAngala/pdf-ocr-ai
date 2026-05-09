@@ -1,0 +1,975 @@
+{
+  "sample_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\样本材料\\非诉组自动化样本材料（第2批）",
+  "input_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\样本材料\\非诉组自动化样本材料（第2批）\\原始文件",
+  "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results-batch2",
+  "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache-batch2",
+  "html_report_path": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\ocr-validation-report-batch2.html",
+  "runtime_seconds": 204.8763,
+  "export_runtime_seconds": 0.3706,
+  "phase_timings": {
+    "ocr_cache_seconds": 204.2073,
+    "export_seconds": 0.3706,
+    "evaluation_seconds": 0.23,
+    "validation_seconds": 0.0674,
+    "report_seconds": 0.0009
+  },
+  "ocr_cache_performance": {
+    "stage": "ocr_cache_build",
+    "total_files": 8,
+    "total_duration": 204.2063,
+    "fallback_pages_total": 15,
+    "region_attempts_total": 66,
+    "slowest_files": [
+      {
+        "doc_type": "责催",
+        "file_name": "2.pdf",
+        "page_count": 10,
+        "total_duration": 45.2014,
+        "fallback_pages": 4,
+        "fallback_rate": 0.4,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 29.2871,
+        "slowest_page": {
+          "page": 7,
+          "duration": 8.0857,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      },
+      {
+        "doc_type": "责催",
+        "file_name": "1.pdf",
+        "page_count": 10,
+        "total_duration": 43.3582,
+        "fallback_pages": 4,
+        "fallback_rate": 0.4,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 29.1146,
+        "slowest_page": {
+          "page": 3,
+          "duration": 7.9766,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      },
+      {
+        "doc_type": "责催",
+        "file_name": "4.pdf",
+        "page_count": 10,
+        "total_duration": 31.4176,
+        "fallback_pages": 3,
+        "fallback_rate": 0.3,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 17.4868,
+        "slowest_page": {
+          "page": 5,
+          "duration": 8.0268,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      },
+      {
+        "doc_type": "责催",
+        "file_name": "3.pdf",
+        "page_count": 10,
+        "total_duration": 28.0065,
+        "fallback_pages": 2,
+        "fallback_rate": 0.2,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 15.9841,
+        "slowest_page": {
+          "page": 5,
+          "duration": 8.1853,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      },
+      {
+        "doc_type": "责催",
+        "file_name": "5.pdf",
+        "page_count": 10,
+        "total_duration": 27.5283,
+        "fallback_pages": 2,
+        "fallback_rate": 0.2,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 15.7927,
+        "slowest_page": {
+          "page": 5,
+          "duration": 7.7636,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      }
+    ]
+  },
+  "created_count": 16,
+  "quality": {
+    "total_files": 20,
+    "page_count_matched": 19,
+    "page_count_match_rate": 0.95
+  },
+  "validation": {
+    "summary": {
+      "total": 8,
+      "passed": 3,
+      "warnings": 5,
+      "failed": 0,
+      "pass_rate": 0.375
+    },
+    "timing_statistics": {
+      "notice": {
+        "total": 175.51209229999222,
+        "avg": 35.10241845999845,
+        "min": 27.52834079999593,
+        "max": 45.20144239999354,
+        "count": 5
+      },
+      "application": {
+        "total": 16.91638020001119,
+        "avg": 16.91638020001119,
+        "min": 16.91638020001119,
+        "max": 16.91638020001119,
+        "count": 1
+      },
+      "authorization": {
+        "total": 5.579516700003296,
+        "avg": 5.579516700003296,
+        "min": 5.579516700003296,
+        "max": 5.579516700003296,
+        "count": 1
+      },
+      "letter": {
+        "total": 4.515222799993353,
+        "avg": 4.515222799993353,
+        "min": 4.515222799993353,
+        "max": 4.515222799993353,
+        "count": 1
+      }
+    },
+    "accuracy_summary": {
+      "exact_notice_matches": 2,
+      "fuzzy_notice_matches": 1,
+      "same_root_remap_warnings": 3,
+      "notice_failures": 0,
+      "fallback_pages_total": 15,
+      "boundary_pages_detected": 5,
+      "marker_detected_pages": 3
+    },
+    "optimization_guardrails": {
+      "warning_count": 5,
+      "failed_count": 0,
+      "fallback_pages_total": 15,
+      "needs_review": true
+    },
+    "details": [
+      {
+        "status": "pass",
+        "file_name": "1.pdf",
+        "file_type": "notice",
+        "message": "成功识别并匹配责令号: 穗公积金中心南沙责字〔2025〕1175号",
+        "details": {
+          "file_name": "1.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心南沙责字〔2025〕1175号",
+            "穗公积金中心南沙责字〔2025〕1175号"
+          ],
+          "matched_case": "穗公积金中心南沙责字〔2025〕1175号",
+          "fallback_pages": 4,
+          "region_pages": 6,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "77-责催-穗公积金中心南沙责字（2025）1175号.pdf",
+          "matched_target_notice": "穗公积金中心南沙责字〔2025〕1175号",
+          "export_match_type": "exact",
+          "same_root_remap": false,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心南沙责字〔2025〕1175号\n名称：蚕禺镀化研机械制造有限公司\n统一社会信用代码：91440115708214709A\n地址：广州市南沙区横沥镇番中公路横沥段2号(横沥所)\n经查，你单位未按规定为刘建梅缴存2011年08月至2015年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若千具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位刘建梅补缴2011年08月\n至2015年06月期间的单位应缴存部分住房公积金合计3704元到职工住房公积\nVEMS\n全球邮政特快专递\n国内特快专递\nWORL",
+          "normalized_notices": [
+            "穗公积金中心南沙责字〔2025〕1175号",
+            "穗公积金中心南沙责字〔2025〕1175号"
+          ]
+        },
+        "suggestions": [],
+        "timing": {
+          "total_duration": 43.35819459997583,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.921839952468872,
+            4.027095556259155,
+            7.976627349853516,
+            3.3716683387756348,
+            3.54620623588562,
+            6.923588514328003,
+            5.0617592334747314,
+            3.4550585746765137,
+            0.49314260482788086,
+            2.249777317047119
+          ],
+          "avg_time_per_page": 4.102676367759704
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": true,
+          "fallback_rate": 40.0,
+          "region_first_hit_rate": 60.0,
+          "match_confidence": 100
+        }
+      },
+      {
+        "status": "pass",
+        "file_name": "2.pdf",
+        "file_type": "notice",
+        "message": "成功识别并匹配责令号: 穗公积金中心南沙责字〔2025〕1195号",
+        "details": {
+          "file_name": "2.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心南沙责字〔2025〕1195号",
+            "穗公积金中心南沙责字〔2025〕1195号"
+          ],
+          "matched_case": "穗公积金中心南沙责字〔2025〕1195号",
+          "fallback_pages": 4,
+          "region_pages": 6,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "195-责催-穗公积金中心南沙责字（2025）1195号.pdf",
+          "matched_target_notice": "穗公积金中心南沙责字〔2025〕1195号",
+          "export_match_type": "exact",
+          "same_root_remap": false,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心南沙责字〔2025〕1195号\n名称：广州市联合医疗用品有限责任公司\n统一社会信用代码：91440101MA5D4X0P4T\n地址：广州市南沙区东涌镇市南公路360号(B厂房)\n经查，你单位未按规定为韦芬缴存2020年07月至2021年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发布\n施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国务\n院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位韦芬补缴2020年07月至\n2021年06月期间的单位应缴存部分住房公积金合计2628元到职工住房公积金账\n户内，补缴手续\nSWL\n全球部政特快专递\n国内特",
+          "normalized_notices": [
+            "穗公积金中心南沙责字〔2025〕1195号",
+            "穗公积金中心南沙责字〔2025〕1195号"
+          ]
+        },
+        "suggestions": [],
+        "timing": {
+          "total_duration": 45.20144239999354,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.865067720413208,
+            3.682340383529663,
+            6.919695138931274,
+            3.3512306213378906,
+            3.4806761741638184,
+            7.182809352874756,
+            8.085735082626343,
+            0.5215351581573486,
+            3.4219541549682617,
+            2.4936788082122803
+          ],
+          "avg_time_per_page": 4.300472259521484
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": true,
+          "fallback_rate": 40.0,
+          "region_first_hit_rate": 60.0,
+          "match_confidence": 100
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "3.pdf",
+        "file_type": "notice",
+        "message": "识别主号成功，但按同根目标导出: 穗公积金中心番禺责字〔2025〕1411-2号 -> 穗公积金中心番禺责字〔2025〕1411-2号",
+        "details": {
+          "file_name": "3.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心番禺责字〔2025〕1411-2号",
+            "穗公积金中心番禺责字〔2025〕1411-1号",
+            "穗公积金中心番禺责字〔2025〕1411号",
+            "穗公积金中心番禺责字〔2025〕1411号"
+          ],
+          "matched_case": "穗公积金中心番禺责字〔2025〕1411-2号",
+          "fallback_pages": 2,
+          "region_pages": 8,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "916-责催-穗公积金中心番禺责字（2025）1411-2号.pdf",
+          "matched_target_notice": "穗公积金中心番禺责字〔2025〕1411-2号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禺责字〔2025〕1411-2号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为陈志明缴存2011年05月至2022年05月期\n间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院\n令第262号发布施行，2002年3月24日国务院令第350号第-次修订，\n2019年3月24日国务院令第710号第二次修订)第二条、第十三条、第十\n五条、第十六条、第十七条、第十八条、第十九条、第二十条、第三十七\n条、第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指\n导意见》(建金管(2005)5号)第六条、《关于住房公积金管理几个具\n体问题的通知》(建金管(2006)52号)等有关规定，责令你单位履行以\n下义务：\n请在收到本决定书之日起10个工作日内为你单位陈志明补缴2011年\n\n国内特快专递\n客服电话：11183\n网站：www.cms.com.cn\n年月日时\n1003480106238\n月\n签名：\n台\n备注：",
+          "normalized_notices": [
+            "穗公积金中心番禺责字〔2025〕1411-2号",
+            "穗公积金中心番禺责字〔2025〕1411-1号",
+            "穗公积金中心番禺责字〔2025〕1411号",
+            "穗公积金中心番禺责字〔2025〕1411号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心番禺责字〔2025〕1411-2号",
+            "matched_target": "916-责催-穗公积金中心番禺责字（2025）1411-2号.pdf",
+            "export_match_type": "fuzzy"
+          }
+        },
+        "suggestions": [
+          "OCR 选中主号: 穗公积金中心番禺责字〔2025〕1411-2号",
+          "当前导出目标: 穗公积金中心番禺责字〔2025〕1411-2号",
+          "请人工确认台账是否应保留子号命名"
+        ],
+        "timing": {
+          "total_duration": 28.006480600015493,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.61238431930542,
+            0.6999156475067139,
+            4.237704515457153,
+            0.2607293128967285,
+            8.185316801071167,
+            0.28038644790649414,
+            2.3387715816497803,
+            0.32277679443359375,
+            3.6087207794189453,
+            0.2757127285003662
+          ],
+          "avg_time_per_page": 2.382241892814636
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": true,
+          "fallback_rate": 20.0,
+          "region_first_hit_rate": 80.0,
+          "match_confidence": 100
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "4.pdf",
+        "file_type": "notice",
+        "message": "识别主号成功，但按同根目标导出: 穗公积金中心番禺责字〔2025〕1970-2号 -> 穗公积金中心番禺责字〔2025〕1970-2号",
+        "details": {
+          "file_name": "4.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心番禺责字〔2025〕1970-2号",
+            "穗公积金中心番禺责字〔2025〕1970-1号",
+            "穗公积金中心番禺责字〔2025〕1970号",
+            "穗公积金中心番禺责字〔2025〕1970号"
+          ],
+          "matched_case": "穗公积金中心番禺责字〔2025〕1970-2号",
+          "fallback_pages": 3,
+          "region_pages": 7,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "917-责催-穗公积金中心番禺责字（2025）1970-2号.pdf",
+          "matched_target_notice": "穗公积金中心番禺责字〔2025〕1970-2号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禺责字〔2025〕1970-2号\n名称：广州港华燃气有限公司\n统-社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为李雪梅缴存2004年02月至2004年12月、2007\n年07月至2021年05月期间的住房公积金。根据《住房公积金管理条例》(1999\n年4月3日国务院令第262号发布施行，2002年3月24日国务院令第350号第\n-次修订，2019年3月24日国务院令第710号第二次修订)第二条、第十三条、\n第十五条、第十六条、第十七条、第十八条、第十九条、第二十条、第三十七条、\n第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》(建\n金管[2005]5号)第六条、《关于住房公积金管理几个具体问题的通知》(建\n金管[2006]52号)等有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位李雪梅补缴2004年02月\n至2004年12月、2007年07月至2021年05月期间的单位应缴存部分住房公积\n\n件人\n国",
+          "normalized_notices": [
+            "穗公积金中心番禺责字〔2025〕1970-2号",
+            "穗公积金中心番禺责字〔2025〕1970-1号",
+            "穗公积金中心番禺责字〔2025〕1970号",
+            "穗公积金中心番禺责字〔2025〕1970号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心番禺责字〔2025〕1970-2号",
+            "matched_target": "917-责催-穗公积金中心番禺责字（2025）1970-2号.pdf",
+            "export_match_type": "fuzzy"
+          }
+        },
+        "suggestions": [
+          "OCR 选中主号: 穗公积金中心番禺责字〔2025〕1970-2号",
+          "当前导出目标: 穗公积金中心番禺责字〔2025〕1970-2号",
+          "请人工确认台账是否应保留子号命名"
+        ],
+        "timing": {
+          "total_duration": 31.417633900011424,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.752373218536377,
+            0.3183586597442627,
+            4.463030099868774,
+            0.27906179428100586,
+            8.026812076568604,
+            0.29331541061401367,
+            2.3200035095214844,
+            3.8131799697875977,
+            0.29380011558532715,
+            4.344641447067261
+          ],
+          "avg_time_per_page": 2.7904576301574706
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": true,
+          "fallback_rate": 30.0,
+          "region_first_hit_rate": 70.0,
+          "match_confidence": 100
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "5.pdf",
+        "file_type": "notice",
+        "message": "识别到责令号但未精确匹配，模糊匹配相似度: 95.7%",
+        "details": {
+          "file_name": "5.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心番禹责字〔2025〕1971-2号",
+            "穗公积金中心番禺责字〔2025〕1971-1号",
+            "穗公积金中心番禺责字〔2025〕1971号",
+            "穗公积金中心番禺责字〔2025〕1971号"
+          ],
+          "matched_case": null,
+          "fallback_pages": 2,
+          "region_pages": 8,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "918-责催-穗公积金中心番禺责字（2025）1971-2号.pdf",
+          "matched_target_notice": "穗公积金中心番禺责字〔2025〕1971-2号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禹责字〔2025〕1971-2号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年3月至2004年12月、\n2007年7月至2022年7月期间的住房公积金。根据《住房公积金管理条\n例》(1999年4月3日国务院令第262号发布施行，2002年3月24日国\n修订)第二条、第十三条、第十五条、第十六条、第十七条、第十八条、第\n十九条、第二十条、第三十七条、第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》(建金管(2005)5号)第六条、\n《关于住房公积金管理几个具体问题的通知》(建金管(2006)52号)等\n有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年\n3月至2004年12月、2007年7月至2022年7月期间的单位应缴存部分\n\n国内特快专递\n客服电话：11183\n网站：www.es.com.cn\n1003480106238\n日\n",
+          "normalized_notices": [
+            "穗公积金中心番禹责字〔2025〕1971-2号",
+            "穗公积金中心番禺责字〔2025〕1971-1号",
+            "穗公积金中心番禺责字〔2025〕1971号",
+            "穗公积金中心番禺责字〔2025〕1971号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心番禺责字〔2025〕1971-2号",
+            "matched_target": "918-责催-穗公积金中心番禺责字（2025）1971-2号.pdf",
+            "export_match_type": "fuzzy"
+          },
+          "fuzzy_match": {
+            "target": "穗公积金中心番禺责字〔2025〕1971-2号",
+            "ratio": 0.9565217391304348
+          }
+        },
+        "suggestions": [
+          "识别结果: 穗公积金中心番禹责字〔2025〕1971-2号",
+          "建议匹配: 穗公积金中心番禺责字〔2025〕1971-2号",
+          "请人工确认是否匹配正确"
+        ],
+        "timing": {
+          "total_duration": 27.52834079999593,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.7612860202789307,
+            0.4615745544433594,
+            4.633673906326294,
+            0.3135857582092285,
+            7.76357889175415,
+            0.26625490188598633,
+            2.2953743934631348,
+            0.3038196563720703,
+            3.1885387897491455,
+            0.3018226623535156
+          ],
+          "avg_time_per_page": 2.3289509534835817
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": false,
+          "fallback_rate": 20.0,
+          "region_first_hit_rate": 80.0,
+          "match_confidence": 95
+        }
+      },
+      {
+        "status": "pass",
+        "file_name": "申请书.pdf",
+        "file_type": "application",
+        "message": "成功识别 5 个案件",
+        "details": {
+          "file_name": "申请书.pdf",
+          "total_pages": 10,
+          "expected_cases": 5,
+          "detected_cases": 5,
+          "keywords_found": [
+            "强制执行申请书"
+          ],
+          "boundary_pages_detected": [
+            1,
+            3,
+            5,
+            7,
+            9
+          ],
+          "fallback_pages": 0,
+          "optimization_strategy": "region_first"
+        },
+        "suggestions": [],
+        "timing": {
+          "total_duration": 16.91638020001119,
+          "method": "region_first",
+          "pages_timings": [
+            1.5381243228912354,
+            1.3558716773986816,
+            1.289630651473999,
+            1.0824923515319824,
+            1.331129789352417,
+            1.1183743476867676,
+            1.2624518871307373,
+            1.1696133613586426,
+            1.2432689666748047,
+            1.3417205810546875
+          ],
+          "avg_time_per_page": 1.2732677936553956
+        },
+        "accuracy": {
+          "text_quality": "fair",
+          "case_detection_accuracy": 100.0,
+          "keyword_detection_rate": 50.0,
+          "fallback_rate": 0.0,
+          "boundary_detection_rate": 100.0
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "授权书.pdf",
+        "file_type": "authorization",
+        "message": "页数不匹配: 实际 3 页，期望 5 页",
+        "details": {
+          "file_name": "授权书.pdf",
+          "total_pages": 3,
+          "expected_count": 5,
+          "doc_type": "authorization",
+          "keywords_found": [
+            "授权委托书"
+          ],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 3,
+          "optimization_strategy": "region_first"
+        },
+        "suggestions": [
+          "检查 authorization 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 5 页（5 公司 × 1 页）"
+        ],
+        "timing": {
+          "total_duration": 5.579516700003296,
+          "method": "region_first",
+          "pages_timings": [
+            1.8637592792510986,
+            1.0605051517486572,
+            1.3250274658203125
+          ],
+          "avg_time_per_page": 1.4164306322733562
+        },
+        "accuracy": {
+          "text_quality": "good",
+          "keyword_detection_rate": 100.0,
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 100.0
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "所函.pdf",
+        "file_type": "letter",
+        "message": "页数不匹配: 实际 3 页，期望 5 页",
+        "details": {
+          "file_name": "所函.pdf",
+          "total_pages": 3,
+          "expected_count": 5,
+          "doc_type": "letter",
+          "keywords_found": [],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 0,
+          "optimization_strategy": "region_first"
+        },
+        "suggestions": [
+          "检查 letter 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 5 页（5 公司 × 1 页）"
+        ],
+        "timing": {
+          "total_duration": 4.515222799993353,
+          "method": "region_first",
+          "pages_timings": [
+            0.894780158996582,
+            1.0799474716186523,
+            1.0168981552124023
+          ],
+          "avg_time_per_page": 0.9972085952758789
+        },
+        "accuracy": {
+          "text_quality": "poor",
+          "keyword_detection_rate": 0.0,
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 0.0
+        }
+      }
+    ],
+    "failed_items": [],
+    "warning_items": [
+      {
+        "status": "warning",
+        "file_name": "3.pdf",
+        "file_type": "notice",
+        "message": "识别主号成功，但按同根目标导出: 穗公积金中心番禺责字〔2025〕1411-2号 -> 穗公积金中心番禺责字〔2025〕1411-2号",
+        "details": {
+          "file_name": "3.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心番禺责字〔2025〕1411-2号",
+            "穗公积金中心番禺责字〔2025〕1411-1号",
+            "穗公积金中心番禺责字〔2025〕1411号",
+            "穗公积金中心番禺责字〔2025〕1411号"
+          ],
+          "matched_case": "穗公积金中心番禺责字〔2025〕1411-2号",
+          "fallback_pages": 2,
+          "region_pages": 8,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "916-责催-穗公积金中心番禺责字（2025）1411-2号.pdf",
+          "matched_target_notice": "穗公积金中心番禺责字〔2025〕1411-2号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禺责字〔2025〕1411-2号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为陈志明缴存2011年05月至2022年05月期\n间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院\n令第262号发布施行，2002年3月24日国务院令第350号第-次修订，\n2019年3月24日国务院令第710号第二次修订)第二条、第十三条、第十\n五条、第十六条、第十七条、第十八条、第十九条、第二十条、第三十七\n条、第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指\n导意见》(建金管(2005)5号)第六条、《关于住房公积金管理几个具\n体问题的通知》(建金管(2006)52号)等有关规定，责令你单位履行以\n下义务：\n请在收到本决定书之日起10个工作日内为你单位陈志明补缴2011年\n\n国内特快专递\n客服电话：11183\n网站：www.cms.com.cn\n年月日时\n1003480106238\n月\n签名：\n台\n备注：",
+          "normalized_notices": [
+            "穗公积金中心番禺责字〔2025〕1411-2号",
+            "穗公积金中心番禺责字〔2025〕1411-1号",
+            "穗公积金中心番禺责字〔2025〕1411号",
+            "穗公积金中心番禺责字〔2025〕1411号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心番禺责字〔2025〕1411-2号",
+            "matched_target": "916-责催-穗公积金中心番禺责字（2025）1411-2号.pdf",
+            "export_match_type": "fuzzy"
+          }
+        },
+        "suggestions": [
+          "OCR 选中主号: 穗公积金中心番禺责字〔2025〕1411-2号",
+          "当前导出目标: 穗公积金中心番禺责字〔2025〕1411-2号",
+          "请人工确认台账是否应保留子号命名"
+        ],
+        "timing": {
+          "total_duration": 28.006480600015493,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.61238431930542,
+            0.6999156475067139,
+            4.237704515457153,
+            0.2607293128967285,
+            8.185316801071167,
+            0.28038644790649414,
+            2.3387715816497803,
+            0.32277679443359375,
+            3.6087207794189453,
+            0.2757127285003662
+          ],
+          "avg_time_per_page": 2.382241892814636
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": true,
+          "fallback_rate": 20.0,
+          "region_first_hit_rate": 80.0,
+          "match_confidence": 100
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "4.pdf",
+        "file_type": "notice",
+        "message": "识别主号成功，但按同根目标导出: 穗公积金中心番禺责字〔2025〕1970-2号 -> 穗公积金中心番禺责字〔2025〕1970-2号",
+        "details": {
+          "file_name": "4.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心番禺责字〔2025〕1970-2号",
+            "穗公积金中心番禺责字〔2025〕1970-1号",
+            "穗公积金中心番禺责字〔2025〕1970号",
+            "穗公积金中心番禺责字〔2025〕1970号"
+          ],
+          "matched_case": "穗公积金中心番禺责字〔2025〕1970-2号",
+          "fallback_pages": 3,
+          "region_pages": 7,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "917-责催-穗公积金中心番禺责字（2025）1970-2号.pdf",
+          "matched_target_notice": "穗公积金中心番禺责字〔2025〕1970-2号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禺责字〔2025〕1970-2号\n名称：广州港华燃气有限公司\n统-社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为李雪梅缴存2004年02月至2004年12月、2007\n年07月至2021年05月期间的住房公积金。根据《住房公积金管理条例》(1999\n年4月3日国务院令第262号发布施行，2002年3月24日国务院令第350号第\n-次修订，2019年3月24日国务院令第710号第二次修订)第二条、第十三条、\n第十五条、第十六条、第十七条、第十八条、第十九条、第二十条、第三十七条、\n第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》(建\n金管[2005]5号)第六条、《关于住房公积金管理几个具体问题的通知》(建\n金管[2006]52号)等有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位李雪梅补缴2004年02月\n至2004年12月、2007年07月至2021年05月期间的单位应缴存部分住房公积\n\n件人\n国",
+          "normalized_notices": [
+            "穗公积金中心番禺责字〔2025〕1970-2号",
+            "穗公积金中心番禺责字〔2025〕1970-1号",
+            "穗公积金中心番禺责字〔2025〕1970号",
+            "穗公积金中心番禺责字〔2025〕1970号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心番禺责字〔2025〕1970-2号",
+            "matched_target": "917-责催-穗公积金中心番禺责字（2025）1970-2号.pdf",
+            "export_match_type": "fuzzy"
+          }
+        },
+        "suggestions": [
+          "OCR 选中主号: 穗公积金中心番禺责字〔2025〕1970-2号",
+          "当前导出目标: 穗公积金中心番禺责字〔2025〕1970-2号",
+          "请人工确认台账是否应保留子号命名"
+        ],
+        "timing": {
+          "total_duration": 31.417633900011424,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.752373218536377,
+            0.3183586597442627,
+            4.463030099868774,
+            0.27906179428100586,
+            8.026812076568604,
+            0.29331541061401367,
+            2.3200035095214844,
+            3.8131799697875977,
+            0.29380011558532715,
+            4.344641447067261
+          ],
+          "avg_time_per_page": 2.7904576301574706
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": true,
+          "fallback_rate": 30.0,
+          "region_first_hit_rate": 70.0,
+          "match_confidence": 100
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "5.pdf",
+        "file_type": "notice",
+        "message": "识别到责令号但未精确匹配，模糊匹配相似度: 95.7%",
+        "details": {
+          "file_name": "5.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心番禹责字〔2025〕1971-2号",
+            "穗公积金中心番禺责字〔2025〕1971-1号",
+            "穗公积金中心番禺责字〔2025〕1971号",
+            "穗公积金中心番禺责字〔2025〕1971号"
+          ],
+          "matched_case": null,
+          "fallback_pages": 2,
+          "region_pages": 8,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "918-责催-穗公积金中心番禺责字（2025）1971-2号.pdf",
+          "matched_target_notice": "穗公积金中心番禺责字〔2025〕1971-2号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禹责字〔2025〕1971-2号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年3月至2004年12月、\n2007年7月至2022年7月期间的住房公积金。根据《住房公积金管理条\n例》(1999年4月3日国务院令第262号发布施行，2002年3月24日国\n修订)第二条、第十三条、第十五条、第十六条、第十七条、第十八条、第\n十九条、第二十条、第三十七条、第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》(建金管(2005)5号)第六条、\n《关于住房公积金管理几个具体问题的通知》(建金管(2006)52号)等\n有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年\n3月至2004年12月、2007年7月至2022年7月期间的单位应缴存部分\n\n国内特快专递\n客服电话：11183\n网站：www.es.com.cn\n1003480106238\n日\n",
+          "normalized_notices": [
+            "穗公积金中心番禹责字〔2025〕1971-2号",
+            "穗公积金中心番禺责字〔2025〕1971-1号",
+            "穗公积金中心番禺责字〔2025〕1971号",
+            "穗公积金中心番禺责字〔2025〕1971号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心番禺责字〔2025〕1971-2号",
+            "matched_target": "918-责催-穗公积金中心番禺责字（2025）1971-2号.pdf",
+            "export_match_type": "fuzzy"
+          },
+          "fuzzy_match": {
+            "target": "穗公积金中心番禺责字〔2025〕1971-2号",
+            "ratio": 0.9565217391304348
+          }
+        },
+        "suggestions": [
+          "识别结果: 穗公积金中心番禹责字〔2025〕1971-2号",
+          "建议匹配: 穗公积金中心番禺责字〔2025〕1971-2号",
+          "请人工确认是否匹配正确"
+        ],
+        "timing": {
+          "total_duration": 27.52834079999593,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            3.7612860202789307,
+            0.4615745544433594,
+            4.633673906326294,
+            0.3135857582092285,
+            7.76357889175415,
+            0.26625490188598633,
+            2.2953743934631348,
+            0.3038196563720703,
+            3.1885387897491455,
+            0.3018226623535156
+          ],
+          "avg_time_per_page": 2.3289509534835817
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": false,
+          "fallback_rate": 20.0,
+          "region_first_hit_rate": 80.0,
+          "match_confidence": 95
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "授权书.pdf",
+        "file_type": "authorization",
+        "message": "页数不匹配: 实际 3 页，期望 5 页",
+        "details": {
+          "file_name": "授权书.pdf",
+          "total_pages": 3,
+          "expected_count": 5,
+          "doc_type": "authorization",
+          "keywords_found": [
+            "授权委托书"
+          ],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 3,
+          "optimization_strategy": "region_first"
+        },
+        "suggestions": [
+          "检查 authorization 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 5 页（5 公司 × 1 页）"
+        ],
+        "timing": {
+          "total_duration": 5.579516700003296,
+          "method": "region_first",
+          "pages_timings": [
+            1.8637592792510986,
+            1.0605051517486572,
+            1.3250274658203125
+          ],
+          "avg_time_per_page": 1.4164306322733562
+        },
+        "accuracy": {
+          "text_quality": "good",
+          "keyword_detection_rate": 100.0,
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 100.0
+        }
+      },
+      {
+        "status": "warning",
+        "file_name": "所函.pdf",
+        "file_type": "letter",
+        "message": "页数不匹配: 实际 3 页，期望 5 页",
+        "details": {
+          "file_name": "所函.pdf",
+          "total_pages": 3,
+          "expected_count": 5,
+          "doc_type": "letter",
+          "keywords_found": [],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 0,
+          "optimization_strategy": "region_first"
+        },
+        "suggestions": [
+          "检查 letter 页数是否正确（应为 1 页/公司）",
+          "确认台账公司数量是否正确",
+          "实际页数: 3 页",
+          "期望页数: 5 页（5 公司 × 1 页）"
+        ],
+        "timing": {
+          "total_duration": 4.515222799993353,
+          "method": "region_first",
+          "pages_timings": [
+            0.894780158996582,
+            1.0799474716186523,
+            1.0168981552124023
+          ],
+          "avg_time_per_page": 0.9972085952758789
+        },
+        "accuracy": {
+          "text_quality": "poor",
+          "keyword_detection_rate": 0.0,
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 0.0
+        }
+      }
+    ]
+  },
+  "output_folders": {
+    "输出文件（所函）": [
+      "友联高新技术产业（广州）有限公司（曾用名：广州市联合医疗用品有限责任公司）.pdf",
+      "广州港华燃气有限公司.pdf",
+      "精美汽车零部件（广州）有限公司.pdf"
+    ],
+    "输出文件（授权书）": [
+      "友联高新技术产业（广州）有限公司（曾用名：广州市联合医疗用品有限责任公司）.pdf",
+      "广州港华燃气有限公司.pdf",
+      "精美汽车零部件（广州）有限公司.pdf"
+    ],
+    "输出文件（申请书）": [
+      "195-申请书pdf-穗公积金中心南沙责字（2025）1195号.pdf",
+      "77-申请书pdf-穗公积金中心南沙责字（2025）1175号.pdf",
+      "916-申请书pdf-穗公积金中心番禺责字（2025）1411-2号.pdf",
+      "917-申请书pdf-穗公积金中心番禺责字（2025）1970-2号.pdf",
+      "918-申请书pdf-穗公积金中心番禺责字（2025）1971-2号.pdf"
+    ],
+    "输出文件（责催）": [
+      "195-责催-穗公积金中心南沙责字（2025）1195号.pdf",
+      "77-责催-穗公积金中心南沙责字（2025）1175号.pdf",
+      "916-责催-穗公积金中心番禺责字（2025）1411-2号.pdf",
+      "917-责催-穗公积金中心番禺责字（2025）1970-2号.pdf",
+      "918-责催-穗公积金中心番禺责字（2025）1971-2号.pdf"
+    ]
+  },
+  "mode": "real_ocr"
+}

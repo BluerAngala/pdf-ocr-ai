@@ -1,0 +1,369 @@
+{
+  "pages": [
+    {
+      "page": 1,
+      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禹责字〔2025〕1971-2号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年3月至2004年12月、\n2007年7月至2022年7月期间的住房公积金。根据《住房公积金管理条\n例》(1999年4月3日国务院令第262号发布施行，2002年3月24日国\n修订)第二条、第十三条、第十五条、第十六条、第十七条、第十八条、第\n十九条、第二十条、第三十七条、第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》(建金管(2005)5号)第六条、\n《关于住房公积金管理几个具体问题的通知》(建金管(2006)52号)等\n有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年\n3月至2004年12月、2007年7月至2022年7月期间的单位应缴存部分",
+      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禹责字（2025）1971-2号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年3月至2004年12月、\n2007年7月至2022年7月期间的住房公积金。根据《住房公积金管理条\n例》（1999年4月3日国务院令第262号发布施行，2002年3月24日国\n修订)第二条、第十三条、第十五条、第十六条、第十七条、第十八条、第\n十九条、第二十条、第三十七条、第三十八条、第四十七条、《关于住房\n公积金管理若干具体问题的指导意见》（建金管（2005）5号）第六条、\n《关于住房公积金管理几个具体问题的通知》（建金管（2006）52号）等\n有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年\n3月至2004年12月、2007年7月至2022年7月期间的单位应缴存部分",
+      "method": "region_first",
+      "duration": 3.7612860202789307,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 3.7612860202789307,
+          "text_length": 448,
+          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禹责字（2025）1971-2号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年3月至2004年12月、\n2007年7月至2022年7月期间的住房公积金。根据《住房公积金管理条\n例》（1999年4月3日国务院令第262号发布施行，2002年3月24日国\n修订)第二条、第十三条、第十五条、第十六条、第十七条、第十八条、第\n十九条、第二十条、第三十七条、第三十八条、第四十七条、《关于住房\n公积金管理若干具体问题的指导意见》（建金管（2005）5号）第六条、\n《关于住房公积金管理几个具体问题的通知》（建金管（2006）52号）等\n有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年\n3月至2004年12月、2007年7月至2022年7月期间的单位应缴存部分"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 3.7613,
+        "max_text_length": 448,
+        "total_text_length": 448,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 433,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 2,
+      "text": "",
+      "original_text": "",
+      "method": "region_first",
+      "duration": 0.4615745544433594,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 0.1289839744567871,
+          "text_length": 0,
+          "text": ""
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 0.129,
+        "max_text_length": 0,
+        "total_text_length": 0,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 0,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 3,
+      "text": "国内特快专递\n客服电话：11183\n网站：www.es.com.cn\n1003480106238\n日\n年月\n月\n签名：\n收存人签收\n95\n备注：\nR\nK\nR\n2.\n拾\n元保价费：\n元其费用：\n收件人付\n月结\n现金\n投递人员：\n仟\n口\n口\n附加服务：\n代收货款：\n递费用：\n邮费：\n封奖费：\n费用合计：\n投反收寄退费：\n寄件人付\n第三方付费\n管\n收寄人员：\n口\n5\n广州市香禺区市桥街德兴路37、39号\n客户代码：\n广州市番禺区沙头街汀根村大阪工业区一街20号\n不要放在丰桌柜或驿站！\n王\n寄件人：\n地址：\n客户单号：\n收件人信息：\n收件人：\n地址：\n北京",
+      "original_text": "国内特快专递\n客服电话：11183\n网站：www.es.com.cn\n1003480106238\n日\n年月\n月\n签名：\n收存人签收\n95\n备注：\nR\nK\nR\n2.\n拾\n元保价费：\n元其费用：\n收件人付\n月结\n现金\n投递人员：\n仟\n口\n口\n附加服务：\n代收货款：\n递费用：\n邮费：\n封奖费：\n费用合计：\n投反收寄退费：\n寄件人付\n第三方付费\n管\n收寄人员：\n口\n5\n广州市香禺区市桥街德兴路37、39号\n客户代码：\n广州市番禺区沙头街汀根村大阪工业区一街20号\n不要放在丰桌柜或驿站！\n王\n寄件人：\n地址：\n客户单号：\n收件人信息：\n收件人：\n地址：\n北京",
+      "method": "full_page_fallback",
+      "duration": 4.633673906326294,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 1.9782273769378662,
+          "text_length": 221,
+          "text": "资件人\n国内特快专递\n客服电话：11183\n网站：www.ems.com.cn\n您的\n1003480106238\n月\nY#神\n签名：\n备注：\n元\n元\n元\nR\n元\n元\n1003480106238\n其它\n佰\n保价费：\n其他费用：\n口收件人付\n月络\n现金\n投递人员：\n附加服务：\n妥投短信\n电子返单\n代收货款：\n万\n递费用：\n封装费：\n元\n费用合计：\n投递应收寄递费：\n寄件人付\n第三方付费\n收寄人员：\n口\n口\n口\n口\n口\n必保价\nR\n8台\n好\n2"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.9782,
+        "max_text_length": 221,
+        "total_text_length": 221,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 174,
+      "fallback_used": true,
+      "fallback_trigger_reason": "no_notice_signal",
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 4,
+      "text": "",
+      "original_text": "",
+      "method": "region_first",
+      "duration": 0.3135857582092285,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 0.17107820510864258,
+          "text_length": 0,
+          "text": ""
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 0.1711,
+        "max_text_length": 0,
+        "total_text_length": 0,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 0,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 5,
+      "text": "2025/9/5 14:54\n中国邮政速递物流\n国邮以速通物流\n首页产品服务服务支持行业拆决万真服务私我缺施关于民们年泾网站\n邮件号查询查资结展\n*业业*\n热件号：1003480106238\n广州市\n广圳东\n在线客报\n的快递\n91号6\n禁山市\n08月21日\n2025年\n已代\n源送中\n1026广形市，您的快代收[应表发室签收]，如有写请期进员[可小日\n款1892155]，有事诗效，少一次，多一你，在的位2\n渐托。酒联考法11183\n我时2天23时]\n1558\n广州，快件在证中，清导，得运通，准新衣，有证可司\n请员[网永品，电通1892183855]成局及路[电话020-349]93-]品电话\n货心9)\n1118,\n0%8务\n已存\n中\n13:45广州市，年管可广市首风具山设影，于05网22口校进\n1340广布，快得期达[厂秀市确周风山限投]\n12:06广市，快行意开[广州布香民同般快件理本间]，正在发健下一站\n人P\n中山市\n1129广州，已在[广地备是破经润]元成分，章备发出\n。39广州，快达[广期处车润]\n08月20日·21:4中山布，快线月[中业币三角操在间]正在发下一站\n口\n0747广州，快[广变中心]成分.签发出\n·0735广州，快所[广空中心]\n1240中山市，快件5达[中山市三角车司]\n86广州，使开[广州空中心]正在效冠下\n111中出市, 快件D在[三类步维压司] 成分5， 减差无出\n00.52中，开[中市三身件项]证在发注下一站\n8月19。 21:554出事,说件已在[中三为]成分5，准是发出\n0421山，快达[中由三到]\n01广指.快得开[广航空中].底下站\n0052广市市，快在[广高空中心]完成分练，备发出\n·0026广市，达[广州航空中]\n08月18日。2044广5，[广W步首具产抗授多].正在发往[广兰线空中]\n·18.54广，饮在[广市器德受效等]完成练准者买出\n1643广，中国发已收联快件\n行业转决万案\n传民服列\n服务支\n关于我]\n联系们\n无\n公号8\nAC\nSPC\n件查\n以\nhttps:/wwwems,com.cn/queryl.ogisics?current=0\n1/2",
+      "original_text": "2025/9/5 14:54\n中国邮政速递物流\n国邮以速通物流\n首页产品服务服务支持行业拆决万真服务私我缺施关于民们年泾网站\n邮件号查询查资结展\n*业业*\n热件号：1003480106238\n广州市\n广圳东\n在线客报\n的快递\n91号6\n禁山市\n08月21日\n2025年\n已代\n源送中\n1026广形市，您的快代收【应表发室签收】，如有写请期进员【可小日\n款1892155】，有事诗效，少一次，多一你，在的位2\n渐托。酒联考法11183\n我时2天23时]\n1558\n广州，快件在证中，清导，得运通，准新衣，有证可司\n请员[网永品，电通1892183855】成局及路【电话020-349]93-]品电话\n货心9)\n1118,\n0%8务\n已存\n中\n13:45广州市，年管可广市首风具山设影，于05网22口校进\n1340广布，快得期达【厂秀市确周风山限投]\n12:06广市，快行意开[广州布香民同般快件理本间】，正在发健下一站\n人P\n中山市\n1129广州，已在[广地备是破经润】元成分，章备发出\n。39广州，快达【广期处车润]\n08月20日·21:4中山布，快线月[中业币三角操在间】正在发下一站\n口\n0747广州，快【广变中心]成分.签发出\n·0735广州，快所[广空中心]\n1240中山市，快件5达【中山市三角车司]\n86广州，使开【广州空中心】正在效冠下\n111中出市, 快件D在[三类步维压司】 成分5， 减差无出\n00.52中，开【中市三身件项】证在发注下一站\n8月19。 21:554出事,说件已在【中三为】成分5，准是发出\n0421山，快达【中由三到]\n01广指.快得开[广航空中】.底下站\n0052广市市，快在【广高空中心】完成分练，备发出\n·0026广市，达【广州航空中】\n08月18日。2044广5，【广W步首具产抗授多】.正在发往[广兰线空中]\n·18.54广，饮在【广市器德受效等】完成练准者买出\n1643广，中国发已收联快件\n行业转决万案\n传民服列\n服务支\n关于我]\n联系们\n无\n公号8\nAC\nSPC\n件查\n以\nhttps:/wwwems,com.cn/queryl.ogisics?current=0\n1/2",
+      "method": "full_page_fallback",
+      "duration": 7.76357889175415,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 3.8373124599456787,
+          "text_length": 659,
+          "text": "2025/9/5 14:54\n中国邮政速递物流\n中国邮政速通物流\n首页产品服务服务支持行业解决方案硬民服务科技赋能关于我们保团网站\n51 4. tUK3Ss UX IN3\n寄内地\n邮件号查询>查询结果\n第入1个或品多20个部件号（多个请用空福说期开）\n量奇\n冯永昌18922163655\n邮件轨迹\n学生奇\n邮件号：1003480106238\n广州市\n广州市\n准溪台\n141\n广州市\n星\n我的快递\n号\n佛山市\n四\n出520\n08月21日\n已代收\n1626广州市，您的快得巴代收【单位教发室签改】，如有整词请屯联标送员【冯永昌\n话：1892218355】，有事导购我，少一次资设，多一份系，的改海全C\n时2天23小时\n录收递知书查润\n派送中\n所托，连督电话11183\n果件查询\n15:58广州市，快件正在派送中，请耐心等得，保待电运通，准备农，如有疑亏请电现\n送员[冯永品，电话：18922183855】或瓶投部【电达：020-84593934】\n监码电话\n11183,\n电异常反\n查询务\n已暂存\n级务支持\n13:45广州市，快件暂存广市器禺具山预设部，于08月22日投通\n运送中\n报务查询\n1340广州市，快件到达【广州市周属山须投部】\n有户端下级\n市\n12:05广州市，快件案开【广州布香周同械快件处理车词】.正在发往下一站\n个人中心\n100\n中山市\n09：39广州币，快件到达[厂州市强局月城快件处理车间】\n11：29广州市，快件已在【广州市备品同城快件处经车间】完成分练，准备发出\n08月20日\n91:12\n中山市"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 3.8373,
+        "max_text_length": 659,
+        "total_text_length": 659,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 599,
+      "fallback_used": true,
+      "fallback_trigger_reason": "no_notice_signal",
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 6,
+      "text": "",
+      "original_text": "",
+      "method": "region_first",
+      "duration": 0.26625490188598633,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 0.12791204452514648,
+          "text_length": 0,
+          "text": ""
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 0.1279,
+        "max_text_length": 0,
+        "total_text_length": 0,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 0,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 7,
+      "text": "广州住房公积金管理中心\n关于撤销《责令限期办理决定书》的决定\n穗公积金中心番禺责字〔2025〕1971-1号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n我中心于2025年06月13日向你单位送达的《责令限期办理决定书》(穗公积金中心番禺责字〔2025〕1971号)，\n因追缴金额变更，现决定予以撤销。\n附件：送达回证",
+      "original_text": "广州住房公积金管理中心\n关于撤销《责令限期办理决定书》的决定\n穗公积金中心番禺责字（2025）1971-1号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n我中心于2025年06月13日向你单位送达的《责令限\n期办理决定书》（穗公积金中心番禺责字（2025）1971号），\n因追缴金额变更，现决定予以撤销。\n附件：送达回证",
+      "method": "region_first",
+      "duration": 2.2953743934631348,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 2.2953743934631348,
+          "text_length": 206,
+          "text": "广州住房公积金管理中心\n关于撤销《责令限期办理决定书》的决定\n穗公积金中心番禺责字（2025）1971-1号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n我中心于2025年06月13日向你单位送达的《责令限\n期办理决定书》（穗公积金中心番禺责字（2025）1971号），\n因追缴金额变更，现决定予以撤销。\n附件：送达回证"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 2.2954,
+        "max_text_length": 206,
+        "total_text_length": 206,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 197,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 8,
+      "text": "",
+      "original_text": "",
+      "method": "region_first",
+      "duration": 0.3038196563720703,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 0.16570091247558594,
+          "text_length": 0,
+          "text": ""
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 0.1657,
+        "max_text_length": 0,
+        "total_text_length": 0,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 0,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 9,
+      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禺责字〔2025〕1971号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年03月至2004年12月、2007\n年07月至2022年07月期间的住房公积金。根据《住房公积金管理条例》(1999\n年4月3日国务院令第262号发布施行，2002年3月24日国务院令第350号第\n一次修订，2019年3月24日国务院令第710号第二次修订)第二条、第十三条、\n第十五条、第十六条、第十七条、第十八条、第十九条、第二十条、第三十七条、\n第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》(建\n金管[2005]5号)第六条、《关于住房公积金管理几个具体问题的通知》(建\n金管[2006]52号)等有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年03月\n至2004年12月、2007年07月至2022年07月期间的单位应缴存部分住房公积",
+      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禺责字【2025]1971号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年03月至2004年12月、2007\n年07月至2022年07月期间的住房公积金。根据《住房公积金管理条例》（1999\n年4月3日国务院令第262号发布施行，2002年3月24日国务院令第350号第\n一次修订，2019年3月24日国务院令第710号第二次修订)第二条、第十三条、\n第十五条、第十六条、第十七条、第十八条、第十九条、第二十条、第三十七条、\n第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》（建\n金管【2005］5号）第六条、《关于住房公积金管理几个具体问题的通知》（建\n金管【2006］52号）等有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年03月\n至2004年12月、2007年07月至2022年07月期间的单位应缴存部分住房公积",
+      "method": "region_first",
+      "duration": 3.1885387897491455,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 3.1885387897491455,
+          "text_length": 492,
+          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心番禺责字【2025]1971号\n名称：广州港华燃气有限公司\n统一社会信用代码：91440113618701298D\n地址：广州市番禺区沙头街汀根村大阪工业区一街20号\n经查，你单位未按规定为周绮莉缴存2004年03月至2004年12月、2007\n年07月至2022年07月期间的住房公积金。根据《住房公积金管理条例》（1999\n年4月3日国务院令第262号发布施行，2002年3月24日国务院令第350号第\n一次修订，2019年3月24日国务院令第710号第二次修订)第二条、第十三条、\n第十五条、第十六条、第十七条、第十八条、第十九条、第二十条、第三十七条、\n第三十八条、第四十七条、《关于住房公积金管理若干具体问题的指导意见》（建\n金管【2005］5号）第六条、《关于住房公积金管理几个具体问题的通知》（建\n金管【2006］52号）等有关规定，责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位周绮莉补缴2004年03月\n至2004年12月、2007年07月至2022年07月期间的单位应缴存部分住房公积"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 3.1885,
+        "max_text_length": 492,
+        "total_text_length": 492,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 477,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 10,
+      "text": "",
+      "original_text": "",
+      "method": "region_first",
+      "duration": 0.3018226623535156,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 0.1383037567138672,
+          "text_length": 0,
+          "text": ""
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 0.1383,
+        "max_text_length": 0,
+        "total_text_length": 0,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 0,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    }
+  ],
+  "total_pages": 10,
+  "filename": "5.pdf",
+  "method": "region_first_sequential",
+  "total_duration": 27.52834079999593,
+  "fallback_pages": 2,
+  "region_pages": 8,
+  "optimization_strategy": "region_first_sequential",
+  "stopped_early": false,
+  "selected_notice": null,
+  "selected_page": null,
+  "selected_root_notice": null,
+  "candidate_notices": [],
+  "performance_summary": {
+    "doc_type": "责催",
+    "file_name": "5.pdf",
+    "page_count": 10,
+    "total_duration": 27.5283,
+    "fallback_pages": 2,
+    "fallback_rate": 0.2,
+    "region_attempts_total": 10,
+    "region_ocr_duration_total": 15.7927,
+    "slowest_page": {
+      "page": 5,
+      "duration": 7.7636,
+      "method": "full_page_fallback",
+      "fallback_used": true,
+      "fallback_trigger_reason": "no_notice_signal"
+    }
+  },
+  "matched_target": "918-责催-穗公积金中心番禺责字（2025）1971-2号.pdf",
+  "matched_target_notice": "穗公积金中心番禺责字〔2025〕1971-2号",
+  "export_match_type": "fuzzy",
+  "same_root_remap": true,
+  "export_match_similarity": 0.9245454545454546,
+  "same_root_selected_notice": "穗公积金中心番禺责字〔2025〕1971号"
+}

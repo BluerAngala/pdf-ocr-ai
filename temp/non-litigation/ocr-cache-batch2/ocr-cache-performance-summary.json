@@ -1,0 +1,94 @@
+{
+  "stage": "ocr_cache_build",
+  "total_files": 8,
+  "total_duration": 204.2063,
+  "fallback_pages_total": 15,
+  "region_attempts_total": 66,
+  "slowest_files": [
+    {
+      "doc_type": "责催",
+      "file_name": "2.pdf",
+      "page_count": 10,
+      "total_duration": 45.2014,
+      "fallback_pages": 4,
+      "fallback_rate": 0.4,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 29.2871,
+      "slowest_page": {
+        "page": 7,
+        "duration": 8.0857,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    },
+    {
+      "doc_type": "责催",
+      "file_name": "1.pdf",
+      "page_count": 10,
+      "total_duration": 43.3582,
+      "fallback_pages": 4,
+      "fallback_rate": 0.4,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 29.1146,
+      "slowest_page": {
+        "page": 3,
+        "duration": 7.9766,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    },
+    {
+      "doc_type": "责催",
+      "file_name": "4.pdf",
+      "page_count": 10,
+      "total_duration": 31.4176,
+      "fallback_pages": 3,
+      "fallback_rate": 0.3,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 17.4868,
+      "slowest_page": {
+        "page": 5,
+        "duration": 8.0268,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    },
+    {
+      "doc_type": "责催",
+      "file_name": "3.pdf",
+      "page_count": 10,
+      "total_duration": 28.0065,
+      "fallback_pages": 2,
+      "fallback_rate": 0.2,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 15.9841,
+      "slowest_page": {
+        "page": 5,
+        "duration": 8.1853,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    },
+    {
+      "doc_type": "责催",
+      "file_name": "5.pdf",
+      "page_count": 10,
+      "total_duration": 27.5283,
+      "fallback_pages": 2,
+      "fallback_rate": 0.2,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 15.7927,
+      "slowest_page": {
+        "page": 5,
+        "duration": 7.7636,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    }
+  ]
+}

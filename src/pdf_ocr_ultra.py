@@ -217,16 +217,7 @@ class UltraFastOCR:
         start = time.time()
         engine = get_ocr_engine()
         dummy_img = Image.new('RGB', (100, 100), color='white')
-        # 使用线程ID避免文件名冲突
-        thread_id = threading.current_thread().ident
-        dummy_path = Path(self.config.output_dir) / f"_warmup_{thread_id}.png"
-        try:
-            dummy_img.save(dummy_path)
-            engine(str(dummy_path))
-        finally:
-            # 确保文件被删除
-            if dummy_path.exists():
-                dummy_path.unlink()
+        self._run_ocr(engine, dummy_img)
         print(f"  [OK] 预热完成 ({time.time()-start:.2f}秒)")
     
     def _extract_texts_from_result(self, result: Any) -> List[str]:
@@ -243,6 +234,20 @@ class UltraFastOCR:
                     if text and str(text).strip():
                         texts.append(str(text))
         return texts
+
+    def _run_ocr(self, engine: Any, image: Image.Image, fallback_path: Optional[Path] = None) -> List[str]:
+        image_array = np.array(image)
+        try:
+            return self._extract_texts_from_result(engine(image_array))
+        except Exception:
+            if fallback_path is None:
+                raise
+            fallback_path.parent.mkdir(exist_ok=True)
+            image.save(fallback_path, 'PNG', optimize=False)
+            try:
+                return self._extract_texts_from_result(engine(str(fallback_path)))
+            finally:
+                fallback_path.unlink(missing_ok=True)
 
     def _process_single_image(
         self,
@@ -270,12 +275,10 @@ class UltraFastOCR:
                 )
 
                 temp_dir = Path(self.config.output_dir) / "_temp"
-                temp_dir.mkdir(exist_ok=True)
                 temp_img = temp_dir / f"_page_{page_num}_{threading.get_ident()}_opt.png"
-                optimized_img.save(temp_img, 'PNG', optimize=optimize_output)
 
                 engine = get_ocr_engine()
-                texts = self._extract_texts_from_result(engine(str(temp_img)))
+                texts = self._run_ocr(engine, optimized_img, fallback_path=temp_img)
 
                 duration = time.time() - start
                 return PageResult(
@@ -340,6 +343,23 @@ class UltraFastOCR:
             max_image_size=max_image_size,
             apply_enhancement=apply_enhancement,
             apply_sharpen=apply_sharpen,
+            method=method,
+            optimize_output=optimize_output,
+        )
+
+    def recognize_full_page_image(
+        self,
+        image: Image.Image,
+        page_num: int = 1,
+        *,
+        method: str = "full_page_fallback",
+        optimize_output: bool = True,
+    ) -> PageResult:
+        return self.recognize_image_region(
+            image,
+            page_num=page_num,
+            apply_enhancement=True,
+            apply_sharpen=False,
             method=method,
             optimize_output=optimize_output,
         )
@@ -479,17 +499,12 @@ class UltraFastOCR:
                 image = image.filter(ImageFilter.SHARPEN)
                 
                 temp_dir = Path(self.config.output_dir) / "_temp"
-                temp_dir.mkdir(exist_ok=True)
                 temp_img = temp_dir / f"_mp_{page_num}_{os.getpid()}.png"
-                image.save(temp_img, 'PNG', optimize=True)
-                
+
                 if _ocr_engine is None:
                     _ocr_engine = RapidOCR()
-                
-                result = _ocr_engine(str(temp_img))
-                texts = self._extract_texts_from_result(result)
-                
-                temp_img.unlink(missing_ok=True)
+
+                texts = self._run_ocr(_ocr_engine, image, fallback_path=temp_img)
                 
                 duration = time.time() - start
                 return PageResult(
@@ -773,8 +788,8 @@ def main():
     parser.add_argument('files', nargs='+', help='PDF或图片文件路径')
     parser.add_argument('-o', '--output', default='./output', help='输出目录')
     parser.add_argument('--force-ocr', action='store_true', help='强制使用OCR')
-    parser.add_argument('--dpi', type=int, default=250, help='DPI (默认: 250)')
-    parser.add_argument('--max-size', type=int, default=1024, help='最大图像尺寸 (默认: 1024)')
+    parser.add_argument('--dpi', type=int, default=200, help='DPI (默认: 200)')
+    parser.add_argument('--max-size', type=int, default=900, help='最大图像尺寸 (默认: 900)')
     parser.add_argument('--workers', type=int, default=min(cpu_count(), 4), help=f'进程数 (默认: {min(cpu_count(), 4)})')
     
     args = parser.parse_args()

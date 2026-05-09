@@ -8,9 +8,10 @@
 2. 真实 OCR 模式：调用 RapidOCR 进行真实识别
 
 用法：
-    python scripts/run_non_litigation_flow.py           # Mock 模式
-    python scripts/run_non_litigation_flow.py --real    # 真实 OCR 模式
-    python scripts/run_non_litigation_flow.py --help    # 查看帮助
+    python scripts/run_non_litigation_flow.py                    # Mock 模式
+    python scripts/run_non_litigation_flow.py --real             # 真实 OCR 模式
+    python scripts/run_non_litigation_flow.py --all-batches      # 顺序运行第一批和第二批
+    python scripts/run_non_litigation_flow.py --help             # 查看帮助
 """
 
 import argparse
@@ -31,17 +32,61 @@ from non_litigation_export import (
     build_real_ocr_cache,
     ensure_non_litigation_input_structure,
     export_non_litigation_standard_outputs,
-    get_non_litigation_input_root,
     get_non_litigation_ocr_cache_dir,
     get_non_litigation_result_root,
 )
 from non_litigation_product import load_non_litigation_cases
-from non_litigation_validator import validate_ocr_results, ValidationStatus
+from non_litigation_validator import validate_ocr_results
 from report_generator import generate_html_report
 from project_evaluation import evaluate_non_litigation_quality
 
 
 SAMPLE_ROOT = ROOT / '样本材料' / '非诉组自动化样本材料'
+BATCH2_SAMPLE_ROOT = ROOT / '样本材料' / '非诉组自动化样本材料（第2批）'
+DEFAULT_SUMMARY_PATH = ROOT / 'output' / 'non-litigation-run-summary.json'
+DEFAULT_HTML_REPORT_PATH = ROOT / 'output' / 'ocr-validation-report.html'
+ALL_BATCH_SUMMARY_PATH = ROOT / 'output' / 'non-litigation-run-summary-all-batches.json'
+
+BATCH_CONFIGS = {
+    'batch1': {
+        'label': '第一批',
+        'sample_root': SAMPLE_ROOT,
+        'result_root': get_non_litigation_result_root(ROOT),
+        'ocr_cache_dir': get_non_litigation_ocr_cache_dir(ROOT),
+        'summary_path': DEFAULT_SUMMARY_PATH,
+        'html_report_path': DEFAULT_HTML_REPORT_PATH,
+    },
+    'batch2': {
+        'label': '第二批',
+        'sample_root': BATCH2_SAMPLE_ROOT,
+        'result_root': ROOT / 'output' / 'non-litigation-results-batch2',
+        'ocr_cache_dir': ROOT / 'temp' / 'non-litigation' / 'ocr-cache-batch2',
+        'summary_path': ROOT / 'output' / 'non-litigation-run-summary-batch2.json',
+        'html_report_path': ROOT / 'output' / 'ocr-validation-report-batch2.html',
+    },
+}
+
+REBUILDABLE_PATHS = [
+    BATCH_CONFIGS['batch1']['result_root'],
+    BATCH_CONFIGS['batch2']['result_root'],
+    BATCH_CONFIGS['batch1']['summary_path'],
+    BATCH_CONFIGS['batch2']['summary_path'],
+    ALL_BATCH_SUMMARY_PATH,
+    BATCH_CONFIGS['batch1']['html_report_path'],
+    BATCH_CONFIGS['batch2']['html_report_path'],
+    BATCH_CONFIGS['batch1']['ocr_cache_dir'],
+    BATCH_CONFIGS['batch2']['ocr_cache_dir'],
+    ROOT / 'temp' / 'non-litigation' / 'batch2-flat-input',
+]
+
+
+def resolve_sample_root(sample_root_arg: str | None) -> Path:
+    if not sample_root_arg:
+        return SAMPLE_ROOT
+    sample_root = Path(sample_root_arg)
+    if not sample_root.is_absolute():
+        sample_root = ROOT / sample_root
+    return sample_root
 
 
 def list_pdf_names(folder: Path) -> List[str]:
@@ -50,72 +95,129 @@ def list_pdf_names(folder: Path) -> List[str]:
     return sorted(path.name for path in folder.glob('*.pdf'))
 
 
-def build_run_summary(root_dir: Path, use_real_ocr: bool = False) -> Dict:
-    """
-    构建运行摘要
+def build_batch_config(batch_name: str) -> Dict:
+    return dict(BATCH_CONFIGS[batch_name])
 
-    Args:
-        root_dir: 项目根目录
-        use_real_ocr: 是否使用真实 OCR（否则使用 Mock）
-    """
+
+def infer_paths_for_sample_root(sample_root: Path) -> Dict:
+    sample_root_str = str(sample_root)
+    if sample_root == BATCH2_SAMPLE_ROOT or '第2批' in sample_root_str or 'batch2' in sample_root_str.lower():
+        return build_batch_config('batch2')
+    return build_batch_config('batch1')
+
+
+def clean_rebuildable_outputs() -> List[str]:
+    removed = []
+    for path in REBUILDABLE_PATHS:
+        if path.is_dir():
+            shutil.rmtree(path)
+            removed.append(str(path))
+            print(f"[OK] 已清理目录: {path}")
+        elif path.is_file():
+            path.unlink()
+            removed.append(str(path))
+            print(f"[OK] 已清理文件: {path}")
+    if not removed:
+        print('[INFO] 未发现需要清理的可重建产物')
+    return removed
+
+
+def clear_ocr_cache_if_needed(use_real_ocr: bool, force: bool, ocr_cache_dir: Path):
+    if force and use_real_ocr and ocr_cache_dir.exists():
+        shutil.rmtree(ocr_cache_dir)
+        print(f"🗑️  已删除旧缓存: {ocr_cache_dir}")
+
+
+def build_run_summary(
+    root_dir: Path,
+    use_real_ocr: bool = False,
+    sample_root: Path | None = None,
+    result_root: Path | None = None,
+    ocr_cache_dir: Path | None = None,
+    html_report_path: Path | None = None,
+) -> Dict:
+    sample_root = sample_root or SAMPLE_ROOT
+    path_config = infer_paths_for_sample_root(sample_root)
     input_root = ensure_non_litigation_input_structure(root_dir)
-    result_root = get_non_litigation_result_root(root_dir)
-    ocr_cache_dir = get_non_litigation_ocr_cache_dir(root_dir)
+    if (sample_root / '原始文件').exists():
+        input_root = sample_root / '原始文件'
+    result_root = result_root or path_config['result_root']
+    ocr_cache_dir = ocr_cache_dir or path_config['ocr_cache_dir']
+    html_report_path = html_report_path or path_config['html_report_path']
 
     result_root.mkdir(parents=True, exist_ok=True)
+    ocr_cache_dir.mkdir(parents=True, exist_ok=True)
+    html_report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # 构建 OCR 缓存
+    total_start = time.perf_counter()
+    phase_timings = {}
+
+    ocr_start = time.perf_counter()
     if use_real_ocr:
-        print("=" * 60)
-        print("🚀 真实 OCR 模式")
-        print("=" * 60)
+        print('=' * 60)
+        print('🚀 真实 OCR 模式')
+        print('=' * 60)
         build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False)
     else:
-        print("=" * 60)
-        print("📝 Mock 模式（使用预生成缓存）")
-        print("=" * 60)
-        build_mock_ocr_cache(SAMPLE_ROOT, ocr_cache_dir, input_dir=input_root)
+        print('=' * 60)
+        print('📝 Mock 模式（使用预生成缓存）')
+        print('=' * 60)
+        build_mock_ocr_cache(sample_root, ocr_cache_dir, input_dir=input_root)
+    phase_timings['ocr_cache_seconds'] = round(time.perf_counter() - ocr_start, 4)
 
-    # 执行导出
-    print("\n📦 开始导出文件...")
-    start = time.perf_counter()
+    print('\n📦 开始导出文件...')
+    export_start = time.perf_counter()
     export_result = export_non_litigation_standard_outputs(
-        sample_root=SAMPLE_ROOT,
+        sample_root=sample_root,
         input_dir=input_root,
         output_root=result_root,
         ocr_cache_dir=ocr_cache_dir,
     )
-    runtime_seconds = round(time.perf_counter() - start, 4)
+    export_runtime_seconds = round(time.perf_counter() - export_start, 4)
+    phase_timings['export_seconds'] = export_runtime_seconds
 
-    # 质量评估
-    quality = evaluate_non_litigation_quality(root_dir, result_root)
+    evaluation_start = time.perf_counter()
+    quality = evaluate_non_litigation_quality(root_dir, result_root, sample_root=sample_root)
+    phase_timings['evaluation_seconds'] = round(time.perf_counter() - evaluation_start, 4)
 
-    # OCR 结果验证
-    print("\n🔍 验证 OCR 识别结果...")
-    cases = load_non_litigation_cases(SAMPLE_ROOT)
+    print('\n🔍 验证 OCR 识别结果...')
+    validation_start = time.perf_counter()
+    cases = load_non_litigation_cases(sample_root)
     validation_result = validate_ocr_results(cases, ocr_cache_dir, input_dir=input_root)
-    
-    # 生成 HTML 报告
-    html_report_path = root_dir / 'output' / 'ocr-validation-report.html'
+    phase_timings['validation_seconds'] = round(time.perf_counter() - validation_start, 4)
+
+    report_start = time.perf_counter()
+    runtime_seconds = round(time.perf_counter() - total_start, 4)
     generate_html_report(
         validation_result,
         html_report_path,
         mode='real_ocr' if use_real_ocr else 'mock',
-        runtime_seconds=runtime_seconds
+        runtime_seconds=runtime_seconds,
     )
+    phase_timings['report_seconds'] = round(time.perf_counter() - report_start, 4)
+    runtime_seconds = round(time.perf_counter() - total_start, 4)
 
-    # 收集输出文件
     folder_items = {
         folder.name: list_pdf_names(folder)
         for folder in sorted(result_root.iterdir())
         if folder.is_dir()
     }
 
+    ocr_cache_performance_path = ocr_cache_dir / 'ocr-cache-performance-summary.json'
+    ocr_cache_performance = None
+    if ocr_cache_performance_path.exists():
+        ocr_cache_performance = json.loads(ocr_cache_performance_path.read_text(encoding='utf-8'))
+
     return {
-        'input_root': str(get_non_litigation_input_root(root_dir)),
+        'sample_root': str(sample_root),
+        'input_root': str(input_root),
         'result_root': str(result_root),
         'ocr_cache_dir': str(ocr_cache_dir),
+        'html_report_path': str(html_report_path),
         'runtime_seconds': runtime_seconds,
+        'export_runtime_seconds': export_runtime_seconds,
+        'phase_timings': phase_timings,
+        'ocr_cache_performance': ocr_cache_performance,
         'created_count': export_result['created_count'],
         'quality': quality,
         'validation': validation_result,
@@ -124,56 +226,271 @@ def build_run_summary(root_dir: Path, use_real_ocr: bool = False) -> Dict:
     }
 
 
+def build_aggregate_summary(batch_summaries: List[Dict], mode: str) -> Dict:
+    total_runtime = round(sum(item['runtime_seconds'] for item in batch_summaries), 4)
+    total_quality_files = sum(item['quality']['total_files'] for item in batch_summaries)
+    total_quality_matched = sum(item['quality']['page_count_matched'] for item in batch_summaries)
+    total_validation_files = sum(item['validation']['summary']['total'] for item in batch_summaries)
+    total_validation_passed = sum(item['validation']['summary']['passed'] for item in batch_summaries)
+
+    return {
+        'mode': mode,
+        'batch_count': len(batch_summaries),
+        'batches': [
+            {
+                'batch_name': item['batch_name'],
+                'label': item['label'],
+                'sample_root': item['sample_root'],
+                'result_root': item['result_root'],
+                'ocr_cache_dir': item['ocr_cache_dir'],
+                'html_report_path': item['html_report_path'],
+                'summary_path': item['summary_path'],
+                'runtime_seconds': item['runtime_seconds'],
+                'export_runtime_seconds': item.get('export_runtime_seconds', item['runtime_seconds']),
+                'phase_timings': item.get('phase_timings', {}),
+                'ocr_cache_performance': item.get('ocr_cache_performance', {}),
+                'quality': item['quality'],
+                'validation_summary': item['validation']['summary'],
+                'accuracy_summary': item['validation'].get('accuracy_summary', {}),
+            }
+            for item in batch_summaries
+        ],
+        'total_runtime_seconds': total_runtime,
+        'phase_timings': {
+            'ocr_cache_seconds': round(sum(item.get('phase_timings', {}).get('ocr_cache_seconds', 0) for item in batch_summaries), 4),
+            'export_seconds': round(sum(item.get('phase_timings', {}).get('export_seconds', 0) for item in batch_summaries), 4),
+            'validation_seconds': round(sum(item.get('phase_timings', {}).get('validation_seconds', 0) for item in batch_summaries), 4),
+            'report_seconds': round(sum(item.get('phase_timings', {}).get('report_seconds', 0) for item in batch_summaries), 4),
+        },
+        'overall_page_count_match_rate': round(total_quality_matched / total_quality_files, 4) if total_quality_files else 0,
+        'overall_validation_pass_rate': round(total_validation_passed / total_validation_files, 4) if total_validation_files else 0,
+        'quality_totals': {
+            'total_files': total_quality_files,
+            'page_count_matched': total_quality_matched,
+        },
+        'validation_totals': {
+            'total': total_validation_files,
+            'passed': total_validation_passed,
+            'warnings': sum(item['validation']['summary']['warnings'] for item in batch_summaries),
+            'failed': sum(item['validation']['summary']['failed'] for item in batch_summaries),
+        },
+        'accuracy_summary': {
+            'same_root_remap_warnings': sum(item['validation'].get('accuracy_summary', {}).get('same_root_remap_warnings', 0) for item in batch_summaries),
+            'notice_failures': sum(item['validation'].get('accuracy_summary', {}).get('notice_failures', 0) for item in batch_summaries),
+            'fallback_pages_total': sum(item['validation'].get('accuracy_summary', {}).get('fallback_pages_total', 0) for item in batch_summaries),
+        },
+    }
+
+
 def format_summary(summary: Dict) -> str:
     lines = [
-        "",
-        "=" * 60,
-        "📊 处理结果汇总",
-        "=" * 60,
+        '',
+        '=' * 60,
+        '📊 处理结果汇总',
+        '=' * 60,
         f"运行模式: {summary.get('mode', 'unknown')}",
+        f"样本根目录: {summary.get('sample_root', 'unknown')}",
         f"非诉输入目录: {summary['input_root']}",
         f"非诉输出目录: {summary['result_root']}",
         f"非诉临时目录: {summary['ocr_cache_dir']}",
-        f"运行耗时: {summary['runtime_seconds']} 秒",
+        f"HTML 报告: {summary.get('html_report_path', 'unknown')}",
+        f"运行总耗时: {summary['runtime_seconds']} 秒",
+        f"OCR缓存耗时: {summary.get('phase_timings', {}).get('ocr_cache_seconds', 0)} 秒",
+        f"导出阶段耗时: {summary.get('export_runtime_seconds', summary['runtime_seconds'])} 秒",
+        f"验证阶段耗时: {summary.get('phase_timings', {}).get('validation_seconds', 0)} 秒",
+        f"报告阶段耗时: {summary.get('phase_timings', {}).get('report_seconds', 0)} 秒",
         f"生成文件数: {summary['created_count']}",
         f"页数匹配: {summary['quality']['page_count_matched']}/{summary['quality']['total_files']}",
         f"页数匹配率: {summary['quality']['page_count_match_rate']:.2%}",
-        "",
-        "📁 输出文件列表:",
+        '',
+        '📁 输出文件列表:',
     ]
     for folder_name, file_names in summary['output_folders'].items():
         lines.append(f"\n  {folder_name}: {len(file_names)} 个文件")
         for file_name in file_names:
             lines.append(f"    - {file_name}")
-    
-    # 添加 OCR 验证结果
+
     if 'validation' in summary:
         validation = summary['validation']
+        accuracy_summary = validation.get('accuracy_summary', {})
         lines.extend([
-            "",
-            "🔍 OCR 识别验证:",
+            '',
+            '🔍 OCR 识别验证:',
             f"  总计: {validation['summary']['total']} 个文件",
             f"  ✅ 通过: {validation['summary']['passed']} 个",
             f"  ⚠️  警告: {validation['summary']['warnings']} 个",
             f"  ❌ 失败: {validation['summary']['failed']} 个",
             f"  通过率: {validation['summary']['pass_rate']:.1%}",
+            f"  最终识别准确率: {validation['summary']['pass_rate']:.1%}",
+            f"  业务导出准确率: {summary['quality']['page_count_match_rate']:.1%}",
+            f"  同根号重映射警告: {accuracy_summary.get('same_root_remap_warnings', 0)}",
+            f"  责令号失败数: {accuracy_summary.get('notice_failures', 0)}",
+            f"  fallback 页数总计: {accuracy_summary.get('fallback_pages_total', 0)}",
         ])
-        
+
         if validation['failed_items']:
-            lines.append("\n  ❌ 失败项:")
+            lines.append('\n  ❌ 失败项:')
             for item in validation['failed_items']:
                 lines.append(f"    - {item['file_name']}: {item['message']}")
-        
+
         if validation['warning_items']:
-            lines.append("\n  ⚠️  警告项:")
+            lines.append('\n  ⚠️  警告项:')
             for item in validation['warning_items']:
                 lines.append(f"    - {item['file_name']}: {item['message']}")
-    
+
+    ocr_perf = summary.get('ocr_cache_performance') or {}
+    slowest_files = ocr_perf.get('slowest_files') or []
+    if ocr_perf:
+        lines.extend([
+            '',
+            '⏱️ OCR 缓存性能:',
+            f"  fallback 页数总计: {ocr_perf.get('fallback_pages_total', 0)}",
+            f"  region OCR 次数总计: {ocr_perf.get('region_attempts_total', 0)}",
+        ])
+        if slowest_files:
+            top = slowest_files[0]
+            lines.append(f"  最慢文件: {top.get('file_name')} ({top.get('total_duration', 0)} 秒)")
+
     lines.extend([
-        "",
-        "=" * 60,
+        '',
+        '=' * 60,
     ])
     return '\n'.join(lines)
+
+
+def format_all_batches_summary(summary: Dict) -> str:
+    lines = [
+        '',
+        '=' * 60,
+        '📊 双批次处理汇总',
+        '=' * 60,
+        f"运行模式: {summary.get('mode', 'unknown')}",
+    ]
+
+    for batch in summary['batches']:
+        lines.extend([
+            '',
+            f"{batch['label']}（{batch['batch_name']}）",
+            f"  样本目录: {batch['sample_root']}",
+            f"  输出目录: {batch['result_root']}",
+            f"  缓存目录: {batch['ocr_cache_dir']}",
+            f"  HTML 报告: {batch['html_report_path']}",
+            f"  Summary JSON: {batch['summary_path']}",
+            f"  总耗时: {batch['runtime_seconds']} 秒",
+            f"  OCR缓存耗时: {batch.get('phase_timings', {}).get('ocr_cache_seconds', 0)} 秒",
+            f"  导出阶段耗时: {batch.get('export_runtime_seconds', batch['runtime_seconds'])} 秒",
+            f"  最终识别准确率: {batch['validation_summary']['pass_rate']:.1%}",
+            f"  业务导出准确率: {batch['quality']['page_count_match_rate']:.1%}",
+            f"  同根号重映射警告: {batch['accuracy_summary'].get('same_root_remap_warnings', 0)}",
+            f"  责令号失败数: {batch['accuracy_summary'].get('notice_failures', 0)}",
+            f"  fallback 页数总计: {batch['accuracy_summary'].get('fallback_pages_total', 0)}",
+        ])
+
+    lines.extend([
+        '',
+        '总体统计',
+        f"  两批合计总耗时: {summary['total_runtime_seconds']} 秒",
+        f"  两批OCR缓存耗时: {summary.get('phase_timings', {}).get('ocr_cache_seconds', 0)} 秒",
+        f"  总体识别准确率: {summary['overall_validation_pass_rate']:.1%}",
+        f"  总体业务导出准确率: {summary['overall_page_count_match_rate']:.1%}",
+        f"  同根号重映射警告: {summary['accuracy_summary']['same_root_remap_warnings']}",
+        f"  责令号失败数: {summary['accuracy_summary']['notice_failures']}",
+        f"  fallback 页数总计: {summary['accuracy_summary']['fallback_pages_total']}",
+        '',
+        '=' * 60,
+    ])
+    return '\n'.join(lines)
+
+
+def save_summary_json(summary: Dict, output_path: Path):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+
+
+def run_single_batch(batch_name: str, use_real_ocr: bool, force: bool) -> Dict:
+    config = build_batch_config(batch_name)
+    clear_ocr_cache_if_needed(use_real_ocr, force, config['ocr_cache_dir'])
+    summary = build_run_summary(
+        ROOT,
+        use_real_ocr=use_real_ocr,
+        sample_root=config['sample_root'],
+        result_root=config['result_root'],
+        ocr_cache_dir=config['ocr_cache_dir'],
+        html_report_path=config['html_report_path'],
+    )
+    save_summary_json(summary, config['summary_path'])
+    print(format_summary(summary))
+    print(f"\n📄 详细报告已保存: {config['summary_path']}")
+    summary['batch_name'] = batch_name
+    summary['label'] = config['label']
+    summary['summary_path'] = str(config['summary_path'])
+    return summary
+
+
+def run_all_batches(use_real_ocr: bool, force: bool) -> Dict:
+    batch_summaries = []
+    for batch_name in ('batch1', 'batch2'):
+        config = build_batch_config(batch_name)
+        print('\n' + '#' * 60)
+        print(f"# 开始处理{config['label']}")
+        print('#' * 60)
+        batch_summaries.append(run_single_batch(batch_name, use_real_ocr, force))
+
+    aggregate = build_aggregate_summary(
+        batch_summaries,
+        mode='real_ocr' if use_real_ocr else 'mock',
+    )
+    save_summary_json(aggregate, ALL_BATCH_SUMMARY_PATH)
+    print(format_all_batches_summary(aggregate))
+    print(f"\n📄 双批次汇总已保存: {ALL_BATCH_SUMMARY_PATH}")
+    return aggregate
+
+
+def determine_exit_code(summary: Dict) -> int:
+    exit_code = 0
+
+    if summary['quality']['page_count_match_rate'] < 1.0:
+        print('⚠️  部分文件页数不匹配')
+        exit_code = 1
+
+    validation = summary.get('validation')
+    if validation:
+        if validation['summary']['failed'] > 0:
+            print(f"\n❌ OCR 验证失败: {validation['summary']['failed']} 个文件")
+            print('\n💡 处理建议:')
+            for item in validation['failed_items']:
+                print(f"\n  【{item['file_name']}】")
+                for suggestion in item['suggestions']:
+                    print(f"    - {suggestion}")
+            exit_code = 2
+        elif validation['summary']['warnings'] > 0:
+            print(f"\n⚠️  OCR 验证警告: {validation['summary']['warnings']} 个文件")
+        else:
+            print('\n✅ OCR 验证全部通过！')
+
+    if exit_code == 0:
+        print('\n🎉 所有检查通过，处理成功！')
+
+    return exit_code
+
+
+def determine_all_batches_exit_code(summary: Dict) -> int:
+    exit_code = 0
+    if summary['overall_page_count_match_rate'] < 1.0:
+        print('⚠️  双批次结果中存在页数不匹配')
+        exit_code = 1
+    if summary['validation_totals']['failed'] > 0:
+        print(f"\n❌ 双批次 OCR 验证失败: {summary['validation_totals']['failed']} 个文件")
+        exit_code = 2
+    elif summary['validation_totals']['warnings'] > 0:
+        print(f"\n⚠️  双批次 OCR 验证警告: {summary['validation_totals']['warnings']} 个文件")
+    else:
+        print('\n✅ 双批次 OCR 验证全部通过！')
+
+    if exit_code == 0:
+        print('\n🎉 双批次处理成功！')
+
+    return exit_code
 
 
 def main() -> int:
@@ -190,6 +507,9 @@ def main() -> int:
 
   # 强制重新 OCR（删除缓存后重新识别）
   python scripts/run_non_litigation_flow.py --real --force
+
+  # 顺序运行第一批与第二批
+  python scripts/run_non_litigation_flow.py --clean --all-batches --real --force
         """
     )
     parser.add_argument(
@@ -202,70 +522,46 @@ def main() -> int:
     )
     parser.add_argument(
         '--clean', action='store_true',
-        help='仅清理输出和缓存目录，不运行处理'
+        help='清理白名单中的输出和缓存产物；若不带 --all-batches/--sample-root，则清理后直接退出'
+    )
+    parser.add_argument(
+        '--sample-root',
+        help='指定样本根目录（如 样本材料/非诉组自动化样本材料（第2批））'
+    )
+    parser.add_argument(
+        '--all-batches', action='store_true',
+        help='顺序运行第一批与第二批，并生成汇总 summary'
     )
 
     args = parser.parse_args()
 
-    # 清理模式
     if args.clean:
-        result_root = get_non_litigation_result_root(ROOT)
-        ocr_cache_dir = get_non_litigation_ocr_cache_dir(ROOT)
-        if result_root.exists():
-            shutil.rmtree(result_root)
-            print(f"✅ 已清理: {result_root}")
-        if ocr_cache_dir.exists():
-            shutil.rmtree(ocr_cache_dir)
-            print(f"✅ 已清理: {ocr_cache_dir}")
-        return 0
+        clean_rebuildable_outputs()
+        if not args.all_batches and not args.sample_root:
+            return 0
 
-    # 强制重新 OCR
-    if args.force and args.real:
-        ocr_cache_dir = get_non_litigation_ocr_cache_dir(ROOT)
-        if ocr_cache_dir.exists():
-            shutil.rmtree(ocr_cache_dir)
-            print(f"🗑️  已删除旧缓存: {ocr_cache_dir}")
+    if args.all_batches:
+        aggregate = run_all_batches(use_real_ocr=args.real, force=args.force)
+        return determine_all_batches_exit_code(aggregate)
 
-    # 运行处理
-    summary = build_run_summary(ROOT, use_real_ocr=args.real)
+    sample_root = resolve_sample_root(args.sample_root)
+    path_config = infer_paths_for_sample_root(sample_root)
+    clear_ocr_cache_if_needed(args.real, args.force, path_config['ocr_cache_dir'])
 
-    # 保存报告
-    report_path = ROOT / 'output' / 'non-litigation-run-summary.json'
-    report_path.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
+    summary = build_run_summary(
+        ROOT,
+        use_real_ocr=args.real,
+        sample_root=sample_root,
+        result_root=path_config['result_root'],
+        ocr_cache_dir=path_config['ocr_cache_dir'],
+        html_report_path=path_config['html_report_path'],
+    )
+    save_summary_json(summary, path_config['summary_path'])
 
-    # 输出结果
     print(format_summary(summary))
-    print(f"\n📄 详细报告已保存: {report_path}")
+    print(f"\n📄 详细报告已保存: {path_config['summary_path']}")
 
-    # 返回状态码
-    exit_code = 0
-    
-    # 检查页数匹配
-    if summary['quality']['page_count_match_rate'] < 1.0:
-        print("⚠️  部分文件页数不匹配")
-        exit_code = 1
-    
-    # 检查 OCR 验证结果
-    if 'validation' in summary:
-        validation = summary['validation']
-        if validation['summary']['failed'] > 0:
-            print(f"\n❌ OCR 验证失败: {validation['summary']['failed']} 个文件")
-            print("\n💡 处理建议:")
-            for item in validation['failed_items']:
-                print(f"\n  【{item['file_name']}】")
-                for suggestion in item['suggestions']:
-                    print(f"    - {suggestion}")
-            exit_code = 2
-        elif validation['summary']['warnings'] > 0:
-            print(f"\n⚠️  OCR 验证警告: {validation['summary']['warnings']} 个文件")
-            print("建议查看验证报告: output/ocr-validation-report.json")
-        else:
-            print("\n✅ OCR 验证全部通过！")
-    
-    if exit_code == 0:
-        print("\n🎉 所有检查通过，处理成功！")
-    
-    return exit_code
+    return determine_exit_code(summary)
 
 
 if __name__ == '__main__':

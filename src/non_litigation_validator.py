@@ -68,6 +68,11 @@ class NonLitigationValidator:
             'letter': []
         }
     
+    @staticmethod
+    def _get_notice_root_number(notice_number: str) -> str:
+        normalized = normalize_notice_number(notice_number)
+        return re.sub(r'-\d+号$', '号', normalized)
+
     def validate_notice_ocr(self, file_name: str, ocr_result: Dict) -> ValidationResult:
         """
         验证责催文件 OCR 结果
@@ -81,12 +86,24 @@ class NonLitigationValidator:
         """
         start_time = datetime.now()
         
+        pages = ocr_result.get('pages', [])
         details = {
             'file_name': file_name,
             'total_pages': ocr_result.get('total_pages', 0),
-            'pages_processed': len(ocr_result.get('pages', [])),
+            'pages_processed': len(pages),
             'detected_notices': [],
             'matched_case': None,
+            'fallback_pages': sum(1 for p in pages if p.get('fallback_used')),
+            'region_pages': sum(1 for p in pages if p.get('method') == 'region_first'),
+            'stopped_early': ocr_result.get('stopped_early', False),
+            'optimization_strategy': ocr_result.get('optimization_strategy', ocr_result.get('method', 'unknown')),
+            'selected_notice': ocr_result.get('selected_notice'),
+            'selected_page': ocr_result.get('selected_page'),
+            'candidate_notices': ocr_result.get('candidate_notices', []),
+            'matched_target': ocr_result.get('matched_target'),
+            'matched_target_notice': ocr_result.get('matched_target_notice'),
+            'export_match_type': ocr_result.get('export_match_type'),
+            'same_root_remap': ocr_result.get('same_root_remap', False),
         }
         
         # 提取耗时信息
@@ -105,6 +122,8 @@ class NonLitigationValidator:
             'ocr_confidence': 'N/A',  # RapidOCR 不提供置信度
             'text_quality': 'unknown',
             'extraction_success': False,
+            'fallback_rate': round(details['fallback_pages'] / max(details['pages_processed'], 1) * 100, 2),
+            'region_first_hit_rate': round(details['region_pages'] / max(details['pages_processed'], 1) * 100, 2),
         }
         
         # 检查是否识别到任何内容
@@ -165,7 +184,29 @@ class NonLitigationValidator:
         # 标准化检测到的责令号
         normalized_detected = [normalize_notice_number(n) for n in detected_notices]
         details['normalized_notices'] = normalized_detected
-        
+        selected_notice = normalize_notice_number(details['selected_notice']) if details.get('selected_notice') else None
+        target_notice = normalize_notice_number(details['matched_target_notice']) if details.get('matched_target_notice') else None
+        if selected_notice and selected_notice not in normalized_detected:
+            normalized_detected.insert(0, selected_notice)
+
+        same_root_remap = bool(
+            details.get('same_root_remap')
+            or (
+                selected_notice
+                and target_notice
+                and selected_notice != target_notice
+                and self._get_notice_root_number(selected_notice) == self._get_notice_root_number(target_notice)
+            )
+        )
+        details['same_root_remap'] = same_root_remap
+        if same_root_remap:
+            details['same_root_remap_summary'] = {
+                'selected_notice': selected_notice,
+                'target_notice': target_notice,
+                'matched_target': details.get('matched_target'),
+                'export_match_type': details.get('export_match_type'),
+            }
+
         # 检查是否匹配台账中的责令号
         matched = False
         match_confidence = 0
@@ -179,20 +220,32 @@ class NonLitigationValidator:
         accuracy['extraction_success'] = matched
         accuracy['match_confidence'] = match_confidence
         
+        primary_notice = selected_notice or (normalized_detected[0] if normalized_detected else None)
+
         if matched:
+            status = ValidationStatus.WARNING if same_root_remap else ValidationStatus.PASS
+            message = f'成功识别并匹配责令号: {primary_notice}'
+            suggestions = []
+            if same_root_remap:
+                message = f'识别主号成功，但按同根目标导出: {primary_notice} -> {target_notice}'
+                suggestions = [
+                    f'OCR 选中主号: {primary_notice}',
+                    f'当前导出目标: {target_notice}',
+                    '请人工确认台账是否应保留子号命名'
+                ]
             return ValidationResult(
-                status=ValidationStatus.PASS,
+                status=status,
                 file_name=file_name,
                 file_type='notice',
-                message=f'成功识别并匹配责令号: {detected_notices[0]}',
+                message=message,
                 details=details,
-                suggestions=[],
+                suggestions=suggestions,
                 timing=timing,
                 accuracy=accuracy
             )
         else:
             # 尝试模糊匹配
-            best_match, ratio = self._fuzzy_match_notice(normalized_detected[0])
+            best_match, ratio = self._fuzzy_match_notice(primary_notice) if primary_notice else (None, 0)
             if best_match and ratio >= _cfg.fuzzy_match_threshold:
                 details['fuzzy_match'] = {'target': best_match, 'ratio': ratio}
                 accuracy['match_confidence'] = int(ratio * 100)
@@ -203,7 +256,7 @@ class NonLitigationValidator:
                     message=f'识别到责令号但未精确匹配，模糊匹配相似度: {ratio:.1%}',
                     details=details,
                     suggestions=[
-                        f'识别结果: {detected_notices[0]}',
+                        f'识别结果: {primary_notice}',
                         f'建议匹配: {best_match}',
                         '请人工确认是否匹配正确'
                     ],
@@ -215,12 +268,12 @@ class NonLitigationValidator:
                     status=ValidationStatus.FAIL,
                     file_name=file_name,
                     file_type='notice',
-                    message=f'识别到责令号但无法匹配台账: {detected_notices[0]}',
+                    message=f'识别到责令号但无法匹配台账: {primary_notice}',
                     details=details,
                     suggestions=[
                         '检查台账 Excel 是否包含此责令号',
                         '检查责令号格式是否正确（如括号类型）',
-                        f'识别到的责令号: {detected_notices[0]}',
+                        f'识别到的责令号: {primary_notice}',
                         f'期望的责令号示例: {self.expected_notice_numbers[0] if self.expected_notice_numbers else "N/A"}'
                     ],
                     timing=timing,
@@ -230,12 +283,16 @@ class NonLitigationValidator:
     def validate_application_ocr(self, file_name: str, ocr_result: Dict, 
                                   expected_cases: int) -> ValidationResult:
         """验证申请书 OCR 结果"""
+        pages = ocr_result.get('pages', [])
         details = {
             'file_name': file_name,
             'total_pages': ocr_result.get('total_pages', 0),
             'expected_cases': expected_cases,
             'detected_cases': 0,
             'keywords_found': [],
+            'boundary_pages_detected': [p.get('page') for p in pages if p.get('boundary_detected')],
+            'fallback_pages': sum(1 for p in pages if p.get('fallback_used')),
+            'optimization_strategy': ocr_result.get('optimization_strategy', ocr_result.get('method', 'unknown')),
         }
         
         # 耗时信息
@@ -254,6 +311,8 @@ class NonLitigationValidator:
             'text_quality': 'unknown',
             'case_detection_accuracy': 0,
             'keyword_detection_rate': 0,
+            'fallback_rate': round(details['fallback_pages'] / max(len(pages), 1) * 100, 2),
+            'boundary_detection_rate': 0,
         }
         
         if not ocr_result.get('pages'):
@@ -290,10 +349,11 @@ class NonLitigationValidator:
         # 统计案件数量（通过"强制执行申请书"出现次数）
         case_count = full_text.count('强制执行申请书')
         details['detected_cases'] = case_count
-        
+
         # 计算案件检测准确度
         if expected_cases > 0:
             accuracy['case_detection_accuracy'] = min(case_count / expected_cases * 100, 100) if case_count <= expected_cases * 1.5 else 50
+            accuracy['boundary_detection_rate'] = min(len(details['boundary_pages_detected']) / expected_cases * 100, 100)
         
         # 验证
         if case_count == 0:
@@ -346,12 +406,17 @@ class NonLitigationValidator:
         """验证授权书/所函 OCR 结果"""
         keywords = self.AUTHORIZATION_KEYWORDS if doc_type == 'authorization' else self.LETTER_KEYWORDS
         
+        pages = ocr_result.get('pages', [])
         details = {
             'file_name': file_name,
             'total_pages': ocr_result.get('total_pages', 0),
             'expected_count': expected_count,
             'doc_type': doc_type,
             'keywords_found': [],
+            'fallback_pages': sum(1 for p in pages if p.get('fallback_used')),
+            'region_usable_pages': sum(1 for p in pages if p.get('region_usable')),
+            'marker_detected_pages': sum(1 for p in pages if p.get('marker_detected')),
+            'optimization_strategy': ocr_result.get('optimization_strategy', ocr_result.get('method', 'unknown')),
         }
         
         # 耗时信息
@@ -370,6 +435,9 @@ class NonLitigationValidator:
             'text_quality': 'unknown',
             'keyword_detection_rate': 0,
             'page_count_match': False,
+            'fallback_rate': round(details['fallback_pages'] / max(len(pages), 1) * 100, 2),
+            'region_usable_rate': round(details['region_usable_pages'] / max(len(pages), 1) * 100, 2),
+            'marker_detection_rate': 0,
         }
         
         if not ocr_result.get('pages'):
@@ -394,6 +462,7 @@ class NonLitigationValidator:
         
         details['keywords_found'] = keywords_found
         accuracy['keyword_detection_rate'] = len(keywords_found) / len(keywords) * 100 if keywords else 0
+        accuracy['marker_detection_rate'] = round(details['marker_detected_pages'] / max(len(pages), 1) * 100, 2)
         
         # 评估文本质量
         if len(full_text) > _cfg.text_quality['company_doc']['good']:
@@ -517,6 +586,23 @@ class NonLitigationValidator:
                 'accuracy': r.accuracy,
             }
         
+        accuracy_summary = {
+            'exact_notice_matches': sum(1 for r in self.validation_report if r.file_type == 'notice' and r.status == ValidationStatus.PASS),
+            'fuzzy_notice_matches': sum(1 for r in self.validation_report if r.file_type == 'notice' and r.details.get('fuzzy_match')),
+            'same_root_remap_warnings': sum(1 for r in self.validation_report if r.file_type == 'notice' and r.details.get('same_root_remap')),
+            'notice_failures': sum(1 for r in self.validation_report if r.file_type == 'notice' and r.status == ValidationStatus.FAIL),
+            'fallback_pages_total': sum(r.details.get('fallback_pages', 0) for r in self.validation_report),
+            'boundary_pages_detected': sum(len(r.details.get('boundary_pages_detected', [])) for r in self.validation_report if r.file_type == 'application'),
+            'marker_detected_pages': sum(r.details.get('marker_detected_pages', 0) for r in self.validation_report if r.file_type in {'authorization', 'letter'}),
+        }
+
+        optimization_guardrails = {
+            'warning_count': warnings,
+            'failed_count': failed,
+            'fallback_pages_total': accuracy_summary['fallback_pages_total'],
+            'needs_review': failed > 0 or warnings > 0,
+        }
+
         return {
             'summary': {
                 'total': total,
@@ -526,6 +612,8 @@ class NonLitigationValidator:
                 'pass_rate': passed / total if total > 0 else 0,
             },
             'timing_statistics': timing_stats,
+            'accuracy_summary': accuracy_summary,
+            'optimization_guardrails': optimization_guardrails,
             'details': [result_to_dict(r) for r in self.validation_report],
             'failed_items': [result_to_dict(r) for r in self.validation_report if r.status == ValidationStatus.FAIL],
             'warning_items': [result_to_dict(r) for r in self.validation_report if r.status == ValidationStatus.WARNING],

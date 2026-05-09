@@ -1,0 +1,363 @@
+{
+  "pages": [
+    {
+      "page": 1,
+      "text": "强制执行申请书\n(申请执行用)",
+      "original_text": "强制执行申请书\n（申请执行用）",
+      "method": "region_first",
+      "duration": 1.5381243228912354,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.5381243228912354,
+          "text_length": 15,
+          "text": "强制执行申请书\n（申请执行用）"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.5381,
+        "max_text_length": 15,
+        "total_text_length": 15,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 14,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 2,
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n来童进",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n来童进",
+      "method": "region_first",
+      "duration": 1.3558716773986816,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.3558716773986816,
+          "text_length": 46,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n来童进"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.3559,
+        "max_text_length": 46,
+        "total_text_length": 46,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 38,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 3,
+      "text": "强制执行申请书\n(申请执行用)",
+      "original_text": "强制执行申请书\n（申请执行用）",
+      "method": "region_first",
+      "duration": 1.289630651473999,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.289630651473999,
+          "text_length": 15,
+          "text": "强制执行申请书\n（申请执行用）"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.2896,
+        "max_text_length": 15,
+        "total_text_length": 15,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 14,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 4,
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：",
+      "method": "region_first",
+      "duration": 1.0824923515319824,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.0824923515319824,
+          "text_length": 47,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类："
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.0825,
+        "max_text_length": 47,
+        "total_text_length": 47,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 39,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 5,
+      "text": "强制执行申请书\n(申请执行用)",
+      "original_text": "强制执行申请书\n（申请执行用）",
+      "method": "region_first",
+      "duration": 1.331129789352417,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.331129789352417,
+          "text_length": 15,
+          "text": "强制执行申请书\n（申请执行用）"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.3311,
+        "max_text_length": 15,
+        "total_text_length": 15,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 14,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 6,
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型",
+      "method": "region_first",
+      "duration": 1.1183743476867676,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.1183743476867676,
+          "text_length": 42,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.1184,
+        "max_text_length": 42,
+        "total_text_length": 42,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 35,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 7,
+      "text": "强制执行申请书\n(申请执行用)",
+      "original_text": "强制执行申请书\n（申请执行用）",
+      "method": "region_first",
+      "duration": 1.2624518871307373,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.2624518871307373,
+          "text_length": 15,
+          "text": "强制执行申请书\n（申请执行用）"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.2625,
+        "max_text_length": 15,
+        "total_text_length": 15,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 14,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 8,
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n可电米",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n可电米",
+      "method": "region_first",
+      "duration": 1.1696133613586426,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.1696133613586426,
+          "text_length": 46,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n可电米"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.1696,
+        "max_text_length": 46,
+        "total_text_length": 46,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 38,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 9,
+      "text": "强制执行申请书\n(申请执行用)",
+      "original_text": "强制执行申请书\n（申请执行用）",
+      "method": "region_first",
+      "duration": 1.2432689666748047,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.2432689666748047,
+          "text_length": 15,
+          "text": "强制执行申请书\n（申请执行用）"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.2433,
+        "max_text_length": 15,
+        "total_text_length": 15,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 14,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
+    },
+    {
+      "page": 10,
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型",
+      "method": "region_first",
+      "duration": 1.3417205810546875,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.3417205810546875,
+          "text_length": 42,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.3417,
+        "max_text_length": 42,
+        "total_text_length": 42,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 35,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
+    }
+  ],
+  "total_pages": 10,
+  "filename": "申请书.pdf",
+  "method": "region_first",
+  "total_duration": 16.91638020001119,
+  "fallback_pages": 0,
+  "region_pages": 10,
+  "optimization_strategy": "region_first",
+  "stopped_early": false,
+  "selected_notice": null,
+  "selected_page": null,
+  "selected_root_notice": null,
+  "candidate_notices": [],
+  "performance_summary": {
+    "doc_type": "申请书",
+    "file_name": "申请书.pdf",
+    "page_count": 10,
+    "total_duration": 16.9164,
+    "fallback_pages": 0,
+    "fallback_rate": 0.0,
+    "region_attempts_total": 10,
+    "region_ocr_duration_total": 12.7327,
+    "slowest_page": {
+      "page": 1,
+      "duration": 1.5381,
+      "method": "region_first",
+      "fallback_used": false,
+      "fallback_trigger_reason": null
+    }
+  }
+}

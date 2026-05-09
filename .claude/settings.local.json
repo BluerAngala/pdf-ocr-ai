@@ -1,14 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(python \"C:/Users/11071/Documents/trae_projects/pdf识别/scripts/run_non_litigation_flow.py\" --clean)",
-      "Bash(python \"C:/Users/11071/Documents/trae_projects/pdf识别/scripts/run_non_litigation_flow.py\" --real --force)",
-      "Bash(PYTHONIOENCODING=utf-8 python \"C:/Users/11071/Documents/trae_projects/pdf识别/scripts/run_non_litigation_flow.py\" --clean)",
-      "Bash(PYTHONIOENCODING=utf-8 python \"C:/Users/11071/Documents/trae_projects/pdf识别/scripts/run_non_litigation_flow.py\" --real --force)",
-      "Bash(PYTHONIOENCODING=utf-8 python -c \"from pathlib import Path; from pypdf import PdfReader; root=Path\\(r'C:/Users/11071/Documents/trae_projects/pdf识别'\\); out=root/'output'/'non-litigation-results'; std=root/'样本材料'/'非诉组自动化样本材料'/'对应输出文件（标准版）'; pairs=[\\('输出文件（责催）','7-责催-穗公积金中心越秀责字（2024）914-1号.pdf'\\),\\('输出文件（责催）','8-责催-穗公积金中心越秀责字（2025）856号.pdf'\\),\\('输出文件（责催）','9-责催-穗公积金中心越秀责字（2025）1107号.pdf'\\),\\('输出文件（申请书）','7-申请书pdf-穗公积金中心越秀责字（2024）914-1号.pdf'\\),\\('输出文件（申请书）','8-申请书pdf-穗公积金中心越秀责字（2025）856号.pdf'\\),\\('输出文件（申请书）','9-申请书pdf-穗公积金中心越秀责字（2025）1107号.pdf'\\),\\('输出文件（授权书）','广州市严静殡葬服务有限公司.pdf'\\),\\('输出文件（授权书）','广州吾能学网络科技有限公司.pdf'\\),\\('输出文件（授权书）','北京华图宏阳教育文化发展股份有限公司广东分公司.pdf'\\),\\('输出文件（所函）','广州市严静殡葬服务有限公司.pdf'\\),\\('输出文件（所函）','广州吾能学网络科技有限公司.pdf'\\),\\('输出文件（所函）','北京华图宏阳教育文化发展股份有限公司广东分公司.pdf'\\)];\nfor folder,name in pairs:\n o=out/folder/name; s=std/folder/name; op=len\\(PdfReader\\(str\\(o\\)\\).pages\\); sp=len\\(PdfReader\\(str\\(s\\)\\).pages\\); print\\(f'{folder}\\\\t{name}\\\\toutput={op}\\\\tstandard={sp}\\\\tmatch={op==sp}'\\)\")",
-      "Bash(python:*)",
+      "*",
+      "mcp__sequential-thinking__sequentialthinking",
+      "Bash(PYTHONIOENCODING=utf-8 python scripts/run_non_litigation_flow.py --clean)",
+      "Bash(PYTHONIOENCODING=utf-8 python scripts/run_non_litigation_flow.py --real --force)",
+      "Bash(git:*)",
       "Bash(pytest:*)",
-      "Read(//mnt/c/Users/11071/Documents/trae_projects/pdf识别/**)"
+      "Bash(PYTHONIOENCODING=utf-8 python scripts/run_non_litigation_flow.py --real --force --sample-root \"样本材料/非诉组自动化样本材料（第2批）\")",
+      "Bash(python:*)",
+      "Bash(PYTHONIOENCODING=utf-8 python \"scripts/run_non_litigation_flow.py\" --real --force --sample-root \"样本材料/非诉组自动化样本材料（第2批）\")",
+      "Bash(PYTHONIOENCODING=utf-8 python \"C:/Users/11071/Documents/trae_projects/pdf识别/scripts/run_non_litigation_flow.py\" --clean --all-batches --real --force)",
+      "Bash(PYTHONIOENCODING=utf-8 python \"scripts/run_non_litigation_flow.py\" --clean --all-batches --real --force)",
+      "Bash(PYTHONIOENCODING=utf-8 python \"scripts/run_non_litigation_flow.py\" --clean --real --force --sample-root \"样本材料/非诉组自动化样本材料（第2批）\")"
     ]
   }
 }

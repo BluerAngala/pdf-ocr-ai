@@ -1,0 +1,94 @@
+{
+  "stage": "ocr_cache_build",
+  "total_files": 6,
+  "total_duration": 146.8666,
+  "fallback_pages_total": 7,
+  "region_attempts_total": 42,
+  "slowest_files": [
+    {
+      "doc_type": "责催",
+      "file_name": "3.pdf",
+      "page_count": 10,
+      "total_duration": 52.4291,
+      "fallback_pages": 3,
+      "fallback_rate": 0.3,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 30.8515,
+      "slowest_page": {
+        "page": 9,
+        "duration": 11.3762,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    },
+    {
+      "doc_type": "责催",
+      "file_name": "2.pdf",
+      "page_count": 10,
+      "total_duration": 41.102,
+      "fallback_pages": 3,
+      "fallback_rate": 0.3,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 23.7443,
+      "slowest_page": {
+        "page": 10,
+        "duration": 10.0224,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    },
+    {
+      "doc_type": "责催",
+      "file_name": "1.pdf",
+      "page_count": 10,
+      "total_duration": 28.6443,
+      "fallback_pages": 1,
+      "fallback_rate": 0.1,
+      "region_attempts_total": 10,
+      "region_ocr_duration_total": 18.5146,
+      "slowest_page": {
+        "page": 7,
+        "duration": 9.8212,
+        "method": "full_page_fallback",
+        "fallback_used": true,
+        "fallback_trigger_reason": "no_notice_signal"
+      }
+    },
+    {
+      "doc_type": "申请书",
+      "file_name": "申请书.pdf",
+      "page_count": 6,
+      "total_duration": 12.7727,
+      "fallback_pages": 0,
+      "fallback_rate": 0.0,
+      "region_attempts_total": 6,
+      "region_ocr_duration_total": 10.4715,
+      "slowest_page": {
+        "page": 4,
+        "duration": 2.6212,
+        "method": "region_first",
+        "fallback_used": false,
+        "fallback_trigger_reason": null
+      }
+    },
+    {
+      "doc_type": "授权书",
+      "file_name": "授权书.pdf",
+      "page_count": 3,
+      "total_duration": 5.5905,
+      "fallback_pages": 0,
+      "fallback_rate": 0.0,
+      "region_attempts_total": 3,
+      "region_ocr_duration_total": 4.5235,
+      "slowest_page": {
+        "page": 1,
+        "duration": 1.8404,
+        "method": "region_first",
+        "fallback_used": false,
+        "fallback_trigger_reason": null
+      }
+    }
+  ]
+}

@@ -1,8 +1,112 @@
 {
-  "input_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\input\\non-litigation",
+  "sample_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\样本材料\\非诉组自动化样本材料",
+  "input_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\样本材料\\非诉组自动化样本材料\\原始文件",
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
-  "runtime_seconds": 0.627,
+  "html_report_path": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\ocr-validation-report.html",
+  "runtime_seconds": 147.7228,
+  "export_runtime_seconds": 0.4661,
+  "phase_timings": {
+    "ocr_cache_seconds": 146.9007,
+    "export_seconds": 0.4661,
+    "evaluation_seconds": 0.2033,
+    "validation_seconds": 0.1511,
+    "report_seconds": 0.0015
+  },
+  "ocr_cache_performance": {
+    "stage": "ocr_cache_build",
+    "total_files": 6,
+    "total_duration": 146.8666,
+    "fallback_pages_total": 7,
+    "region_attempts_total": 42,
+    "slowest_files": [
+      {
+        "doc_type": "责催",
+        "file_name": "3.pdf",
+        "page_count": 10,
+        "total_duration": 52.4291,
+        "fallback_pages": 3,
+        "fallback_rate": 0.3,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 30.8515,
+        "slowest_page": {
+          "page": 9,
+          "duration": 11.3762,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      },
+      {
+        "doc_type": "责催",
+        "file_name": "2.pdf",
+        "page_count": 10,
+        "total_duration": 41.102,
+        "fallback_pages": 3,
+        "fallback_rate": 0.3,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 23.7443,
+        "slowest_page": {
+          "page": 10,
+          "duration": 10.0224,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      },
+      {
+        "doc_type": "责催",
+        "file_name": "1.pdf",
+        "page_count": 10,
+        "total_duration": 28.6443,
+        "fallback_pages": 1,
+        "fallback_rate": 0.1,
+        "region_attempts_total": 10,
+        "region_ocr_duration_total": 18.5146,
+        "slowest_page": {
+          "page": 7,
+          "duration": 9.8212,
+          "method": "full_page_fallback",
+          "fallback_used": true,
+          "fallback_trigger_reason": "no_notice_signal"
+        }
+      },
+      {
+        "doc_type": "申请书",
+        "file_name": "申请书.pdf",
+        "page_count": 6,
+        "total_duration": 12.7727,
+        "fallback_pages": 0,
+        "fallback_rate": 0.0,
+        "region_attempts_total": 6,
+        "region_ocr_duration_total": 10.4715,
+        "slowest_page": {
+          "page": 4,
+          "duration": 2.6212,
+          "method": "region_first",
+          "fallback_used": false,
+          "fallback_trigger_reason": null
+        }
+      },
+      {
+        "doc_type": "授权书",
+        "file_name": "授权书.pdf",
+        "page_count": 3,
+        "total_duration": 5.5905,
+        "fallback_pages": 0,
+        "fallback_rate": 0.0,
+        "region_attempts_total": 3,
+        "region_ocr_duration_total": 4.5235,
+        "slowest_page": {
+          "page": 1,
+          "duration": 1.8404,
+          "method": "region_first",
+          "fallback_used": false,
+          "fallback_trigger_reason": null
+        }
+      }
+    ]
+  },
   "created_count": 12,
   "quality": {
     "total_files": 1152,
@@ -12,73 +116,122 @@
   "validation": {
     "summary": {
       "total": 6,
-      "passed": 3,
-      "warnings": 3,
+      "passed": 2,
+      "warnings": 4,
       "failed": 0,
-      "pass_rate": 0.5
+      "pass_rate": 0.3333333333333333
     },
     "timing_statistics": {
       "notice": {
-        "total": 18.253213599993614,
-        "avg": 6.084404533331205,
-        "min": 5.205576199994539,
-        "max": 6.7852564999921015,
+        "total": 122.17544230003841,
+        "avg": 40.72514743334614,
+        "min": 28.64425590002793,
+        "max": 52.42914920000476,
         "count": 3
       },
       "application": {
-        "total": 34.00586069999554,
-        "avg": 34.00586069999554,
-        "min": 34.00586069999554,
-        "max": 34.00586069999554,
+        "total": 12.772683100018185,
+        "avg": 12.772683100018185,
+        "min": 12.772683100018185,
+        "max": 12.772683100018185,
         "count": 1
       },
       "authorization": {
-        "total": 19.697620300008566,
-        "avg": 19.697620300008566,
-        "min": 19.697620300008566,
-        "max": 19.697620300008566,
+        "total": 5.590487100009341,
+        "avg": 5.590487100009341,
+        "min": 5.590487100009341,
+        "max": 5.590487100009341,
         "count": 1
       },
       "letter": {
-        "total": 27.689085200006957,
-        "avg": 27.689085200006957,
-        "min": 27.689085200006957,
-        "max": 27.689085200006957,
+        "total": 4.9398674000112806,
+        "avg": 4.9398674000112806,
+        "min": 4.9398674000112806,
+        "max": 4.9398674000112806,
         "count": 1
       }
     },
+    "accuracy_summary": {
+      "exact_notice_matches": 2,
+      "fuzzy_notice_matches": 0,
+      "same_root_remap_warnings": 1,
+      "notice_failures": 0,
+      "fallback_pages_total": 7,
+      "boundary_pages_detected": 3,
+      "marker_detected_pages": 3
+    },
+    "optimization_guardrails": {
+      "warning_count": 4,
+      "failed_count": 0,
+      "fallback_pages_total": 7,
+      "needs_review": true
+    },
     "details": [
       {
-        "status": "pass",
+        "status": "warning",
         "file_name": "1.pdf",
         "file_type": "notice",
-        "message": "成功识别并匹配责令号: 穗公积金中心越秀责字〔2024〕914-1号",
+        "message": "识别主号成功，但按同根目标导出: 穗公积金中心越秀责字〔2024〕914-1号 -> 穗公积金中心越秀责字〔2024〕914-1号",
         "details": {
           "file_name": "1.pdf",
-          "total_pages": 1,
-          "pages_processed": 1,
+          "total_pages": 10,
+          "pages_processed": 10,
           "detected_notices": [
-            "穗公积金中心越秀责字〔2024〕914-1号"
+            "穗公积金中心越秀责字〔2024〕914-1号",
+            "穗公积金中心越秀责字〔2024〕914号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2024〕914-1号",
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积\n",
+          "fallback_pages": 1,
+          "region_pages": 9,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+          "matched_target_notice": "穗公积金中心越秀责字〔2024〕914-1号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积\n\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首页\n信息公开\n工作动态\n通知公告\n办事服务\n下载中心\n业务网点\n互动交流\n当前",
           "normalized_notices": [
-            "穗公积金中心越秀责字〔2024〕914-1号"
-          ]
+            "穗公积金中心越秀责字〔2024〕914-1号",
+            "穗公积金中心越秀责字〔2024〕914号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心越秀责字〔2024〕914-1号",
+            "matched_target": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+            "export_match_type": "fuzzy"
+          }
         },
-        "suggestions": [],
+        "suggestions": [
+          "OCR 选中主号: 穗公积金中心越秀责字〔2024〕914-1号",
+          "当前导出目标: 穗公积金中心越秀责字〔2024〕914-1号",
+          "请人工确认台账是否应保留子号命名"
+        ],
         "timing": {
-          "total_duration": 6.7852564999921015,
+          "total_duration": 28.64425590002793,
           "method": "region_first_sequential",
           "pages_timings": [
-            5.75295090675354
+            4.725722074508667,
+            0.3453047275543213,
+            2.3320438861846924,
+            0.28876614570617676,
+            2.0185818672180176,
+            0.3520524501800537,
+            9.82124948501587,
+            0.30516648292541504,
+            4.249791622161865,
+            0.3505065441131592
           ],
-          "avg_time_per_page": 5.75295090675354
+          "avg_time_per_page": 2.478918528556824
         },
         "accuracy": {
           "ocr_confidence": "N/A",
           "text_quality": "good",
           "extraction_success": true,
+          "fallback_rate": 10.0,
+          "region_first_hit_rate": 90.0,
           "match_confidence": 100
         }
       },
@@ -89,30 +242,54 @@
         "message": "成功识别并匹配责令号: 穗公积金中心越秀责字〔2025〕1107号",
         "details": {
           "file_name": "2.pdf",
-          "total_pages": 1,
-          "pages_processed": 1,
+          "total_pages": 10,
+          "pages_processed": 10,
           "detected_notices": [
+            "穗公积金中心越秀责字〔2025〕1107号",
             "穗公积金中心越秀责字〔2025〕1107号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2025〕1107号",
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张璐缴存2019年07月至2021年04月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发布\n施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国务\n院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位张璐补缴2019年07月至\n2021年04月期间的单位应缴存部分住房公积金合计10238元到职工住房公积金\n",
+          "fallback_pages": 3,
+          "region_pages": 7,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "9-责催-穗公积金中心越秀责字（2025）1107号.pdf",
+          "matched_target_notice": "穗公积金中心越秀责字〔2025〕1107号",
+          "export_match_type": "exact",
+          "same_root_remap": false,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张缴存2019年07月至2021年04月期间的住房\n施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国务\n院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管(2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位张璐补缴2019年07月至\n2021年04月期间的单位应缴存部分住房公积金合计10238元到职工住房公积金\n④收寄局存\n国内特快专递\n客服电话：11183\n网站：www.ems.com.cn\n请仔细阅读背面契约条款！\n承运人",
           "normalized_notices": [
+            "穗公积金中心越秀责字〔2025〕1107号",
             "穗公积金中心越秀责字〔2025〕1107号"
           ]
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 6.262380900006974,
+          "total_duration": 41.102037200005725,
           "method": "region_first_sequential",
           "pages_timings": [
-            5.2906715869903564
+            4.133038759231567,
+            2.169250011444092,
+            0.33185529708862305,
+            6.42691445350647,
+            0.32092928886413574,
+            3.4194254875183105,
+            2.0127382278442383,
+            0.34310317039489746,
+            8.007651090621948,
+            10.022374629974365
           ],
-          "avg_time_per_page": 5.2906715869903564
+          "avg_time_per_page": 3.718728041648865
         },
         "accuracy": {
           "ocr_confidence": "N/A",
           "text_quality": "good",
           "extraction_success": true,
+          "fallback_rate": 30.0,
+          "region_first_hit_rate": 70.0,
           "match_confidence": 100
         }
       },
@@ -123,30 +300,54 @@
         "message": "成功识别并匹配责令号: 穗公积金中心越秀责字〔2025〕856号",
         "details": {
           "file_name": "3.pdf",
-          "total_pages": 1,
-          "pages_processed": 1,
+          "total_pages": 10,
+          "pages_processed": 10,
           "detected_notices": [
+            "穗公积金中心越秀责字〔2025〕856号",
             "穗公积金中心越秀责字〔2025〕856号"
           ],
           "matched_case": "穗公积金中心越秀责字〔2025〕856号",
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第－次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位叶婷婷补缴2019年09月\n至2024年05月期间的单位应缴存部分住房公积金合计14851元到职工住房公积\n",
+          "fallback_pages": 3,
+          "region_pages": 7,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "8-责催-穗公积金中心越秀责字（2025）856号.pdf",
+          "matched_target_notice": "穗公积金中心越秀责字〔2025〕856号",
+          "export_match_type": "exact",
+          "same_root_remap": false,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位叶婷婷补缴2019年09月\n至2024年05月期间的单位应缴存部分住房公积金合计14851元到职工住房公积\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n工作",
           "normalized_notices": [
+            "穗公积金中心越秀责字〔2025〕856号",
             "穗公积金中心越秀责字〔2025〕856号"
           ]
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 5.205576199994539,
+          "total_duration": 52.42914920000476,
           "method": "region_first_sequential",
           "pages_timings": [
-            4.078042984008789
+            3.030013084411621,
+            1.8198425769805908,
+            1.906099557876587,
+            9.807394742965698,
+            3.245957374572754,
+            3.1229681968688965,
+            2.01700758934021,
+            9.97279667854309,
+            11.376180648803711,
+            2.2534987926483154
           ],
-          "avg_time_per_page": 4.078042984008789
+          "avg_time_per_page": 4.855175924301148
         },
         "accuracy": {
           "ocr_confidence": "N/A",
           "text_quality": "good",
           "extraction_success": true,
+          "fallback_rate": 30.0,
+          "region_first_hit_rate": 70.0,
           "match_confidence": 100
         }
       },
@@ -162,7 +363,14 @@
           "detected_cases": 3,
           "keywords_found": [
             "强制执行申请书"
-          ]
+          ],
+          "boundary_pages_detected": [
+            1,
+            3,
+            5
+          ],
+          "fallback_pages": 0,
+          "optimization_strategy": "region_first"
         },
         "suggestions": [
           "检查申请书页数是否正确（应为 2 页/案件）",
@@ -171,22 +379,24 @@
           "期望页数: 576 页（288 案件 × 2 页）"
         ],
         "timing": {
-          "total_duration": 34.00586069999554,
-          "method": "region_first_with_fallback",
+          "total_duration": 12.772683100018185,
+          "method": "region_first",
           "pages_timings": [
-            2.5575742721557617,
-            8.430216789245605,
-            2.499509334564209,
-            8.03299069404602,
-            1.5515308380126953,
-            7.040096759796143
+            1.971834659576416,
+            2.1659512519836426,
+            1.5363521575927734,
+            2.6212432384490967,
+            0.6929340362548828,
+            1.4831616878509521
           ],
-          "avg_time_per_page": 5.018653114636739
+          "avg_time_per_page": 1.745246171951294
         },
         "accuracy": {
-          "text_quality": "good",
+          "text_quality": "fair",
           "case_detection_accuracy": 1.0416666666666665,
-          "keyword_detection_rate": 50.0
+          "keyword_detection_rate": 50.0,
+          "fallback_rate": 0.0,
+          "boundary_detection_rate": 1.0416666666666665
         }
       },
       {
@@ -201,7 +411,11 @@
           "doc_type": "authorization",
           "keywords_found": [
             "授权委托书"
-          ]
+          ],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 3,
+          "optimization_strategy": "region_first"
         },
         "suggestions": [
           "检查 authorization 页数是否正确（应为 1 页/公司）",
@@ -210,19 +424,22 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 19.697620300008566,
+          "total_duration": 5.590487100009341,
           "method": "region_first",
           "pages_timings": [
-            6.554043769836426,
-            5.658787488937378,
-            5.627525329589844
+            1.8404395580291748,
+            1.581296682357788,
+            1.1017515659332275
           ],
-          "avg_time_per_page": 5.946785529454549
+          "avg_time_per_page": 1.5078292687733967
         },
         "accuracy": {
           "text_quality": "good",
           "keyword_detection_rate": 100.0,
-          "page_count_match": false
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 100.0
         }
       },
       {
@@ -235,7 +452,11 @@
           "total_pages": 3,
           "expected_count": 288,
           "doc_type": "letter",
-          "keywords_found": []
+          "keywords_found": [],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 0,
+          "optimization_strategy": "region_first"
         },
         "suggestions": [
           "检查 letter 页数是否正确（应为 1 页/公司）",
@@ -244,24 +465,95 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 27.689085200006957,
-          "method": "region_first_with_fallback",
+          "total_duration": 4.9398674000112806,
+          "method": "region_first",
           "pages_timings": [
-            9.061925888061523,
-            7.730482339859009,
-            7.714691638946533
+            1.1451361179351807,
+            1.0089983940124512,
+            1.2106976509094238
           ],
-          "avg_time_per_page": 8.169033288955688
+          "avg_time_per_page": 1.1216107209523518
         },
         "accuracy": {
-          "text_quality": "good",
+          "text_quality": "poor",
           "keyword_detection_rate": 0.0,
-          "page_count_match": false
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 0.0
         }
       }
     ],
     "failed_items": [],
     "warning_items": [
+      {
+        "status": "warning",
+        "file_name": "1.pdf",
+        "file_type": "notice",
+        "message": "识别主号成功，但按同根目标导出: 穗公积金中心越秀责字〔2024〕914-1号 -> 穗公积金中心越秀责字〔2024〕914-1号",
+        "details": {
+          "file_name": "1.pdf",
+          "total_pages": 10,
+          "pages_processed": 10,
+          "detected_notices": [
+            "穗公积金中心越秀责字〔2024〕914-1号",
+            "穗公积金中心越秀责字〔2024〕914号"
+          ],
+          "matched_case": "穗公积金中心越秀责字〔2024〕914-1号",
+          "fallback_pages": 1,
+          "region_pages": 9,
+          "stopped_early": false,
+          "optimization_strategy": "region_first_sequential",
+          "selected_notice": null,
+          "selected_page": null,
+          "candidate_notices": [],
+          "matched_target": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+          "matched_target_notice": "穗公积金中心越秀责字〔2024〕914-1号",
+          "export_match_type": "fuzzy",
+          "same_root_remap": true,
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n经查，你单位未按规定为王柱华缴存2022年07月至2023年06月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位王柱华补缴2022年07月\n至2023年06月期间的单位应缴存部分住房公积金合计2748元到职工住房公积\n\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首页\n信息公开\n工作动态\n通知公告\n办事服务\n下载中心\n业务网点\n互动交流\n当前",
+          "normalized_notices": [
+            "穗公积金中心越秀责字〔2024〕914-1号",
+            "穗公积金中心越秀责字〔2024〕914号"
+          ],
+          "same_root_remap_summary": {
+            "selected_notice": null,
+            "target_notice": "穗公积金中心越秀责字〔2024〕914-1号",
+            "matched_target": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+            "export_match_type": "fuzzy"
+          }
+        },
+        "suggestions": [
+          "OCR 选中主号: 穗公积金中心越秀责字〔2024〕914-1号",
+          "当前导出目标: 穗公积金中心越秀责字〔2024〕914-1号",
+          "请人工确认台账是否应保留子号命名"
+        ],
+        "timing": {
+          "total_duration": 28.64425590002793,
+          "method": "region_first_sequential",
+          "pages_timings": [
+            4.725722074508667,
+            0.3453047275543213,
+            2.3320438861846924,
+            0.28876614570617676,
+            2.0185818672180176,
+            0.3520524501800537,
+            9.82124948501587,
+            0.30516648292541504,
+            4.249791622161865,
+            0.3505065441131592
+          ],
+          "avg_time_per_page": 2.478918528556824
+        },
+        "accuracy": {
+          "ocr_confidence": "N/A",
+          "text_quality": "good",
+          "extraction_success": true,
+          "fallback_rate": 10.0,
+          "region_first_hit_rate": 90.0,
+          "match_confidence": 100
+        }
+      },
       {
         "status": "warning",
         "file_name": "申请书.pdf",
@@ -274,7 +566,14 @@
           "detected_cases": 3,
           "keywords_found": [
             "强制执行申请书"
-          ]
+          ],
+          "boundary_pages_detected": [
+            1,
+            3,
+            5
+          ],
+          "fallback_pages": 0,
+          "optimization_strategy": "region_first"
         },
         "suggestions": [
           "检查申请书页数是否正确（应为 2 页/案件）",
@@ -283,22 +582,24 @@
           "期望页数: 576 页（288 案件 × 2 页）"
         ],
         "timing": {
-          "total_duration": 34.00586069999554,
-          "method": "region_first_with_fallback",
+          "total_duration": 12.772683100018185,
+          "method": "region_first",
           "pages_timings": [
-            2.5575742721557617,
-            8.430216789245605,
-            2.499509334564209,
-            8.03299069404602,
-            1.5515308380126953,
-            7.040096759796143
+            1.971834659576416,
+            2.1659512519836426,
+            1.5363521575927734,
+            2.6212432384490967,
+            0.6929340362548828,
+            1.4831616878509521
           ],
-          "avg_time_per_page": 5.018653114636739
+          "avg_time_per_page": 1.745246171951294
         },
         "accuracy": {
-          "text_quality": "good",
+          "text_quality": "fair",
           "case_detection_accuracy": 1.0416666666666665,
-          "keyword_detection_rate": 50.0
+          "keyword_detection_rate": 50.0,
+          "fallback_rate": 0.0,
+          "boundary_detection_rate": 1.0416666666666665
         }
       },
       {
@@ -313,7 +614,11 @@
           "doc_type": "authorization",
           "keywords_found": [
             "授权委托书"
-          ]
+          ],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 3,
+          "optimization_strategy": "region_first"
         },
         "suggestions": [
           "检查 authorization 页数是否正确（应为 1 页/公司）",
@@ -322,19 +627,22 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 19.697620300008566,
+          "total_duration": 5.590487100009341,
           "method": "region_first",
           "pages_timings": [
-            6.554043769836426,
-            5.658787488937378,
-            5.627525329589844
+            1.8404395580291748,
+            1.581296682357788,
+            1.1017515659332275
           ],
-          "avg_time_per_page": 5.946785529454549
+          "avg_time_per_page": 1.5078292687733967
         },
         "accuracy": {
           "text_quality": "good",
           "keyword_detection_rate": 100.0,
-          "page_count_match": false
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 100.0
         }
       },
       {
@@ -347,7 +655,11 @@
           "total_pages": 3,
           "expected_count": 288,
           "doc_type": "letter",
-          "keywords_found": []
+          "keywords_found": [],
+          "fallback_pages": 0,
+          "region_usable_pages": 3,
+          "marker_detected_pages": 0,
+          "optimization_strategy": "region_first"
         },
         "suggestions": [
           "检查 letter 页数是否正确（应为 1 页/公司）",
@@ -356,19 +668,22 @@
           "期望页数: 288 页（288 公司 × 1 页）"
         ],
         "timing": {
-          "total_duration": 27.689085200006957,
-          "method": "region_first_with_fallback",
+          "total_duration": 4.9398674000112806,
+          "method": "region_first",
           "pages_timings": [
-            9.061925888061523,
-            7.730482339859009,
-            7.714691638946533
+            1.1451361179351807,
+            1.0089983940124512,
+            1.2106976509094238
           ],
-          "avg_time_per_page": 8.169033288955688
+          "avg_time_per_page": 1.1216107209523518
         },
         "accuracy": {
-          "text_quality": "good",
+          "text_quality": "poor",
           "keyword_detection_rate": 0.0,
-          "page_count_match": false
+          "page_count_match": false,
+          "fallback_rate": 0.0,
+          "region_usable_rate": 100.0,
+          "marker_detection_rate": 0.0
         }
       }
     ]

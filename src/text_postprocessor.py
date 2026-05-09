@@ -246,6 +246,15 @@ class TextPostProcessor:
             return mapping[left] * 10 + mapping[right]
         return mapping[text]
 
+    def classify_notice_page(self, text: str) -> Dict[str, bool]:
+        compact = re.sub(r'\s+', '', text or '')
+        return {
+            'is_notice_main_page': '责令限期办理决定书' in compact,
+            'is_notice_revoke_page': '关于撤销《责令限期办理决定书》的决定' in compact or ('撤销' in compact and '责令限期办理决定书' in compact),
+            'is_notice_delivery_page': '送达回证' in compact,
+            'is_notice_logistics_page': any(keyword in compact for keyword in ['中国邮政速递物流', '邮件号', 'EMS']),
+        }
+
     def extract_document_type(self, text: str) -> Optional[str]:
         for doc_type in ['行政裁定书', '责令限期办理决定书', '催告书', '授权委托书', '合作协议', '合同']:
             if doc_type in text:
@@ -332,6 +341,7 @@ class TextPostProcessor:
         document_type = self.extract_document_type(text)
         company_name = self.extract_company_after_label(text, ['名称', '委托单位', '委托人'])
         company_name_candidates = self.extract_company_candidates(text)
+        page_profile = self.classify_notice_page(text)
         if not company_name and company_name_candidates:
             company_name = company_name_candidates[0]
         return {
@@ -339,6 +349,7 @@ class TextPostProcessor:
             'company_name': company_name,
             'company_name_candidates': company_name_candidates,
             'decision_numbers': self.extract_decision_numbers(text),
+            'page_profile': page_profile,
         }
 
     def extract_contract_fields(self, text: str) -> Dict:

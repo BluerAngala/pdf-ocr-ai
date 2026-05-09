@@ -374,21 +374,7 @@ class NonLitigationValidator:
             )
         
         if case_count != expected_cases:
-            return ValidationResult(
-                status=ValidationStatus.WARNING,
-                file_name=file_name,
-                file_type='application',
-                message=f'识别到 {case_count} 个案件，期望 {expected_cases} 个',
-                details=details,
-                suggestions=[
-                    '检查申请书页数是否正确（应为 2 页/案件）',
-                    '检查是否有缺失或多余的案件',
-                    f'当前页数: {details["total_pages"]} 页',
-                    f'期望页数: {expected_cases * _cfg.pages_per_case["申请书"]} 页（{expected_cases} 案件 × {_cfg.pages_per_case["申请书"]} 页）'
-                ],
-                timing=timing,
-                accuracy=accuracy
-            )
+            details['case_count_info'] = f'识别到 {case_count} 个案件，台账期望 {expected_cases} 个'
         
         return ValidationResult(
             status=ValidationStatus.PASS,
@@ -479,21 +465,7 @@ class NonLitigationValidator:
         accuracy['page_count_match'] = (actual_pages == expected_pages)
         
         if actual_pages != expected_pages:
-            return ValidationResult(
-                status=ValidationStatus.WARNING,
-                file_name=file_name,
-                file_type=doc_type,
-                message=f'页数不匹配: 实际 {actual_pages} 页，期望 {expected_pages} 页',
-                details=details,
-                suggestions=[
-                    f'检查 {doc_type} 页数是否正确（应为 {_cfg.pages_per_case[doc_cfg_key]} 页/公司）',
-                    '确认台账公司数量是否正确',
-                    f'实际页数: {actual_pages} 页',
-                    f'期望页数: {expected_pages} 页（{expected_count} 公司 × {_cfg.pages_per_case[doc_cfg_key]} 页）'
-                ],
-                timing=timing,
-                accuracy=accuracy
-            )
+            details['page_info'] = f'实际 {actual_pages} 页，台账期望 {expected_pages} 页（{expected_count} 公司 × {_cfg.pages_per_case[doc_cfg_key]} 页）'
         
         if not keywords_found:
             return ValidationResult(

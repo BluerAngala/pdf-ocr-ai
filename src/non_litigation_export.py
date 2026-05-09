@@ -62,19 +62,16 @@ def _get_doc_regions(doc_type: str):
     return [REGIONS[name] for name in _cfg.ocr_doc_regions.get(doc_type, []) if name in REGIONS]
 
 
+_worker_ocr = None
+_worker_region_extractor = None
+_worker_post_processor = None
+
+
 def _worker_init():
+    global _worker_ocr, _worker_region_extractor, _worker_post_processor
     os.environ['OMP_NUM_THREADS'] = '2'
     os.environ['ONNXRUNTIME_CPU_NUM_THREADS'] = '2'
-
-
-def _ocr_notice_file_worker(args: Tuple) -> Dict:
-    pdf_path_str, cache_path_str, doc_type_str = args
-    pdf_path = Path(pdf_path_str)
-    cache_path = Path(cache_path_str)
-
-    if cache_path.exists():
-        return {'source': pdf_path.name, 'status': 'cached', 'performance': None}
-
+    
     from pdf_ocr_ultra import UltraFastOCR, OCRConfig
     ocr_config = OCRConfig(
         dpi=_cfg.ocr_dpi,
@@ -82,9 +79,20 @@ def _ocr_notice_file_worker(args: Tuple) -> Dict:
         parallel_workers=1,
         small_pdf_page_threshold=_cfg.ocr_small_pdf_page_threshold,
     )
-    ocr = UltraFastOCR(ocr_config)
-    region_extractor = RegionExtractor(dpi=_cfg.ocr_region_dpi, poppler_path=ocr_config.poppler_path)
-    post_processor = TextPostProcessor()
+    _worker_ocr = UltraFastOCR(ocr_config, skip_warmup=True)
+    _worker_region_extractor = RegionExtractor(dpi=_cfg.ocr_region_dpi, poppler_path=ocr_config.poppler_path)
+    _worker_post_processor = TextPostProcessor()
+    print("  [INFO] 工作进程初始化完成")
+
+
+def _ocr_notice_file_worker(args: Tuple) -> Dict:
+    global _worker_ocr, _worker_region_extractor, _worker_post_processor
+    pdf_path_str, cache_path_str, doc_type_str = args
+    pdf_path = Path(pdf_path_str)
+    cache_path = Path(cache_path_str)
+
+    if cache_path.exists():
+        return {'source': pdf_path.name, 'status': 'cached', 'performance': None}
 
     try:
         result = run_real_ocr_on_pdf(
@@ -94,9 +102,9 @@ def _ocr_notice_file_worker(args: Tuple) -> Dict:
             is_notice=True,
             stop_pattern=NOTICE_PATTERN,
             doc_type=doc_type_str,
-            ocr=ocr,
-            region_extractor=region_extractor,
-            post_processor=post_processor,
+            ocr=_worker_ocr,
+            region_extractor=_worker_region_extractor,
+            post_processor=_worker_post_processor,
         )
         return {
             'source': pdf_path.name,
@@ -567,9 +575,8 @@ def detect_page_ranges(total_pages: int, expected_count: int, doc_type: str) -> 
 
     if total_pages != expected_pages:
         print(
-            f'  ⚠️ {doc_type}页数不匹配: 实际 {total_pages} 页，期望 {expected_pages} 页 '
-            f'({expected_count} 个 × {pages_per_item} 页)。'
-            f'请检查扫描件是否有缺页或多页。'
+            f'  ℹ️ {doc_type}: 实际 {total_pages} 页，台账期望 {expected_pages} 页 '
+            f'({expected_count} 个 × {pages_per_item} 页)，按实际页数处理'
         )
 
     actual_count = min(expected_count, total_pages // pages_per_item) if total_pages > 0 else 0
@@ -610,9 +617,9 @@ def detect_application_page_ranges_by_ocr(ocr_cache_dir: Path, total_pages: int,
         return ranges
 
     if boundary_pages:
-        print(f"  ⚠️ OCR 检测到 {len(boundary_pages)} 个边界，期望 {expected_cases} 个，fallback 到固定页数")
+        print(f"  ℹ️ OCR 检测到 {len(boundary_pages)} 个边界，台账期望 {expected_cases} 个，按实际处理")
     else:
-        print(f"  ⚠️ OCR 未检测到申请书边界，fallback 到固定 {PAGES_PER_CASE['申请书']} 页/案件")
+        print(f"  ℹ️ OCR 未检测到申请书边界，使用固定 {PAGES_PER_CASE['申请书']} 页/案件")
 
     return detect_page_ranges(total_pages, expected_cases, '申请书')
 
@@ -1186,9 +1193,6 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
     shared_ocr = None
     shared_region_extractor = None
     shared_post_processor = None
-    if not use_mock and HAS_OCR:
-        shared_ocr, shared_region_extractor = _build_ocr_processors()
-        shared_post_processor = TextPostProcessor()
 
     notice_files = discover_notice_files(input_dir)
     notice_path_map = {path.name: path for path in iter_notice_pdf_paths(input_dir)}
@@ -1254,6 +1258,9 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                     elif status == 'error':
                         print(f"  ❌ [{completed}/{notice_count}] {source}: {result.get('error', '未知错误')}")
         else:
+            if not use_mock and HAS_OCR:
+                shared_ocr, shared_region_extractor = _build_ocr_processors()
+                shared_post_processor = TextPostProcessor()
             for source_name, pdf_path, cache_path in uncached_notice_files:
                 result = run_real_ocr_on_pdf(
                     pdf_path,
@@ -1274,6 +1281,9 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                     'fallback_pages': result.get('fallback_pages', 0),
                 }))
     elif uncached_notice_files:
+        if not use_mock and HAS_OCR:
+            shared_ocr, shared_region_extractor = _build_ocr_processors()
+            shared_post_processor = TextPostProcessor()
         print(f"\n📄 处理责催文件... 共 {len(uncached_notice_files)} 个")
         for source_name, pdf_path, cache_path in uncached_notice_files:
             result = run_real_ocr_on_pdf(
@@ -1301,6 +1311,9 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
     ]
 
     print("\n📄 处理其他文件...")
+    if not use_mock and HAS_OCR and shared_ocr is None:
+        shared_ocr, shared_region_extractor = _build_ocr_processors()
+        shared_post_processor = TextPostProcessor()
     for filename, stem in other_files:
         pdf_path = input_dir / filename
         cache_path = cache_dir / f'{stem}_ultra_result.json'
@@ -1517,12 +1530,12 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
     total_pages = inspect_pdf_page_count(source_pdf)
     expected_cases = len(target_names)
 
-    print(f"  📄 申请书: {total_pages} 页，期望 {expected_cases} 个案件")
+    print(f"  📄 申请书: {total_pages} 页，台账期望 {expected_cases} 个案件")
 
     ranges = detect_application_page_ranges_by_ocr(output_cache_dir, total_pages, expected_cases)
 
     if len(ranges) != expected_cases:
-        print(f"  ⚠️ 切割结果不匹配: 生成 {len(ranges)} 个范围，期望 {expected_cases} 个")
+        print(f"  ℹ️ 按实际识别到 {len(ranges)} 个案件处理（台账 {expected_cases} 个）")
 
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 

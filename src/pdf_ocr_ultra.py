@@ -185,13 +185,14 @@ class UltraFastOCR:
     SUPPORTED_IMAGE_FORMATS = {'.png', '.jpg', '.jpeg'}
     SUPPORTED_PDF_FORMATS = {'.pdf'}
 
-    def __init__(self, config: Optional[OCRConfig] = None):
+    def __init__(self, config: Optional[OCRConfig] = None, skip_warmup: bool = False):
         self.config = config or OCRConfig()
         self.preprocessor = ImagePreprocessor()
         Path(self.config.output_dir).mkdir(exist_ok=True)
 
         self._check_dependencies()
-        self._warmup()
+        if not skip_warmup:
+            self._warmup()
     
     def _check_dependencies(self):
         """检查依赖"""

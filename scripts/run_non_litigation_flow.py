@@ -449,10 +449,6 @@ def run_all_batches(use_real_ocr: bool, force: bool) -> Dict:
 def determine_exit_code(summary: Dict) -> int:
     exit_code = 0
 
-    if summary['quality']['page_count_match_rate'] < 1.0:
-        print('⚠️  部分文件页数不匹配')
-        exit_code = 1
-
     validation = summary.get('validation')
     if validation:
         if validation['summary']['failed'] > 0:

@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "event": "fuzzy_match",
+    "source": "1.pdf",
+    "detected": "穗公积金中心越秀责字〔2024〕914号",
+    "matched_target": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+    "similarity": 0.9223809523809523
+  },
+  {
+    "event": "same_root_remap",
+    "source": "1.pdf",
+    "selected_notice": "穗公积金中心越秀责字〔2024〕914号",
+    "target_notice": "穗公积金中心越秀责字〔2024〕914-1号",
+    "matched_target": "7-责催-穗公积金中心越秀责字（2024）914-1号.pdf",
+    "match_type": "fuzzy"
+  }
+]

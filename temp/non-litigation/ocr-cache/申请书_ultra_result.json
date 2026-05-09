@@ -2,29 +2,230 @@
   "pages": [
     {
       "page": 1,
-      "text": "强制执行申请书\n名称：案子1\n穗公积金中心责行越秀责字"
+      "text": "强制执行申请书\n(申请执行用)\n当事人信息",
+      "original_text": "强制执行申请书\n（申请执行用）\n当事人信息",
+      "method": "region_first",
+      "duration": 1.8044536113739014,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.8044536113739014,
+          "text_length": 21,
+          "text": "强制执行申请书\n（申请执行用）\n当事人信息"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.8045,
+        "max_text_length": 21,
+        "total_text_length": 21,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 19,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
     },
     {
       "page": 2,
-      "text": "被执行人：公司1\n金额：10000元"
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：\n(注：1.行政处罚决定\n刑事附带民事判决书口\n刑事附带民事裁定书口刑事附带民事调解书口",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：\n（注：1.行政处罚决定\n刑事附带民事判决书口\n刑事附带民事裁定书口刑事附带民事调解书口",
+      "method": "region_first",
+      "duration": 2.189117908477783,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 2.189117908477783,
+          "text_length": 91,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：\n（注：1.行政处罚决定\n刑事附带民事判决书口\n刑事附带民事裁定书口刑事附带民事调解书口"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 2.1891,
+        "max_text_length": 91,
+        "total_text_length": 91,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 80,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
     },
     {
       "page": 3,
-      "text": "强制执行申请书\n名称：案子2\n穗公积金中心公积全越秀责字"
+      "text": "强制执行申请书\n(申请执行用)\n当事人信息",
+      "original_text": "强制执行申请书\n（申请执行用）\n当事人信息",
+      "method": "region_first",
+      "duration": 1.485304594039917,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.485304594039917,
+          "text_length": 21,
+          "text": "强制执行申请书\n（申请执行用）\n当事人信息"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.4853,
+        "max_text_length": 21,
+        "total_text_length": 21,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 19,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
     },
     {
       "page": 4,
-      "text": "被执行人：公司2\n金额：10000元"
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：\n(注：1.行政处罚决定、\n行政处理决定，需先经\n刑事附带民事判决书口刑事附带民事裁定书口刑事附带民事调解书口",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：\n（注：1.行政处罚决定、\n行政处理决定，需先经\n刑事附带民事判决书口刑事附带民事裁定书口刑事附带民事调解书口",
+      "method": "region_first",
+      "duration": 2.372668743133545,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 2.372668743133545,
+          "text_length": 102,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书口\n制裁决定口\n支付令口\n文书类型\n刑事类：\n（注：1.行政处罚决定、\n行政处理决定，需先经\n刑事附带民事判决书口刑事附带民事裁定书口刑事附带民事调解书口"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 2.3727,
+        "max_text_length": 102,
+        "total_text_length": 102,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 91,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
     },
     {
       "page": 5,
-      "text": "强制执行申请书\n名称：案子3\n穗公积金中心授校委托书越秀责字"
+      "text": "强制执行申请书\n(申请执行用)",
+      "original_text": "强制执行申请书\n（申请执行用）",
+      "method": "region_first",
+      "duration": 0.9214112758636475,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 0.9214112758636475,
+          "text_length": 15,
+          "text": "强制执行申请书\n（申请执行用）"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 0.9214,
+        "max_text_length": 15,
+        "total_text_length": 15,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 14,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": true,
+      "marker_detected": false,
+      "region_usable": false
     },
     {
       "page": 6,
-      "text": "被执行人：公司3\n金额：10000元"
+      "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书\n制裁决定口\n支付令口\n文书类型\n刑事类：\n(注：1.行政处罚决定",
+      "original_text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书\n制裁决定口\n支付令口\n文书类型\n刑事类：\n（注：1.行政处罚决定",
+      "method": "region_first",
+      "duration": 1.5406765937805176,
+      "region_attempts": [
+        {
+          "region": "申请书标题",
+          "region_key": "application_title",
+          "method": "region:申请书标题",
+          "duration": 1.5406765937805176,
+          "text_length": 58,
+          "text": "执行依据信息\n民事类：\n判决书口\n裁定书口\n调解书\n制裁决定口\n支付令口\n文书类型\n刑事类：\n（注：1.行政处罚决定"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 1.5407,
+        "max_text_length": 58,
+        "total_text_length": 58,
+        "regions": [
+          "申请书标题"
+        ]
+      },
+      "region_text_length": 49,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": false,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
     }
   ],
   "total_pages": 6,
-  "filename": "申请书.pdf"
+  "filename": "申请书.pdf",
+  "method": "region_first",
+  "total_duration": 12.404102500004228,
+  "fallback_pages": 0,
+  "region_pages": 6,
+  "optimization_strategy": "region_first",
+  "stopped_early": false,
+  "selected_notice": null,
+  "selected_page": null,
+  "selected_root_notice": null,
+  "candidate_notices": [],
+  "performance_summary": {
+    "doc_type": "申请书",
+    "file_name": "申请书.pdf",
+    "page_count": 6,
+    "total_duration": 12.4041,
+    "fallback_pages": 0,
+    "fallback_rate": 0.0,
+    "region_attempts_total": 6,
+    "region_ocr_duration_total": 10.3137,
+    "slowest_page": {
+      "page": 4,
+      "duration": 2.3727,
+      "method": "region_first",
+      "fallback_used": false,
+      "fallback_trigger_reason": null
+    }
+  }
 }

@@ -4,19 +4,19 @@
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
   "html_report_path": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\ocr-validation-report.html",
-  "runtime_seconds": 147.7228,
-  "export_runtime_seconds": 0.4661,
+  "runtime_seconds": 268.8648,
+  "export_runtime_seconds": 0.2923,
   "phase_timings": {
-    "ocr_cache_seconds": 146.9007,
-    "export_seconds": 0.4661,
-    "evaluation_seconds": 0.2033,
-    "validation_seconds": 0.1511,
-    "report_seconds": 0.0015
+    "ocr_cache_seconds": 268.1321,
+    "export_seconds": 0.2923,
+    "evaluation_seconds": 0.2664,
+    "validation_seconds": 0.1341,
+    "report_seconds": 0.0009
   },
   "ocr_cache_performance": {
     "stage": "ocr_cache_build",
     "total_files": 6,
-    "total_duration": 146.8666,
+    "total_duration": 267.9984,
     "fallback_pages_total": 7,
     "region_attempts_total": 42,
     "slowest_files": [
@@ -24,14 +24,14 @@
         "doc_type": "责催",
         "file_name": "3.pdf",
         "page_count": 10,
-        "total_duration": 52.4291,
+        "total_duration": 242.9276,
         "fallback_pages": 3,
         "fallback_rate": 0.3,
         "region_attempts_total": 10,
-        "region_ocr_duration_total": 30.8515,
+        "region_ocr_duration_total": 167.7994,
         "slowest_page": {
-          "page": 9,
-          "duration": 11.3762,
+          "page": 4,
+          "duration": 77.8329,
           "method": "full_page_fallback",
           "fallback_used": true,
           "fallback_trigger_reason": "no_notice_signal"
@@ -41,14 +41,14 @@
         "doc_type": "责催",
         "file_name": "2.pdf",
         "page_count": 10,
-        "total_duration": 41.102,
+        "total_duration": 225.674,
         "fallback_pages": 3,
         "fallback_rate": 0.3,
         "region_attempts_total": 10,
-        "region_ocr_duration_total": 23.7443,
+        "region_ocr_duration_total": 152.3562,
         "slowest_page": {
-          "page": 10,
-          "duration": 10.0224,
+          "page": 9,
+          "duration": 44.3893,
           "method": "full_page_fallback",
           "fallback_used": true,
           "fallback_trigger_reason": "no_notice_signal"
@@ -58,14 +58,14 @@
         "doc_type": "责催",
         "file_name": "1.pdf",
         "page_count": 10,
-        "total_duration": 28.6443,
+        "total_duration": 172.4173,
         "fallback_pages": 1,
         "fallback_rate": 0.1,
         "region_attempts_total": 10,
-        "region_ocr_duration_total": 18.5146,
+        "region_ocr_duration_total": 114.6932,
         "slowest_page": {
           "page": 7,
-          "duration": 9.8212,
+          "duration": 71.3368,
           "method": "full_page_fallback",
           "fallback_used": true,
           "fallback_trigger_reason": "no_notice_signal"
@@ -75,37 +75,42 @@
         "doc_type": "申请书",
         "file_name": "申请书.pdf",
         "page_count": 6,
-        "total_duration": 12.7727,
+        "total_duration": 12.4041,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 6,
-        "region_ocr_duration_total": 10.4715,
+        "region_ocr_duration_total": 10.3137,
         "slowest_page": {
           "page": 4,
-          "duration": 2.6212,
+          "duration": 2.3727,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
         }
       },
       {
-        "doc_type": "授权书",
-        "file_name": "授权书.pdf",
+        "doc_type": "所函",
+        "file_name": "所函.pdf",
         "page_count": 3,
-        "total_duration": 5.5905,
+        "total_duration": 4.9365,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 3,
-        "region_ocr_duration_total": 4.5235,
+        "region_ocr_duration_total": 3.0051,
         "slowest_page": {
           "page": 1,
-          "duration": 1.8404,
+          "duration": 1.2902,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
         }
       }
-    ]
+    ],
+    "parallelism": {
+      "workers": 4,
+      "safety_level": "high",
+      "available_memory_gb": 47.72
+    }
   },
   "created_count": 12,
   "quality": {
@@ -116,38 +121,38 @@
   "validation": {
     "summary": {
       "total": 6,
-      "passed": 2,
-      "warnings": 4,
+      "passed": 4,
+      "warnings": 2,
       "failed": 0,
-      "pass_rate": 0.3333333333333333
+      "pass_rate": 0.6666666666666666
     },
     "timing_statistics": {
       "notice": {
-        "total": 122.17544230003841,
-        "avg": 40.72514743334614,
-        "min": 28.64425590002793,
-        "max": 52.42914920000476,
+        "total": 641.0189231000259,
+        "avg": 213.67297436667528,
+        "min": 172.41733389999717,
+        "max": 242.92755140000372,
         "count": 3
       },
       "application": {
-        "total": 12.772683100018185,
-        "avg": 12.772683100018185,
-        "min": 12.772683100018185,
-        "max": 12.772683100018185,
+        "total": 12.404102500004228,
+        "avg": 12.404102500004228,
+        "min": 12.404102500004228,
+        "max": 12.404102500004228,
         "count": 1
       },
       "authorization": {
-        "total": 5.590487100009341,
-        "avg": 5.590487100009341,
-        "min": 5.590487100009341,
-        "max": 5.590487100009341,
+        "total": 4.790442099998472,
+        "avg": 4.790442099998472,
+        "min": 4.790442099998472,
+        "max": 4.790442099998472,
         "count": 1
       },
       "letter": {
-        "total": 4.9398674000112806,
-        "avg": 4.9398674000112806,
-        "min": 4.9398674000112806,
-        "max": 4.9398674000112806,
+        "total": 4.936549600010039,
+        "avg": 4.936549600010039,
+        "min": 4.936549600010039,
+        "max": 4.936549600010039,
         "count": 1
       }
     },
@@ -161,7 +166,7 @@
       "marker_detected_pages": 3
     },
     "optimization_guardrails": {
-      "warning_count": 4,
+      "warning_count": 2,
       "failed_count": 0,
       "fallback_pages_total": 7,
       "needs_review": true
@@ -210,21 +215,21 @@
           "请人工确认台账是否应保留子号命名"
         ],
         "timing": {
-          "total_duration": 28.64425590002793,
+          "total_duration": 172.41733389999717,
           "method": "region_first_sequential",
           "pages_timings": [
-            4.725722074508667,
-            0.3453047275543213,
-            2.3320438861846924,
-            0.28876614570617676,
-            2.0185818672180176,
-            0.3520524501800537,
-            9.82124948501587,
-            0.30516648292541504,
-            4.249791622161865,
-            0.3505065441131592
+            27.50466513633728,
+            2.1296980381011963,
+            12.909489631652832,
+            0.7855162620544434,
+            9.291361570358276,
+            1.0861766338348389,
+            71.33681774139404,
+            1.2882282733917236,
+            24.942291259765625,
+            1.319117546081543
           ],
-          "avg_time_per_page": 2.478918528556824
+          "avg_time_per_page": 15.25933620929718
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -268,21 +273,21 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 41.102037200005725,
+          "total_duration": 225.67403780002496,
           "method": "region_first_sequential",
           "pages_timings": [
-            4.133038759231567,
-            2.169250011444092,
-            0.33185529708862305,
-            6.42691445350647,
-            0.32092928886413574,
-            3.4194254875183105,
-            2.0127382278442383,
-            0.34310317039489746,
-            8.007651090621948,
-            10.022374629974365
+            32.34960317611694,
+            15.09855341911316,
+            0.3232755661010742,
+            36.88222527503967,
+            1.8983078002929688,
+            22.60495162010193,
+            15.988089323043823,
+            2.172628164291382,
+            44.389344930648804,
+            36.25288105010986
           ],
-          "avg_time_per_page": 3.718728041648865
+          "avg_time_per_page": 20.795986032485963
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -318,7 +323,7 @@
           "matched_target_notice": "穗公积金中心越秀责字〔2025〕856号",
           "export_match_type": "exact",
           "same_root_remap": false,
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位叶婷婷补缴2019年09月\n至2024年05月期间的单位应缴存部分住房公积金合计14851元到职工住房公积\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n工作",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住房公积金。根据《住房公积金管理条例》(1999年4月3日国务院令第262号发\n布施行，2002年3月24日国务院令第350号第一次修订，2019年3月24日国\n务院令第710号第二次修订)第二条、第十三条、第十五条、第十六条、第十七条、\n第十八条、第十九条、第二十条、第三十七条、第三十八条、第四十七条、《关\n于住房公积金管理若干具体问题的指导意见》(建金管[2005]5号)第六条、《关\n于住房公积金管理几个具体问题的通知》(建金管[2006]52号)等有关规定，\n责令你单位履行以下义务：\n请在收到本决定书之日起10个工作日内为你单位叶婷婷补缴2019年09月\n至2024年05月期间的单位应缴存部分住房公积金合计14851元到职工住房公积\n广州住房公积金管理中心\n住房公积金\n输入关键字搜索\n首页",
           "normalized_notices": [
             "穗公积金中心越秀责字〔2025〕856号",
             "穗公积金中心越秀责字〔2025〕856号"
@@ -326,21 +331,21 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 52.42914920000476,
+          "total_duration": 242.92755140000372,
           "method": "region_first_sequential",
           "pages_timings": [
-            3.030013084411621,
-            1.8198425769805908,
-            1.906099557876587,
-            9.807394742965698,
-            3.245957374572754,
-            3.1229681968688965,
-            2.01700758934021,
-            9.97279667854309,
-            11.376180648803711,
-            2.2534987926483154
+            33.51523017883301,
+            16.30357837677002,
+            11.956106185913086,
+            77.83286237716675,
+            25.73847794532776,
+            11.533809185028076,
+            5.214379787445068,
+            38.7541229724884,
+            11.581788063049316,
+            2.0974771976470947
           ],
-          "avg_time_per_page": 4.855175924301148
+          "avg_time_per_page": 23.452783226966858
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -352,10 +357,10 @@
         }
       },
       {
-        "status": "warning",
+        "status": "pass",
         "file_name": "申请书.pdf",
         "file_type": "application",
-        "message": "识别到 3 个案件，期望 288 个",
+        "message": "成功识别 3 个案件",
         "details": {
           "file_name": "申请书.pdf",
           "total_pages": 6,
@@ -370,26 +375,22 @@
             5
           ],
           "fallback_pages": 0,
-          "optimization_strategy": "region_first"
+          "optimization_strategy": "region_first",
+          "case_count_info": "识别到 3 个案件，台账期望 288 个"
         },
-        "suggestions": [
-          "检查申请书页数是否正确（应为 2 页/案件）",
-          "检查是否有缺失或多余的案件",
-          "当前页数: 6 页",
-          "期望页数: 576 页（288 案件 × 2 页）"
-        ],
+        "suggestions": [],
         "timing": {
-          "total_duration": 12.772683100018185,
+          "total_duration": 12.404102500004228,
           "method": "region_first",
           "pages_timings": [
-            1.971834659576416,
-            2.1659512519836426,
-            1.5363521575927734,
-            2.6212432384490967,
-            0.6929340362548828,
-            1.4831616878509521
+            1.8044536113739014,
+            2.189117908477783,
+            1.485304594039917,
+            2.372668743133545,
+            0.9214112758636475,
+            1.5406765937805176
           ],
-          "avg_time_per_page": 1.745246171951294
+          "avg_time_per_page": 1.7189387877782185
         },
         "accuracy": {
           "text_quality": "fair",
@@ -400,10 +401,10 @@
         }
       },
       {
-        "status": "warning",
+        "status": "pass",
         "file_name": "授权书.pdf",
         "file_type": "authorization",
-        "message": "页数不匹配: 实际 3 页，期望 288 页",
+        "message": "验证通过: 3 页，识别到关键字",
         "details": {
           "file_name": "授权书.pdf",
           "total_pages": 3,
@@ -415,23 +416,19 @@
           "fallback_pages": 0,
           "region_usable_pages": 3,
           "marker_detected_pages": 3,
-          "optimization_strategy": "region_first"
+          "optimization_strategy": "region_first",
+          "page_info": "实际 3 页，台账期望 288 页（288 公司 × 1 页）"
         },
-        "suggestions": [
-          "检查 authorization 页数是否正确（应为 1 页/公司）",
-          "确认台账公司数量是否正确",
-          "实际页数: 3 页",
-          "期望页数: 288 页（288 公司 × 1 页）"
-        ],
+        "suggestions": [],
         "timing": {
-          "total_duration": 5.590487100009341,
+          "total_duration": 4.790442099998472,
           "method": "region_first",
           "pages_timings": [
-            1.8404395580291748,
-            1.581296682357788,
-            1.1017515659332275
+            1.7943503856658936,
+            1.4366099834442139,
+            0.48121213912963867
           ],
-          "avg_time_per_page": 1.5078292687733967
+          "avg_time_per_page": 1.2373908360799153
         },
         "accuracy": {
           "text_quality": "good",
@@ -446,7 +443,7 @@
         "status": "warning",
         "file_name": "所函.pdf",
         "file_type": "letter",
-        "message": "页数不匹配: 实际 3 页，期望 288 页",
+        "message": "未识别到关键字: ['律师事务所函']",
         "details": {
           "file_name": "所函.pdf",
           "total_pages": 3,
@@ -456,23 +453,25 @@
           "fallback_pages": 0,
           "region_usable_pages": 3,
           "marker_detected_pages": 0,
-          "optimization_strategy": "region_first"
+          "optimization_strategy": "region_first",
+          "page_info": "实际 3 页，台账期望 288 页（288 公司 × 1 页）"
         },
         "suggestions": [
-          "检查 letter 页数是否正确（应为 1 页/公司）",
-          "确认台账公司数量是否正确",
-          "实际页数: 3 页",
-          "期望页数: 288 页（288 公司 × 1 页）"
+          "检查 PDF 是否为letter",
+          "检查 OCR 识别质量",
+          "识别到的文本长度: 50 字符",
+          "文本预览: 广东岭南律师事务所事务所事务所函\n广东岭南律师事务所事务所事务所函\n广东岭南律师事务所事务所事务所函...",
+          "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.9398674000112806,
+          "total_duration": 4.936549600010039,
           "method": "region_first",
           "pages_timings": [
-            1.1451361179351807,
-            1.0089983940124512,
-            1.2106976509094238
+            1.2901520729064941,
+            0.7548031806945801,
+            0.9601113796234131
           ],
-          "avg_time_per_page": 1.1216107209523518
+          "avg_time_per_page": 1.0016888777414958
         },
         "accuracy": {
           "text_quality": "poor",
@@ -529,21 +528,21 @@
           "请人工确认台账是否应保留子号命名"
         ],
         "timing": {
-          "total_duration": 28.64425590002793,
+          "total_duration": 172.41733389999717,
           "method": "region_first_sequential",
           "pages_timings": [
-            4.725722074508667,
-            0.3453047275543213,
-            2.3320438861846924,
-            0.28876614570617676,
-            2.0185818672180176,
-            0.3520524501800537,
-            9.82124948501587,
-            0.30516648292541504,
-            4.249791622161865,
-            0.3505065441131592
+            27.50466513633728,
+            2.1296980381011963,
+            12.909489631652832,
+            0.7855162620544434,
+            9.291361570358276,
+            1.0861766338348389,
+            71.33681774139404,
+            1.2882282733917236,
+            24.942291259765625,
+            1.319117546081543
           ],
-          "avg_time_per_page": 2.478918528556824
+          "avg_time_per_page": 15.25933620929718
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -556,100 +555,9 @@
       },
       {
         "status": "warning",
-        "file_name": "申请书.pdf",
-        "file_type": "application",
-        "message": "识别到 3 个案件，期望 288 个",
-        "details": {
-          "file_name": "申请书.pdf",
-          "total_pages": 6,
-          "expected_cases": 288,
-          "detected_cases": 3,
-          "keywords_found": [
-            "强制执行申请书"
-          ],
-          "boundary_pages_detected": [
-            1,
-            3,
-            5
-          ],
-          "fallback_pages": 0,
-          "optimization_strategy": "region_first"
-        },
-        "suggestions": [
-          "检查申请书页数是否正确（应为 2 页/案件）",
-          "检查是否有缺失或多余的案件",
-          "当前页数: 6 页",
-          "期望页数: 576 页（288 案件 × 2 页）"
-        ],
-        "timing": {
-          "total_duration": 12.772683100018185,
-          "method": "region_first",
-          "pages_timings": [
-            1.971834659576416,
-            2.1659512519836426,
-            1.5363521575927734,
-            2.6212432384490967,
-            0.6929340362548828,
-            1.4831616878509521
-          ],
-          "avg_time_per_page": 1.745246171951294
-        },
-        "accuracy": {
-          "text_quality": "fair",
-          "case_detection_accuracy": 1.0416666666666665,
-          "keyword_detection_rate": 50.0,
-          "fallback_rate": 0.0,
-          "boundary_detection_rate": 1.0416666666666665
-        }
-      },
-      {
-        "status": "warning",
-        "file_name": "授权书.pdf",
-        "file_type": "authorization",
-        "message": "页数不匹配: 实际 3 页，期望 288 页",
-        "details": {
-          "file_name": "授权书.pdf",
-          "total_pages": 3,
-          "expected_count": 288,
-          "doc_type": "authorization",
-          "keywords_found": [
-            "授权委托书"
-          ],
-          "fallback_pages": 0,
-          "region_usable_pages": 3,
-          "marker_detected_pages": 3,
-          "optimization_strategy": "region_first"
-        },
-        "suggestions": [
-          "检查 authorization 页数是否正确（应为 1 页/公司）",
-          "确认台账公司数量是否正确",
-          "实际页数: 3 页",
-          "期望页数: 288 页（288 公司 × 1 页）"
-        ],
-        "timing": {
-          "total_duration": 5.590487100009341,
-          "method": "region_first",
-          "pages_timings": [
-            1.8404395580291748,
-            1.581296682357788,
-            1.1017515659332275
-          ],
-          "avg_time_per_page": 1.5078292687733967
-        },
-        "accuracy": {
-          "text_quality": "good",
-          "keyword_detection_rate": 100.0,
-          "page_count_match": false,
-          "fallback_rate": 0.0,
-          "region_usable_rate": 100.0,
-          "marker_detection_rate": 100.0
-        }
-      },
-      {
-        "status": "warning",
         "file_name": "所函.pdf",
         "file_type": "letter",
-        "message": "页数不匹配: 实际 3 页，期望 288 页",
+        "message": "未识别到关键字: ['律师事务所函']",
         "details": {
           "file_name": "所函.pdf",
           "total_pages": 3,
@@ -659,23 +567,25 @@
           "fallback_pages": 0,
           "region_usable_pages": 3,
           "marker_detected_pages": 0,
-          "optimization_strategy": "region_first"
+          "optimization_strategy": "region_first",
+          "page_info": "实际 3 页，台账期望 288 页（288 公司 × 1 页）"
         },
         "suggestions": [
-          "检查 letter 页数是否正确（应为 1 页/公司）",
-          "确认台账公司数量是否正确",
-          "实际页数: 3 页",
-          "期望页数: 288 页（288 公司 × 1 页）"
+          "检查 PDF 是否为letter",
+          "检查 OCR 识别质量",
+          "识别到的文本长度: 50 字符",
+          "文本预览: 广东岭南律师事务所事务所事务所函\n广东岭南律师事务所事务所事务所函\n广东岭南律师事务所事务所事务所函...",
+          "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.9398674000112806,
+          "total_duration": 4.936549600010039,
           "method": "region_first",
           "pages_timings": [
-            1.1451361179351807,
-            1.0089983940124512,
-            1.2106976509094238
+            1.2901520729064941,
+            0.7548031806945801,
+            0.9601113796234131
           ],
-          "avg_time_per_page": 1.1216107209523518
+          "avg_time_per_page": 1.0016888777414958
         },
         "accuracy": {
           "text_quality": "poor",

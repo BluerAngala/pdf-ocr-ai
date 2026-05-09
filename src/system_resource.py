@@ -84,7 +84,9 @@ def detect_system_resources(*, reserve_gb: float = 1.5, max_workers: Optional[in
     cpus = cpu_count()
     total_gb = _get_total_memory_gb()
     available_gb = _get_available_memory_gb()
-    usable_gb = max(0.5, available_gb - reserve_gb)
+    
+    # 保留 40% 的可用内存，只使用 60%
+    usable_gb = available_gb * 0.6
 
     max_by_memory = max(1, int(usable_gb / OCR_MODEL_MEMORY_GB))
     max_by_cpu = max(1, cpus - 1) if cpus > 2 else 1

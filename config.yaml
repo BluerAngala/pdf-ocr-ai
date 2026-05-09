@@ -189,7 +189,7 @@ ocr:
         - application_title
   parallelism:
     auto_detect_resources: true
-    max_parallel_workers: 4
+    max_parallel_workers: 8
     memory_reserve_gb: 1.5
 
 text_processing:

@@ -4,14 +4,14 @@
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
   "html_report_path": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\ocr-validation-report.html",
-  "runtime_seconds": 41.7125,
-  "export_runtime_seconds": 0.2888,
+  "runtime_seconds": 67.0388,
+  "export_runtime_seconds": 0.4717,
   "phase_timings": {
-    "ocr_cache_seconds": 40.8874,
-    "export_seconds": 0.2888,
-    "evaluation_seconds": 0.2623,
-    "validation_seconds": 0.1398,
-    "report_seconds": 0.0012
+    "ocr_cache_seconds": 65.8266,
+    "export_seconds": 0.4717,
+    "evaluation_seconds": 0.4136,
+    "validation_seconds": 0.2205,
+    "report_seconds": 0.0032
   },
   "ocr_cache_performance": {
     "stage": "ocr_cache_build",
@@ -23,22 +23,22 @@
     "fresh_run": true,
     "mixed_run": false,
     "cache_only_run": false,
-    "total_duration": 40.7252,
+    "total_duration": 65.7072,
     "fallback_pages_total": 0,
     "region_attempts_total": 15,
     "slowest_files": [
       {
         "doc_type": "责催",
-        "file_name": "3.pdf",
+        "file_name": "2.pdf",
         "page_count": 1,
-        "total_duration": 16.0435,
+        "total_duration": 26.0419,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 1,
-        "region_ocr_duration_total": 15.5065,
+        "region_ocr_duration_total": 25.4384,
         "slowest_page": {
           "page": 1,
-          "duration": 15.5065,
+          "duration": 25.4384,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -46,16 +46,16 @@
       },
       {
         "doc_type": "责催",
-        "file_name": "2.pdf",
+        "file_name": "3.pdf",
         "page_count": 1,
-        "total_duration": 15.5956,
+        "total_duration": 25.2642,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 1,
-        "region_ocr_duration_total": 14.9473,
+        "region_ocr_duration_total": 24.3887,
         "slowest_page": {
           "page": 1,
-          "duration": 14.9473,
+          "duration": 24.3887,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -65,14 +65,14 @@
         "doc_type": "责催",
         "file_name": "1.pdf",
         "page_count": 1,
-        "total_duration": 14.5384,
+        "total_duration": 21.4763,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 1,
-        "region_ocr_duration_total": 13.9506,
+        "region_ocr_duration_total": 20.534,
         "slowest_page": {
           "page": 1,
-          "duration": 13.9506,
+          "duration": 20.534,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -82,14 +82,14 @@
         "doc_type": "申请书",
         "file_name": "申请书.pdf",
         "page_count": 6,
-        "total_duration": 12.2621,
+        "total_duration": 19.0048,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 6,
-        "region_ocr_duration_total": 10.568,
+        "region_ocr_duration_total": 15.2639,
         "slowest_page": {
-          "page": 4,
-          "duration": 2.3642,
+          "page": 2,
+          "duration": 3.8129,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -99,14 +99,14 @@
         "doc_type": "授权书",
         "file_name": "授权书.pdf",
         "page_count": 3,
-        "total_duration": 5.5142,
+        "total_duration": 8.908,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 3,
-        "region_ocr_duration_total": 4.5672,
+        "region_ocr_duration_total": 7.2338,
         "slowest_page": {
           "page": 1,
-          "duration": 1.8699,
+          "duration": 3.3203,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -114,7 +114,7 @@
       }
     ],
     "parallelism": {
-      "workers": 4,
+      "workers": 8,
       "safety_level": "high",
       "available_memory_gb": 47.72
     }
@@ -139,31 +139,31 @@
     },
     "timing_statistics": {
       "notice": {
-        "total": 46.17753220000304,
-        "avg": 15.392510733334348,
-        "min": 14.538398499978939,
-        "max": 16.04349110001931,
+        "total": 72.7823945999844,
+        "avg": 24.2607981999948,
+        "min": 21.476316299987957,
+        "max": 26.04189769999357,
         "count": 3
       },
       "application": {
-        "total": 12.262097900005756,
-        "avg": 12.262097900005756,
-        "min": 12.262097900005756,
-        "max": 12.262097900005756,
+        "total": 19.00484760000836,
+        "avg": 19.00484760000836,
+        "min": 19.00484760000836,
+        "max": 19.00484760000836,
         "count": 1
       },
       "authorization": {
-        "total": 5.514161900006002,
-        "avg": 5.514161900006002,
-        "min": 5.514161900006002,
-        "max": 5.514161900006002,
+        "total": 8.907973099994706,
+        "avg": 8.907973099994706,
+        "min": 8.907973099994706,
+        "max": 8.907973099994706,
         "count": 1
       },
       "letter": {
-        "total": 4.276994800020475,
-        "avg": 4.276994800020475,
-        "min": 4.276994800020475,
-        "max": 4.276994800020475,
+        "total": 6.8015269000025,
+        "avg": 6.8015269000025,
+        "min": 6.8015269000025,
+        "max": 6.8015269000025,
         "count": 1
       }
     },
@@ -228,12 +228,12 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 14.538398499978939,
+          "total_duration": 21.476316299987957,
           "method": "region_first_sequential",
           "pages_timings": [
-            13.950586795806885
+            20.534010887145996
           ],
-          "avg_time_per_page": 13.950586795806885
+          "avg_time_per_page": 20.534010887145996
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -285,12 +285,12 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 15.595642600004794,
+          "total_duration": 26.04189769999357,
           "method": "region_first_sequential",
           "pages_timings": [
-            14.94733476638794
+            25.43837547302246
           ],
-          "avg_time_per_page": 14.94733476638794
+          "avg_time_per_page": 25.43837547302246
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -342,12 +342,12 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 16.04349110001931,
+          "total_duration": 25.264180600002874,
           "method": "region_first_sequential",
           "pages_timings": [
-            15.506488561630249
+            24.388675928115845
           ],
-          "avg_time_per_page": 15.506488561630249
+          "avg_time_per_page": 24.388675928115845
         },
         "accuracy": {
           "ocr_confidence": "N/A",
@@ -382,17 +382,17 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 12.262097900005756,
+          "total_duration": 19.00484760000836,
           "method": "region_first",
           "pages_timings": [
-            1.6894280910491943,
-            2.271096706390381,
-            1.336411476135254,
-            2.3641669750213623,
-            1.3311114311218262,
-            1.575821876525879
+            2.535745620727539,
+            3.812948226928711,
+            2.0029044151306152,
+            3.5729801654815674,
+            1.0697259902954102,
+            2.269655704498291
           ],
-          "avg_time_per_page": 1.7613394260406494
+          "avg_time_per_page": 2.543993353843689
         },
         "accuracy": {
           "text_quality": "fair",
@@ -423,14 +423,14 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 5.514161900006002,
+          "total_duration": 8.907973099994706,
           "method": "region_first",
           "pages_timings": [
-            1.8699219226837158,
-            1.4257001876831055,
-            1.2715585231781006
+            3.3202600479125977,
+            2.3090600967407227,
+            1.6044037342071533
           ],
-          "avg_time_per_page": 1.5223935445149739
+          "avg_time_per_page": 2.411241292953491
         },
         "accuracy": {
           "text_quality": "good",
@@ -466,14 +466,14 @@
           "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.276994800020475,
+          "total_duration": 6.8015269000025,
           "method": "region_first",
           "pages_timings": [
-            0.7818973064422607,
-            1.206841230392456,
-            0.8702661991119385
+            1.2693803310394287,
+            1.9182121753692627,
+            1.4546995162963867
           ],
-          "avg_time_per_page": 0.9530015786488851
+          "avg_time_per_page": 1.5474306742350261
         },
         "accuracy": {
           "text_quality": "poor",
@@ -512,14 +512,14 @@
           "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.276994800020475,
+          "total_duration": 6.8015269000025,
           "method": "region_first",
           "pages_timings": [
-            0.7818973064422607,
-            1.206841230392456,
-            0.8702661991119385
+            1.2693803310394287,
+            1.9182121753692627,
+            1.4546995162963867
           ],
-          "avg_time_per_page": 0.9530015786488851
+          "avg_time_per_page": 1.5474306742350261
         },
         "accuracy": {
           "text_quality": "poor",

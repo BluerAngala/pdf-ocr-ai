@@ -8,22 +8,22 @@
   "fresh_run": true,
   "mixed_run": false,
   "cache_only_run": false,
-  "total_duration": 40.7252,
+  "total_duration": 65.7072,
   "fallback_pages_total": 0,
   "region_attempts_total": 15,
   "slowest_files": [
     {
       "doc_type": "责催",
-      "file_name": "3.pdf",
+      "file_name": "2.pdf",
       "page_count": 1,
-      "total_duration": 16.0435,
+      "total_duration": 26.0419,
       "fallback_pages": 0,
       "fallback_rate": 0.0,
       "region_attempts_total": 1,
-      "region_ocr_duration_total": 15.5065,
+      "region_ocr_duration_total": 25.4384,
       "slowest_page": {
         "page": 1,
-        "duration": 15.5065,
+        "duration": 25.4384,
         "method": "region_first",
         "fallback_used": false,
         "fallback_trigger_reason": null
@@ -31,16 +31,16 @@
     },
     {
       "doc_type": "责催",
-      "file_name": "2.pdf",
+      "file_name": "3.pdf",
       "page_count": 1,
-      "total_duration": 15.5956,
+      "total_duration": 25.2642,
       "fallback_pages": 0,
       "fallback_rate": 0.0,
       "region_attempts_total": 1,
-      "region_ocr_duration_total": 14.9473,
+      "region_ocr_duration_total": 24.3887,
       "slowest_page": {
         "page": 1,
-        "duration": 14.9473,
+        "duration": 24.3887,
         "method": "region_first",
         "fallback_used": false,
         "fallback_trigger_reason": null
@@ -50,14 +50,14 @@
       "doc_type": "责催",
       "file_name": "1.pdf",
       "page_count": 1,
-      "total_duration": 14.5384,
+      "total_duration": 21.4763,
       "fallback_pages": 0,
       "fallback_rate": 0.0,
       "region_attempts_total": 1,
-      "region_ocr_duration_total": 13.9506,
+      "region_ocr_duration_total": 20.534,
       "slowest_page": {
         "page": 1,
-        "duration": 13.9506,
+        "duration": 20.534,
         "method": "region_first",
         "fallback_used": false,
         "fallback_trigger_reason": null
@@ -67,14 +67,14 @@
       "doc_type": "申请书",
       "file_name": "申请书.pdf",
       "page_count": 6,
-      "total_duration": 12.2621,
+      "total_duration": 19.0048,
       "fallback_pages": 0,
       "fallback_rate": 0.0,
       "region_attempts_total": 6,
-      "region_ocr_duration_total": 10.568,
+      "region_ocr_duration_total": 15.2639,
       "slowest_page": {
-        "page": 4,
-        "duration": 2.3642,
+        "page": 2,
+        "duration": 3.8129,
         "method": "region_first",
         "fallback_used": false,
         "fallback_trigger_reason": null
@@ -84,14 +84,14 @@
       "doc_type": "授权书",
       "file_name": "授权书.pdf",
       "page_count": 3,
-      "total_duration": 5.5142,
+      "total_duration": 8.908,
       "fallback_pages": 0,
       "fallback_rate": 0.0,
       "region_attempts_total": 3,
-      "region_ocr_duration_total": 4.5672,
+      "region_ocr_duration_total": 7.2338,
       "slowest_page": {
         "page": 1,
-        "duration": 1.8699,
+        "duration": 3.3203,
         "method": "region_first",
         "fallback_used": false,
         "fallback_trigger_reason": null
@@ -99,7 +99,7 @@
     }
   ],
   "parallelism": {
-    "workers": 4,
+    "workers": 8,
     "safety_level": "high",
     "available_memory_gb": 47.72
   }

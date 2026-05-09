@@ -2,30 +2,30 @@
   "pages": [
     {
       "page": 1,
-      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住",
-      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2025]856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住",
+      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司",
+      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025]856号\n名称：广州吾能学网络科技有限公司",
       "method": "region_first",
-      "duration": 15.751905679702759,
+      "duration": 15.506488561630249,
       "region_attempts": [
         {
           "region": "责令号区域",
           "region_key": "notice_header",
           "method": "region:责令号区域",
-          "duration": 15.751905679702759,
-          "text_length": 149,
-          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2025]856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住"
+          "duration": 15.506488561630249,
+          "text_length": 59,
+          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2025]856号\n名称：广州吾能学网络科技有限公司"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 15.7519,
-        "max_text_length": 149,
-        "total_text_length": 149,
+        "total_duration": 15.5065,
+        "max_text_length": 59,
+        "total_text_length": 59,
         "regions": [
           "责令号区域"
         ]
       },
-      "region_text_length": 143,
+      "region_text_length": 56,
       "fallback_used": false,
       "fallback_trigger_reason": null,
       "notice_matched": true,
@@ -37,7 +37,7 @@
   "total_pages": 1,
   "filename": "3.pdf",
   "method": "region_first_sequential",
-  "total_duration": 16.257668499980355,
+  "total_duration": 16.04349110001931,
   "fallback_pages": 0,
   "region_pages": 1,
   "optimization_strategy": "region_first_sequential",
@@ -58,14 +58,14 @@
     "doc_type": "责催",
     "file_name": "3.pdf",
     "page_count": 1,
-    "total_duration": 16.2577,
+    "total_duration": 16.0435,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 1,
-    "region_ocr_duration_total": 15.7519,
+    "region_ocr_duration_total": 15.5065,
     "slowest_page": {
       "page": 1,
-      "duration": 15.7519,
+      "duration": 15.5065,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

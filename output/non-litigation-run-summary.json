@@ -4,14 +4,14 @@
   "result_root": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\non-litigation-results",
   "ocr_cache_dir": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\temp\\non-litigation\\ocr-cache",
   "html_report_path": "C:\\Users\\11071\\Documents\\trae_projects\\pdf识别\\output\\ocr-validation-report.html",
-  "runtime_seconds": 42.7344,
-  "export_runtime_seconds": 0.3418,
+  "runtime_seconds": 41.7125,
+  "export_runtime_seconds": 0.2888,
   "phase_timings": {
-    "ocr_cache_seconds": 41.841,
-    "export_seconds": 0.3418,
-    "evaluation_seconds": 0.2613,
-    "validation_seconds": 0.1436,
-    "report_seconds": 0.0014
+    "ocr_cache_seconds": 40.8874,
+    "export_seconds": 0.2888,
+    "evaluation_seconds": 0.2623,
+    "validation_seconds": 0.1398,
+    "report_seconds": 0.0012
   },
   "ocr_cache_performance": {
     "stage": "ocr_cache_build",
@@ -23,39 +23,22 @@
     "fresh_run": true,
     "mixed_run": false,
     "cache_only_run": false,
-    "total_duration": 41.73,
+    "total_duration": 40.7252,
     "fallback_pages_total": 0,
     "region_attempts_total": 15,
     "slowest_files": [
       {
         "doc_type": "责催",
-        "file_name": "1.pdf",
-        "page_count": 1,
-        "total_duration": 17.0001,
-        "fallback_pages": 0,
-        "fallback_rate": 0.0,
-        "region_attempts_total": 1,
-        "region_ocr_duration_total": 16.5099,
-        "slowest_page": {
-          "page": 1,
-          "duration": 16.5099,
-          "method": "region_first",
-          "fallback_used": false,
-          "fallback_trigger_reason": null
-        }
-      },
-      {
-        "doc_type": "责催",
         "file_name": "3.pdf",
         "page_count": 1,
-        "total_duration": 16.2577,
+        "total_duration": 16.0435,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 1,
-        "region_ocr_duration_total": 15.7519,
+        "region_ocr_duration_total": 15.5065,
         "slowest_page": {
           "page": 1,
-          "duration": 15.7519,
+          "duration": 15.5065,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -65,14 +48,31 @@
         "doc_type": "责催",
         "file_name": "2.pdf",
         "page_count": 1,
-        "total_duration": 12.4653,
+        "total_duration": 15.5956,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 1,
-        "region_ocr_duration_total": 11.9429,
+        "region_ocr_duration_total": 14.9473,
         "slowest_page": {
           "page": 1,
-          "duration": 11.9429,
+          "duration": 14.9473,
+          "method": "region_first",
+          "fallback_used": false,
+          "fallback_trigger_reason": null
+        }
+      },
+      {
+        "doc_type": "责催",
+        "file_name": "1.pdf",
+        "page_count": 1,
+        "total_duration": 14.5384,
+        "fallback_pages": 0,
+        "fallback_rate": 0.0,
+        "region_attempts_total": 1,
+        "region_ocr_duration_total": 13.9506,
+        "slowest_page": {
+          "page": 1,
+          "duration": 13.9506,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -82,14 +82,14 @@
         "doc_type": "申请书",
         "file_name": "申请书.pdf",
         "page_count": 6,
-        "total_duration": 12.1921,
+        "total_duration": 12.2621,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 6,
-        "region_ocr_duration_total": 10.6057,
+        "region_ocr_duration_total": 10.568,
         "slowest_page": {
           "page": 4,
-          "duration": 2.4155,
+          "duration": 2.3642,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -99,14 +99,14 @@
         "doc_type": "授权书",
         "file_name": "授权书.pdf",
         "page_count": 3,
-        "total_duration": 5.4861,
+        "total_duration": 5.5142,
         "fallback_pages": 0,
         "fallback_rate": 0.0,
         "region_attempts_total": 3,
-        "region_ocr_duration_total": 4.5831,
+        "region_ocr_duration_total": 4.5672,
         "slowest_page": {
           "page": 1,
-          "duration": 1.8459,
+          "duration": 1.8699,
           "method": "region_first",
           "fallback_used": false,
           "fallback_trigger_reason": null
@@ -139,31 +139,31 @@
     },
     "timing_statistics": {
       "notice": {
-        "total": 45.72302779997699,
-        "avg": 15.241009266658997,
-        "min": 12.465296900016256,
-        "max": 17.00006239998038,
+        "total": 46.17753220000304,
+        "avg": 15.392510733334348,
+        "min": 14.538398499978939,
+        "max": 16.04349110001931,
         "count": 3
       },
       "application": {
-        "total": 12.192135999997845,
-        "avg": 12.192135999997845,
-        "min": 12.192135999997845,
-        "max": 12.192135999997845,
+        "total": 12.262097900005756,
+        "avg": 12.262097900005756,
+        "min": 12.262097900005756,
+        "max": 12.262097900005756,
         "count": 1
       },
       "authorization": {
-        "total": 5.486111700010952,
-        "avg": 5.486111700010952,
-        "min": 5.486111700010952,
-        "max": 5.486111700010952,
+        "total": 5.514161900006002,
+        "avg": 5.514161900006002,
+        "min": 5.514161900006002,
+        "max": 5.514161900006002,
         "count": 1
       },
       "letter": {
-        "total": 4.348961899988353,
-        "avg": 4.348961899988353,
-        "min": 4.348961899988353,
-        "max": 4.348961899988353,
+        "total": 4.276994800020475,
+        "avg": 4.276994800020475,
+        "min": 4.276994800020475,
+        "max": 4.276994800020475,
         "count": 1
       }
     },
@@ -221,23 +221,23 @@
           "same_root_remap": false,
           "diagnostic_category": null,
           "diagnostic_reason": "",
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n2年07月至2023年06月期间的住\n",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n",
           "normalized_notices": [
             "穗公积金中心越秀责字〔2024〕914-1号"
           ]
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 17.00006239998038,
+          "total_duration": 14.538398499978939,
           "method": "region_first_sequential",
           "pages_timings": [
-            16.509944200515747
+            13.950586795806885
           ],
-          "avg_time_per_page": 16.509944200515747
+          "avg_time_per_page": 13.950586795806885
         },
         "accuracy": {
           "ocr_confidence": "N/A",
-          "text_quality": "good",
+          "text_quality": "fair",
           "extraction_success": true,
           "fallback_rate": 0.0,
           "region_first_hit_rate": 100.0,
@@ -248,7 +248,7 @@
         "status": "pass",
         "file_name": "2.pdf",
         "file_type": "notice",
-        "message": "成功识别并匹配责令号: 穗公积金中心越秀责字【2025〕1107号",
+        "message": "成功识别并匹配责令号: 穗公积金中心越秀责字〔2025〕1107号",
         "details": {
           "file_name": "2.pdf",
           "total_pages": 1,
@@ -261,13 +261,13 @@
           "region_pages": 1,
           "stopped_early": true,
           "optimization_strategy": "region_first_sequential",
-          "selected_notice": "穗公积金中心越秀责字【2025〕1107号",
+          "selected_notice": "穗公积金中心越秀责字〔2025〕1107号",
           "selected_page": 1,
           "candidate_notices": [
             {
               "page": 1,
-              "number": "穗公积金中心越秀责字【2025〕1107号",
-              "root_number": "穗公积金中心越秀责字【2025〕1107号",
+              "number": "穗公积金中心越秀责字〔2025〕1107号",
+              "root_number": "穗公积金中心越秀责字〔2025〕1107号",
               "is_base_number": true,
               "company_name": "北京华图宏阳教育文化发展股份有限公司"
             }
@@ -278,24 +278,23 @@
           "same_root_remap": false,
           "diagnostic_category": null,
           "diagnostic_reason": "",
-          "full_text_preview": "州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张瑞缴存\n2019年07月至2021年04月期间的住房\n",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n",
           "normalized_notices": [
-            "穗公积金中心越秀责字【2025〕1107号",
             "穗公积金中心越秀责字〔2025〕1107号"
           ]
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 12.465296900016256,
+          "total_duration": 15.595642600004794,
           "method": "region_first_sequential",
           "pages_timings": [
-            11.94291615486145
+            14.94733476638794
           ],
-          "avg_time_per_page": 11.94291615486145
+          "avg_time_per_page": 14.94733476638794
         },
         "accuracy": {
           "ocr_confidence": "N/A",
-          "text_quality": "good",
+          "text_quality": "fair",
           "extraction_success": true,
           "fallback_rate": 0.0,
           "region_first_hit_rate": 100.0,
@@ -336,23 +335,23 @@
           "same_root_remap": false,
           "diagnostic_category": null,
           "diagnostic_reason": "",
-          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n统一社会信用代码：91440101MA59F3B12B\n地址：广州市越秀区沿江中路229号25层自编B\n经查，你单位未按规定为叶婷婷缴存2019年09月至2024年05月期间的住\n",
+          "full_text_preview": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司\n",
           "normalized_notices": [
             "穗公积金中心越秀责字〔2025〕856号"
           ]
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 16.257668499980355,
+          "total_duration": 16.04349110001931,
           "method": "region_first_sequential",
           "pages_timings": [
-            15.751905679702759
+            15.506488561630249
           ],
-          "avg_time_per_page": 15.751905679702759
+          "avg_time_per_page": 15.506488561630249
         },
         "accuracy": {
           "ocr_confidence": "N/A",
-          "text_quality": "good",
+          "text_quality": "fair",
           "extraction_success": true,
           "fallback_rate": 0.0,
           "region_first_hit_rate": 100.0,
@@ -383,17 +382,17 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 12.192135999997845,
+          "total_duration": 12.262097900005756,
           "method": "region_first",
           "pages_timings": [
-            1.7101824283599854,
-            2.2097396850585938,
-            1.4859683513641357,
-            2.4154672622680664,
-            1.245795488357544,
-            1.5384929180145264
+            1.6894280910491943,
+            2.271096706390381,
+            1.336411476135254,
+            2.3641669750213623,
+            1.3311114311218262,
+            1.575821876525879
           ],
-          "avg_time_per_page": 1.7676076889038086
+          "avg_time_per_page": 1.7613394260406494
         },
         "accuracy": {
           "text_quality": "fair",
@@ -424,14 +423,14 @@
         },
         "suggestions": [],
         "timing": {
-          "total_duration": 5.486111700010952,
+          "total_duration": 5.514161900006002,
           "method": "region_first",
           "pages_timings": [
-            1.8459441661834717,
-            1.5671086311340332,
-            1.1700584888458252
+            1.8699219226837158,
+            1.4257001876831055,
+            1.2715585231781006
           ],
-          "avg_time_per_page": 1.5277037620544434
+          "avg_time_per_page": 1.5223935445149739
         },
         "accuracy": {
           "text_quality": "good",
@@ -467,14 +466,14 @@
           "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.348961899988353,
+          "total_duration": 4.276994800020475,
           "method": "region_first",
           "pages_timings": [
-            0.9985535144805908,
-            1.2644875049591064,
-            0.7910118103027344
+            0.7818973064422607,
+            1.206841230392456,
+            0.8702661991119385
           ],
-          "avg_time_per_page": 1.0180176099141438
+          "avg_time_per_page": 0.9530015786488851
         },
         "accuracy": {
           "text_quality": "poor",
@@ -513,14 +512,14 @@
           "关键字可能识别错误，建议人工确认"
         ],
         "timing": {
-          "total_duration": 4.348961899988353,
+          "total_duration": 4.276994800020475,
           "method": "region_first",
           "pages_timings": [
-            0.9985535144805908,
-            1.2644875049591064,
-            0.7910118103027344
+            0.7818973064422607,
+            1.206841230392456,
+            0.8702661991119385
           ],
-          "avg_time_per_page": 1.0180176099141438
+          "avg_time_per_page": 0.9530015786488851
         },
         "accuracy": {
           "text_quality": "poor",

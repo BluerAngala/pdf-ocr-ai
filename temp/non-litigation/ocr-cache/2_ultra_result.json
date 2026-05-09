@@ -2,30 +2,30 @@
   "pages": [
     {
       "page": 1,
-      "text": "州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张瑞缴存\n2019年07月至2021年04月期间的住房",
-      "original_text": "州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字【2025]1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张瑞缴存\n2019年07月至2021年04月期间的住房",
+      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司",
+      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025]1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司",
       "method": "region_first",
-      "duration": 11.94291615486145,
+      "duration": 14.94733476638794,
       "region_attempts": [
         {
           "region": "责令号区域",
           "region_key": "notice_header",
           "method": "region:责令号区域",
-          "duration": 11.94291615486145,
-          "text_length": 159,
-          "text": "州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字【2025]1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司\n统一社会信用代码：91440000666499602X\n地址：广州市越秀区环市东路461号自编5号楼\n经查，你单位未按规定为张瑞缴存\n2019年07月至2021年04月期间的住房"
+          "duration": 14.94733476638794,
+          "text_length": 70,
+          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字【2025]1107号\n名称：北京华图宏阳教育文化发展股份有限公司广东分公司"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 11.9429,
-        "max_text_length": 159,
-        "total_text_length": 159,
+        "total_duration": 14.9473,
+        "max_text_length": 70,
+        "total_text_length": 70,
         "regions": [
           "责令号区域"
         ]
       },
-      "region_text_length": 152,
+      "region_text_length": 67,
       "fallback_used": false,
       "fallback_trigger_reason": null,
       "notice_matched": true,
@@ -37,19 +37,19 @@
   "total_pages": 1,
   "filename": "2.pdf",
   "method": "region_first_sequential",
-  "total_duration": 12.465296900016256,
+  "total_duration": 15.595642600004794,
   "fallback_pages": 0,
   "region_pages": 1,
   "optimization_strategy": "region_first_sequential",
   "stopped_early": true,
-  "selected_notice": "穗公积金中心越秀责字【2025〕1107号",
+  "selected_notice": "穗公积金中心越秀责字〔2025〕1107号",
   "selected_page": 1,
-  "selected_root_notice": "穗公积金中心越秀责字【2025〕1107号",
+  "selected_root_notice": "穗公积金中心越秀责字〔2025〕1107号",
   "candidate_notices": [
     {
       "page": 1,
-      "number": "穗公积金中心越秀责字【2025〕1107号",
-      "root_number": "穗公积金中心越秀责字【2025〕1107号",
+      "number": "穗公积金中心越秀责字〔2025〕1107号",
+      "root_number": "穗公积金中心越秀责字〔2025〕1107号",
       "is_base_number": true,
       "company_name": "北京华图宏阳教育文化发展股份有限公司"
     }
@@ -58,14 +58,14 @@
     "doc_type": "责催",
     "file_name": "2.pdf",
     "page_count": 1,
-    "total_duration": 12.4653,
+    "total_duration": 15.5956,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 1,
-    "region_ocr_duration_total": 11.9429,
+    "region_ocr_duration_total": 14.9473,
     "slowest_page": {
       "page": 1,
-      "duration": 11.9429,
+      "duration": 14.9473,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

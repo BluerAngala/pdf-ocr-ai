@@ -2,30 +2,30 @@
   "pages": [
     {
       "page": 1,
-      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n2年07月至2023年06月期间的住",
-      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2024]914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n2年07月至2023年06月期间的住",
+      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024〕914-1号\n名称：广州市严静殡葬服务有限公司",
+      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2024]914-1号\n名称：广州市严静殡葬服务有限公司",
       "method": "region_first",
-      "duration": 16.509944200515747,
+      "duration": 13.950586795806885,
       "region_attempts": [
         {
           "region": "责令号区域",
           "region_key": "notice_header",
           "method": "region:责令号区域",
-          "duration": 16.509944200515747,
-          "text_length": 131,
-          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2024]914-1号\n名称：广州市严静殡葬服务有限公司\n统一社会信用代码：91440101MA5C4HHP8E\n地址：广州市越秀区寺右二马路25号四层454\n2年07月至2023年06月期间的住"
+          "duration": 13.950586795806885,
+          "text_length": 61,
+          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2024]914-1号\n名称：广州市严静殡葬服务有限公司"
         }
       ],
       "region_stats": {
         "attempt_count": 1,
-        "total_duration": 16.5099,
-        "max_text_length": 131,
-        "total_text_length": 131,
+        "total_duration": 13.9506,
+        "max_text_length": 61,
+        "total_text_length": 61,
         "regions": [
           "责令号区域"
         ]
       },
-      "region_text_length": 125,
+      "region_text_length": 58,
       "fallback_used": false,
       "fallback_trigger_reason": null,
       "notice_matched": true,
@@ -37,7 +37,7 @@
   "total_pages": 1,
   "filename": "1.pdf",
   "method": "region_first_sequential",
-  "total_duration": 17.00006239998038,
+  "total_duration": 14.538398499978939,
   "fallback_pages": 0,
   "region_pages": 1,
   "optimization_strategy": "region_first_sequential",
@@ -58,14 +58,14 @@
     "doc_type": "责催",
     "file_name": "1.pdf",
     "page_count": 1,
-    "total_duration": 17.0001,
+    "total_duration": 14.5384,
     "fallback_pages": 0,
     "fallback_rate": 0.0,
     "region_attempts_total": 1,
-    "region_ocr_duration_total": 16.5099,
+    "region_ocr_duration_total": 13.9506,
     "slowest_page": {
       "page": 1,
-      "duration": 16.5099,
+      "duration": 13.9506,
       "method": "region_first",
       "fallback_used": false,
       "fallback_trigger_reason": null

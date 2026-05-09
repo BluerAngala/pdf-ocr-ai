@@ -48,11 +48,11 @@ class Region:
 
 # 预定义区域
 REGIONS = {
-    # 责令号通常在页面前30%
+    # 责令号通常在页面前25%
     'notice_header': Region(
         name='责令号区域',
         top=0.0,
-        bottom=0.3,
+        bottom=0.25,
         left=0.0,
         right=1.0
     ),

@@ -237,36 +237,26 @@ def _select_notice_candidate(candidate_pages: List[Dict]) -> Dict:
     if not candidate_pages:
         return {}
 
-    all_candidates = []
-    for page in candidate_pages:
-        for number in page.get('decision_numbers', []):
-            normalized = normalize_notice_number(number)
-            root_number = _get_notice_root_number(normalized)
-            is_base_number = normalized == root_number
-            all_candidates.append({
-                'page': page.get('page'),
-                'number': normalized,
-                'root_number': root_number,
-                'is_base_number': is_base_number,
-                'company_name': page.get('company_name'),
-            })
-
-    if not all_candidates:
+    first_page = candidate_pages[0]
+    decision_numbers = first_page.get('decision_numbers', [])
+    if not decision_numbers:
         return {}
 
-    def candidate_sort_key(item: Dict):
-        return (
-            1 if item.get('is_base_number') else 0,
-            -item.get('page', 0),
-        )
-
-    all_candidates.sort(key=candidate_sort_key, reverse=True)
-    selected = all_candidates[0]
+    first_number = decision_numbers[0]
+    normalized = normalize_notice_number(first_number)
+    root_number = _get_notice_root_number(normalized)
+    
     return {
-        'selected_notice': selected['number'],
-        'selected_page': selected['page'],
-        'selected_root_notice': selected['root_number'],
-        'candidate_notices': all_candidates,
+        'selected_notice': normalized,
+        'selected_page': first_page.get('page'),
+        'selected_root_notice': root_number,
+        'candidate_notices': [{
+            'page': first_page.get('page'),
+            'number': normalized,
+            'root_number': root_number,
+            'is_base_number': normalized == root_number,
+            'company_name': first_page.get('company_name'),
+        }],
     }
 
 
@@ -372,29 +362,6 @@ def _build_ocr_output_summary(pdf_path: Path, pages: List[Dict], total_duration:
             'fallback_trigger_reason': slowest_page.get('fallback_trigger_reason'),
         },
     }
-
-
-def _is_high_confidence_notice_candidate(page_candidate: Optional[Dict]) -> bool:
-    if not page_candidate:
-        return False
-    decision_numbers = page_candidate.get('decision_numbers', [])
-    if not decision_numbers:
-        return False
-    has_base_number = any(
-        normalize_notice_number(number) == _get_notice_root_number(number)
-        for number in decision_numbers
-    )
-    return has_base_number
-
-
-def _has_decisive_notice_candidate(candidate_pages: List[Dict]) -> bool:
-    if not candidate_pages:
-        return False
-    for page in candidate_pages:
-        if page.get('decision_numbers'):
-            return True
-    return False
-
 
 
 def fuzzy_match_notice(detected: str, target_map: Dict[str, str], threshold: float = 0.85) -> Tuple[Optional[str], float]:
@@ -827,17 +794,22 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
 
                     if matched and page_candidate:
                         candidate_pages.append(page_candidate)
-                        high_confidence_hit = _is_high_confidence_notice_candidate(page_candidate)
-                        if first_hit_page is None:
-                            first_hit_page = page_num
-                            if high_confidence_hit:
-                                stop_after_page = min(max_scan_pages, page_num + 1)
-                                print(f"    [OK] 第 {page_num} 页高置信命中责令号，继续扫描至第 {stop_after_page} 页")
-                            else:
-                                stop_after_page = min(max_scan_pages, page_num + scan_window_pages)
-                                print(f"    [OK] 第 {page_num} 页首次找到责令号，继续扫描至第 {stop_after_page} 页")
-                        elif high_confidence_hit:
-                            stop_after_page = min(stop_after_page or max_scan_pages, page_num)
+                        pages.append({
+                            'page': page_num,
+                            'text': text,
+                            'method': method,
+                            'duration': duration,
+                            'region_attempts': page_logs,
+                            'region_stats': _build_region_stats(page_logs),
+                            'region_text_length': len(_compact_text(region_text)),
+                            'fallback_used': method == 'full_page_fallback',
+                            'fallback_trigger_reason': fallback_trigger_reason if method == 'full_page_fallback' else None,
+                            'notice_matched': matched,
+                            'notice_candidates': page_candidate.get('decision_numbers', []) if page_candidate else [],
+                        })
+                        print(f"    [OK] 第 {page_num} 页找到责令号，立即停止")
+                        stopped_early = True
+                        break
 
                     pages.append({
                         'page': page_num,
@@ -851,17 +823,8 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
                         'fallback_trigger_reason': fallback_trigger_reason if method == 'full_page_fallback' else None,
                         'notice_matched': matched,
                         'notice_candidates': page_candidate.get('decision_numbers', []) if page_candidate else [],
-                        'notice_candidate_score': page_candidate.get('score') if page_candidate else None,
-                        'notice_page_profile': page_candidate.get('page_profile') if page_candidate else {},
                     })
 
-                    if stop_after_page is not None and page_num >= stop_after_page:
-                        stopped_early = True
-                        break
-                    if page_num >= 3 and _has_decisive_notice_candidate(candidate_pages):
-                        stopped_early = True
-                        print(f"    [OK] 前 {page_num} 页已形成高置信责令号候选，提前停止")
-                        break
                     page_num += 1
 
                 total_duration = time.perf_counter() - total_start

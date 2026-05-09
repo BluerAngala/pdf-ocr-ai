@@ -425,9 +425,29 @@ def format_summary(summary: Dict) -> str:
             f"  fallback 页数总计: {ocr_perf.get('fallback_pages_total', 0)}",
             f"  region OCR 次数总计: {ocr_perf.get('region_attempts_total', 0)}",
         ])
+        
         if slowest_files:
-            top = slowest_files[0]
-            lines.append(f"  最慢文件: {top.get('file_name')} ({top.get('total_duration', 0)} 秒)")
+            lines.append('\n  [INFO] 各文件 OCR 耗时详情:')
+            for i, file_info in enumerate(slowest_files, 1):
+                file_name = file_info.get('file_name', 'unknown')
+                doc_type = file_info.get('doc_type', 'unknown')
+                total_duration = file_info.get('total_duration', 0)
+                page_count = file_info.get('page_count', 0)
+                fallback_pages = file_info.get('fallback_pages', 0)
+                region_attempts = file_info.get('region_attempts_total', 0)
+                
+                avg_time_per_page = total_duration / page_count if page_count > 0 else 0
+                
+                lines.append(f"    {i}. {file_name} ({doc_type})")
+                lines.append(f"       - 总耗时: {total_duration:.2f}s")
+                lines.append(f"       - 页数: {page_count} 页")
+                lines.append(f"       - 平均每页: {avg_time_per_page:.2f}s")
+                lines.append(f"       - Fallback: {fallback_pages} 页")
+                lines.append(f"       - Region OCR: {region_attempts} 次")
+                
+                slowest_page = file_info.get('slowest_page')
+                if slowest_page:
+                    lines.append(f"       - 最慢页: 第{slowest_page.get('page')}页 ({slowest_page.get('duration'):.2f}s)")
 
     lines.extend([
         '',

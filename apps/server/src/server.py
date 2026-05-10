@@ -395,8 +395,8 @@ class JsonRpcServer:
                     ocr_version = importlib.metadata.version('rapidocr_onnxruntime')
                 except Exception:
                     pass
-        except:
-            pass
+        except Exception as e:
+            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"_system_get_status import error: {e}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
         memory_gb = 0
         try:
             import psutil
@@ -459,7 +459,7 @@ class JsonRpcServer:
             if check_poppler_installed(cfg.poppler_path):
                 dependencies.append({"name": "Poppler", "installed": True})
             else:
-                dependencies.append({"name": "Poppler", "installed": False, "message": "请运行: python scripts/setup_poppler.py"})
+                dependencies.append({"name": "Poppler", "installed": False, "message": f"请运行: python apps/server/scripts/setup_poppler.py (path: {cfg.poppler_path})"})
                 all_ready = False
         except Exception as e:
             dependencies.append({"name": "Poppler", "installed": False, "message": str(e)})

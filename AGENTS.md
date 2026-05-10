@@ -40,6 +40,18 @@ npm run desktop:dev
 
 # Tauri 桌面版开发
 npm run desktop:tauri dev
+
+# 前端代码检查
+npm run lint
+
+# 前端代码自动修复
+npm run lint:fix
+
+# 前端代码格式化
+npm run format
+
+# 前端格式检查
+npm run format:check
 ```
 
 ## 架构

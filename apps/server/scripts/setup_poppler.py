@@ -17,13 +17,11 @@ POPPLER_VERSION = "24.08.0"
 
 
 def get_project_root() -> Path:
-    """获取项目根目录"""
-    return Path(__file__).resolve().parents[3]
+    return Path(__file__).resolve().parents[4]
 
 
 def get_poppler_dir() -> Path:
-    """获取 poppler 安装目录"""
-    return get_project_root() / "tools" / "poppler"
+    return Path(__file__).resolve().parents[1] / "tools" / "poppler"
 
 
 def check_poppler_exists() -> bool:

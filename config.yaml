@@ -1,3 +1,5 @@
+version: "1.0.0"
+developer: "陈恒律师"
 paths:
   directories:
     result_dirname: "non-litigation-results"

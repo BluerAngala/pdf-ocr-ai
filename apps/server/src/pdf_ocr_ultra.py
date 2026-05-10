@@ -79,9 +79,8 @@ def get_ocr_engine():
 
 
 def check_poppler_installed(poppler_path: str) -> bool:
-    """检查 poppler 是否已安装"""
     if sys.platform == "win32":
-        pdftoppm = Path(poppler_path) / "pdftoppm.exe"
+        pdftoppm = Path(poppler_path).resolve() / "pdftoppm.exe"
         return pdftoppm.exists()
     else:
         import shutil
@@ -178,8 +177,9 @@ class ImagePreprocessor:
 class OCRConfig:
     """OCR配置 - 优化版"""
     _base_dir: Path = Path(__file__).parents[3]
-    poppler_path: str = str(_base_dir / "tools" / "poppler" / "poppler-24.08.0" / "Library" / "bin")
-    dpi: int = 200  # 降低DPI从250到200，速度提升约30%，准确度损失<5%
+    _server_dir: Path = Path(__file__).parents[1]
+    poppler_path: str = str(_server_dir / "tools" / "poppler" / "poppler-24.08.0" / "Library" / "bin")
+    dpi: int = 200
     output_dir: str = str(_base_dir / "output")
     max_image_size: int = 800  # 降低到800px，与预处理器保持一致
     parallel_workers: int = min(cpu_count(), 4)

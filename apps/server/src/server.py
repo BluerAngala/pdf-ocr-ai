@@ -268,8 +268,12 @@ class JsonRpcServer:
                         "page_count_matched": quality['page_count_matched'],
                         "page_count_match_rate": quality['page_count_match_rate']
                     },
-                    "validation": validation_result['summary']
+                    "validation": validation_result['summary'],
                 },
+                "validation_details": validation_result.get('details', []),
+                "validation_failed": validation_result.get('failed_items', []),
+                "validation_warnings": validation_result.get('warning_items', []),
+                "timing_statistics": validation_result.get('timing_statistics', {}),
                 "html_report_path": str(html_report_path)
             }
 
@@ -378,12 +382,19 @@ class JsonRpcServer:
         import platform
         ocr_ready = False
         poppler_installed = False
+        ocr_version = ''
         try:
             from pdf_ocr_ultra import check_poppler_installed, OCRConfig
             cfg = OCRConfig()
             poppler_installed = check_poppler_installed(cfg.poppler_path)
             from pdf_ocr_ultra import HAS_RAPIDOCR
             ocr_ready = HAS_RAPIDOCR
+            if ocr_ready:
+                try:
+                    import importlib.metadata
+                    ocr_version = importlib.metadata.version('rapidocr_onnxruntime')
+                except Exception:
+                    pass
         except:
             pass
         memory_gb = 0
@@ -392,12 +403,24 @@ class JsonRpcServer:
             memory_gb = round(psutil.virtual_memory().available / (1024**3), 1)
         except:
             pass
+        app_version = ''
+        developer = ''
+        try:
+            from config_loader import _load_config
+            raw = _load_config()
+            app_version = raw.get('version', '')
+            developer = raw.get('developer', '')
+        except:
+            pass
         return {
             "python_version": platform.python_version(),
             "ocr_engine_ready": ocr_ready,
+            "ocr_version": ocr_version,
             "poppler_installed": poppler_installed,
             "config_loaded": True,
-            "available_memory_gb": memory_gb
+            "available_memory_gb": memory_gb,
+            "app_version": app_version,
+            "developer": developer
         }
 
     def _system_check_dependencies(self, params: Dict, id: Any) -> Dict:
@@ -408,8 +431,12 @@ class JsonRpcServer:
         try:
             from pdf_ocr_ultra import HAS_RAPIDOCR
             if HAS_RAPIDOCR:
-                import rapidocr_onnxruntime
-                version = getattr(rapidocr_onnxruntime, '__version__', 'unknown')
+                version = 'unknown'
+                try:
+                    import importlib.metadata
+                    version = importlib.metadata.version('rapidocr_onnxruntime')
+                except Exception:
+                    pass
                 dependencies.append({"name": "RapidOCR", "installed": True, "version": version})
             else:
                 dependencies.append({"name": "RapidOCR", "installed": False, "message": "请安装: pip install rapidocr-onnxruntime"})

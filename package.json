@@ -9,7 +9,11 @@
   "scripts": {
     "desktop:dev": "npm run dev --workspace=apps/desktop",
     "desktop:build": "npm run build --workspace=apps/desktop",
-    "desktop:tauri": "npm run tauri --workspace=apps/desktop"
+    "desktop:tauri": "npm run tauri --workspace=apps/desktop",
+    "lint": "npm run lint --workspace=apps/desktop",
+    "lint:fix": "npm run lint:fix --workspace=apps/desktop",
+    "format": "npm run format --workspace=apps/desktop",
+    "format:check": "npm run format:check --workspace=apps/desktop"
   },
   "devDependencies": {}
 }

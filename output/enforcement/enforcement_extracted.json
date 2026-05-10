@@ -1,0 +1,68 @@
+{
+  "export_time": "2026-05-10T11:04:23.697938",
+  "input_dir": "样本材料\\强制组-自动化\\提取信息",
+  "total_files": 2,
+  "results": [
+    {
+      "pdf_filename": "（2025）粤7101行审3355号.pdf",
+      "court_case_number": "（2025）粤 7101 行审 3355 号",
+      "matched": true,
+      "matched_notice_numbers": [
+        "萝岗责字（2023）3360号",
+        "萝岗责字（2023）3361号"
+      ],
+      "ruling_info": {
+        "court_case_number": "（2025）粤 7101 行审 3355 号",
+        "notice_numbers": [],
+        "applicants": [
+          {
+            "name": "广州住房公积金管理中心",
+            "type": "申请执行人"
+          }
+        ],
+        "respondents": [
+          {
+            "name": "广州敏惠汽车零部件有限公司",
+            "type": "被执行人"
+          }
+        ],
+        "execution_amount": null,
+        "ruling_date": "二〇二五年四月二十八日",
+        "judge": "向宏",
+        "clerk": "梅文静",
+        "court_name": "广州铁路运输法院",
+        "ruling_result": "准予强制执行"
+      },
+      "error": null
+    },
+    {
+      "pdf_filename": "（2025）粤7101行审3423号.pdf",
+      "court_case_number": "（2025）粤 7101 行审 3423 号",
+      "matched": false,
+      "matched_notice_numbers": [],
+      "ruling_info": {
+        "court_case_number": "（2025）粤 7101 行审 3423 号",
+        "notice_numbers": [],
+        "applicants": [
+          {
+            "name": "广州住房公积金管理中心",
+            "type": "申请执行人"
+          }
+        ],
+        "respondents": [
+          {
+            "name": "广州市苏泊尔炊具销售有限公司",
+            "type": "被执行人"
+          }
+        ],
+        "execution_amount": 12903.0,
+        "ruling_date": "二〇二五年四月二十八日",
+        "judge": "向宏",
+        "clerk": "梅文静",
+        "court_name": "广州铁路运输法院",
+        "ruling_result": "准予强制执行"
+      },
+      "error": null
+    }
+  ]
+}

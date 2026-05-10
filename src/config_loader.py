@@ -106,6 +106,9 @@ class NonLitigationConfig:
 
     notice_number_range_pattern: Optional[re.Pattern] = None
     single_decision_number_pattern: Optional[re.Pattern] = None
+    
+    # 原始配置字典（用于访问其他模块的配置）
+    raw_config: Dict = field(default_factory=dict)
 
 
 def load_config() -> NonLitigationConfig:
@@ -222,5 +225,8 @@ def load_config() -> NonLitigationConfig:
     cfg.decision_number_range_max_spread = tp.get('decision_number_range_max_spread', 20)
 
     cfg.mock_noise_samples = raw.get('mock_ocr', {}).get('noise_samples', [])
+    
+    # 保存原始配置
+    cfg.raw_config = raw
 
     return cfg

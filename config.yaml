@@ -225,3 +225,78 @@ mock_ocr:
     - "公积全"
     - "授校委托书"
     - "住方公积金"
+
+# ============================================
+# 强制执行组配置
+# ============================================
+enforcement:
+  paths:
+    input_dirname: "提取信息"
+    output_dirname: "enforcement-results"
+    excel_filename: "非诉表格.xlsx"
+    json_output_filename: "enforcement_extracted.json"
+  
+  excel_parsing:
+    min_columns: 3
+    # 列索引映射（0-based）
+    columns:
+      region: 0              # 区域
+      notice_number: 1       # 责令号
+      respondent: 2          # 被执行人
+      employee: 3            # 职工
+      amount: 4              # 金额
+      due_date: 5            # 到期日
+      case_number: 13        # 受理案号（需要填充）
+      judge: 14              # 法官/助理/书记员（需要填充）
+      ruling_result: 15      # 裁定结果/收到时间（需要填充）
+    filter_keywords:
+      notice_number: "责字"
+  
+  # 裁定PDF信息提取规则
+  extraction:
+    # 执行标的金额提取正则（支持多种格式）
+    amount_patterns:
+      - '住房公积\s*金\s*(\d[\d,\s]*)\s*元'
+      - '公积金\s*(\d[\d,\s]*)\s*元'
+      - '部分住房公积\s*金\s*(\d[\d,\s]*)\s*元'
+    
+    # 裁定日期提取正则（中文数字日期）
+    date_patterns:
+      - '(二[〇○零][一二三四五六七八九十〇]{2,3}年[一二三四五六七八九十〇]{1,2}月[一二三四五六七八九十〇]{1,3}日)'
+    
+    # 审判员提取正则
+    judge_patterns:
+      - '审判员\s*(\S{2,4})'
+    
+    # 书记员提取正则
+    clerk_patterns:
+      - '书记员\s*(\S{2,4})'
+    
+    # 申请执行人提取正则（可能有多个）
+    applicant_patterns:
+      - '申请执行人[：:]\s*([^，。,\n]+?)[，。,\n]'
+    
+    # 被执行人提取正则（可能有多个）
+    respondent_patterns:
+      - '被执行人[：:]\s*([^，。,\n]+?)[，。,\n]'
+    
+    # 法院案号提取正则（用于匹配台账）
+    court_case_pattern: '[（(]\d{4}[）)]\s*粤\s*\d+\s*行审\s*\d+\s*号'
+    
+    # 责令号提取正则（用于关联台账）
+    notice_number_in_ruling_pattern: '穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号'
+  
+  # OCR纠错（强制执行组特有）
+  ocr_corrections:
+    - wrong: "审判員"
+      correct: "审判员"
+    - wrong: "书记員"
+      correct: "书记员"
+    - wrong: "申清执行人"
+      correct: "申请执行人"
+    - wrong: "被执行入"
+      correct: "被执行人"
+    - wrong: "二O二"
+      correct: "二〇二"
+    - wrong: "二零二"
+      correct: "二〇二"

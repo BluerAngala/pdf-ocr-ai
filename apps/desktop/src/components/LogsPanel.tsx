@@ -19,8 +19,8 @@ export default function LogsPanel({ logs, expanded, onToggle, onCopy, logsEndRef
           </svg>
           <span className="text-xs font-medium text-slate-500">运行日志</span>
         </button>
-        <button onClick={onCopy} className="inline-flex items-center justify-center rounded-md text-[10px] font-medium h-5 px-1.5 border border-slate-200 bg-white text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all cursor-pointer">
-          <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <button onClick={onCopy} className="inline-flex items-center justify-center rounded-md text-xs font-medium h-6 px-2.5 border border-slate-300 bg-white text-slate-600 hover:text-blue-600 hover:border-blue-300 hover:bg-blue-50 active:bg-blue-100 transition-all cursor-pointer shadow-sm">
+          <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2" />
           </svg>
           复制

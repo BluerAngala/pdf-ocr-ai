@@ -1,0 +1,15 @@
+{
+  "name": "gjj-ocr-tools",
+  "version": "1.0.0",
+  "description": "公积金 OCR 工具 - 桌面版 + 服务端",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "desktop:dev": "npm run dev --workspace=apps/desktop",
+    "desktop:build": "npm run build --workspace=apps/desktop",
+    "desktop:tauri": "npm run tauri --workspace=apps/desktop"
+  },
+  "devDependencies": {}
+}

@@ -11,11 +11,37 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+# 强制无缓冲输出
+sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
+sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
+
 # 添加项目根目录到路径
-ROOT = Path(__file__).resolve().parent.parent.parent
+# __file__ = apps/server/src/server.py
+# parent = apps/server/src
+# parent.parent = apps/server
+# parent.parent.parent = apps
+# parent.parent.parent.parent = project_root (pdf识别)
+ROOT = Path(__file__).resolve().parent.parent.parent.parent
 SRC = ROOT / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+# 启动时打印调试信息
+startup_info = {
+    "jsonrpc": "2.0",
+    "method": "notify.log",
+    "params": {
+        "level": "debug",
+        "message": f"Server startup - ROOT: {ROOT}, SRC: {SRC}, cwd: {Path.cwd()}, __file__: {__file__}"
+    }
+}
+print(json.dumps(startup_info, ensure_ascii=False), file=sys.stderr, flush=True)
+
+# 验证 SRC 目录是否存在
+if not SRC.exists():
+    error_msg = f"SRC directory does not exist: {SRC}"
+    print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": error_msg}}, ensure_ascii=False), file=sys.stderr, flush=True)
+    sys.exit(1)
 
 
 class ProgressEmitter:
@@ -158,23 +184,34 @@ class JsonRpcServer:
         sample_root = params.get('sample_root')
         mode = params.get('mode', 'mock')
         force = params.get('force', False)
-        emitter = ProgressEmitter(f"nl-{id}")
+        task_id = params.get('task_id', f"nl-{id}")
+        emitter = ProgressEmitter(task_id)
 
         try:
             emitter.log("info", "开始非诉审查处理...")
+            emitter.log("info", f"Python sys.path: {sys.path}")
 
-            from non_litigation_export import (
-                build_mock_ocr_cache, build_real_ocr_cache,
-                ensure_non_litigation_input_structure,
-                export_non_litigation_standard_outputs,
-                get_non_litigation_ocr_cache_dir, get_non_litigation_result_root,
-            )
-            from non_litigation_product import load_non_litigation_cases
-            from non_litigation_validator import validate_ocr_results
-            from report_generator import generate_html_report
-            from project_evaluation import evaluate_non_litigation_quality
+            try:
+                from non_litigation_export import (
+                    build_mock_ocr_cache, build_real_ocr_cache,
+                    ensure_non_litigation_input_structure,
+                    export_non_litigation_standard_outputs,
+                    get_non_litigation_ocr_cache_dir, get_non_litigation_result_root,
+                )
+                from non_litigation_product import load_non_litigation_cases
+                from non_litigation_validator import validate_ocr_results
+                from report_generator import generate_html_report
+                from project_evaluation import evaluate_non_litigation_quality
+                emitter.log("info", "所有模块导入成功")
+            except ImportError as e:
+                emitter.log("error", f"导入失败: {str(e)}")
+                import traceback as tb
+                emitter.log("error", f"导入错误堆栈: {tb.format_exc()}")
+                raise
 
             sample_root_path = Path(sample_root)
+            if not sample_root_path.is_absolute():
+                sample_root_path = (ROOT / sample_root_path).resolve()
             input_root = ensure_non_litigation_input_structure(ROOT)
             if (sample_root_path / '原始文件').exists():
                 input_root = sample_root_path / '原始文件'
@@ -186,6 +223,7 @@ class JsonRpcServer:
 
             # OCR 阶段
             emitter.progress("ocr_cache", 1, 4, "开始 OCR 识别...")
+            emitter.log("info", f"OCR 模式: {mode}, input_root: {input_root}, sample_root: {sample_root_path}")
             if mode == 'real_ocr':
                 if force and ocr_cache_dir.exists():
                     import shutil
@@ -193,7 +231,9 @@ class JsonRpcServer:
                     ocr_cache_dir.mkdir(parents=True, exist_ok=True)
                 build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False)
             else:
+                emitter.log("info", "开始构建 mock OCR 缓存...")
                 build_mock_ocr_cache(sample_root_path, ocr_cache_dir, input_dir=input_root)
+                emitter.log("info", "Mock OCR 缓存构建完成")
             emitter.progress("ocr_cache", 1, 4, "OCR 识别完成")
 
             # 导出阶段
@@ -246,7 +286,10 @@ class JsonRpcServer:
         sample_root = params.get('sample_root')
         try:
             from non_litigation_product import load_non_litigation_cases
-            cases = load_non_litigation_cases(Path(sample_root))
+            sample_path = Path(sample_root)
+            if not sample_path.is_absolute():
+                sample_path = (ROOT / sample_path).resolve()
+            cases = load_non_litigation_cases(sample_path)
             return {"cases": cases}
         except Exception as e:
             raise Exception(f"获取案件列表失败: {str(e)}")
@@ -405,24 +448,33 @@ class JsonRpcServer:
         params = request.get('params', {})
         id = request.get('id')
 
+        # 调试日志
+        print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Handling request: method={method}, id={id}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+
         if method not in self.methods:
             self._send_error(-32601, f"Method not found: {method}", id)
             return
 
         try:
+            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Calling method: {method}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
             result = self.methods[method](params, id)
+            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Method {method} completed, sending response"}}, ensure_ascii=False), file=sys.stderr, flush=True)
             self._send_response(result, id)
         except Exception as e:
             import traceback as tb
+            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Method {method} failed: {str(e)}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
             self._send_error(-32000, str(e), id, {"traceback": tb.format_exc()})
 
     def run(self):
         """运行服务器主循环"""
         print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"}}, ensure_ascii=False), file=sys.stderr, flush=True)
 
+        # Windows 下 stdin 默认编码可能是 cp936(gbk)，需强制用 UTF-8 读取
+        stdin_reader = open(sys.stdin.fileno(), mode='r', encoding='utf-8', buffering=1)
+
         while True:
             try:
-                line = sys.stdin.readline()
+                line = stdin_reader.readline()
                 if not line:
                     break
                 line = line.strip()
@@ -433,12 +485,14 @@ class JsonRpcServer:
                 except json.JSONDecodeError as e:
                     self._send_error(-32700, f"Parse error: {str(e)}", None)
                     continue
-                threading.Thread(target=self.handle_request, args=(request,)).start()
+                # 直接处理请求，不使用多线程（避免 GIL 问题）
+                self.handle_request(request)
             except KeyboardInterrupt:
                 break
             except Exception as e:
                 print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Server error: {str(e)}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
 
+        stdin_reader.close()
         print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已停止"}}, ensure_ascii=False), file=sys.stderr, flush=True)
 
 

@@ -34,6 +34,12 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
     let project_root = get_project_root()?;
     let bundled = is_bundled();
     eprintln!("[init_python_service] Starting Python, bundled={}, dir={:?}", bundled, project_root);
+    eprintln!("[init_python_service] python_path={:?}", python_path);
+    eprintln!("[init_python_service] server_script={:?}", server_script);
+    
+    if !std::path::Path::new(&python_path).exists() {
+        return Err(format!("Python executable not found: {:?}", python_path));
+    }
 
     let mut cmd = Command::new(&python_path);
     if !bundled {
@@ -153,7 +159,23 @@ fn get_resources_dir() -> Result<std::path::PathBuf, String> {
 }
 
 fn is_bundled() -> bool {
-    get_resources_dir().map(|d| d.join("gjj-ocr-server.exe").exists()).unwrap_or(false)
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(file_name) = exe_path.file_name() {
+            if file_name == "GJJ-OCR-Tool.exe" {
+                eprintln!("[is_bundled] Detected by exe name: {:?}", exe_path);
+                return true;
+            }
+        }
+    }
+    
+    if let Ok(resources_dir) = get_resources_dir() {
+        let server_exe = resources_dir.join("gjj-ocr-server").join("gjj-ocr-server.exe");
+        let exists = server_exe.exists();
+        eprintln!("[is_bundled] Checking server exe: {:?}, exists: {}", server_exe, exists);
+        return exists;
+    }
+    
+    false
 }
 
 fn get_project_root() -> Result<std::path::PathBuf, String> {
@@ -191,7 +213,7 @@ fn get_project_root() -> Result<std::path::PathBuf, String> {
 
 fn get_python_path(_app_handle: &tauri::AppHandle) -> Result<String, String> {
     if is_bundled() {
-        let exe_path = get_resources_dir()?.join("gjj-ocr-server.exe");
+        let exe_path = get_resources_dir()?.join("gjj-ocr-server").join("gjj-ocr-server.exe");
         println!("Using bundled server exe: {:?}", exe_path);
         return Ok(exe_path.to_string_lossy().to_string());
     }

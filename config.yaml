@@ -11,6 +11,11 @@ paths:
     standard_output_dirname: "standard-output"
     audit_log_filename: "audit-log.json"
     ocr_cache_suffix: "_ultra_result.json"
+  standard_output_subdirs:
+    责催: "notice"
+    申请书: "application"
+    授权书: "authorization"
+    所函: "solicitor-letter"
 
 doc_types:
   - key: "责催"

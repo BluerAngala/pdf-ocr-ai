@@ -589,8 +589,11 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
     ocr_noise_samples = _cfg.mock_noise_samples
     import random
 
+    def get_subdir(doc_type: str) -> str:
+        return _cfg.standard_output_subdirs.get(doc_type, _cfg.directory_mapping.get(doc_type, doc_type))
+
     application_pages = []
-    for index, pdf_path in enumerate(sorted((standard_root / _cfg.directory_mapping['申请书']).glob('*.pdf'))):
+    for index, pdf_path in enumerate(sorted((standard_root / get_subdir('申请书')).glob('*.pdf'))):
         page_count = inspect_pdf_page_count(pdf_path)
         for page_offset in range(page_count):
             page_number = len(application_pages) + 1
@@ -605,10 +608,11 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
         encoding='utf-8',
     )
 
-    for filename, marker, folder in [
-        (f'授权书{_cfg.ocr_cache_suffix}', _cfg.doc_type_map['授权书'].content_marker, _cfg.directory_mapping['授权书']),
-        (f'所函{_cfg.ocr_cache_suffix}', _cfg.doc_type_map['所函'].content_marker, _cfg.directory_mapping['所函']),
+    for filename, marker, doc_type in [
+        (f'授权书{_cfg.ocr_cache_suffix}', _cfg.doc_type_map['授权书'].content_marker, '授权书'),
+        (f'所函{_cfg.ocr_cache_suffix}', _cfg.doc_type_map['所函'].content_marker, '所函'),
     ]:
+        folder = get_subdir(doc_type)
         pages = []
         for index, pdf_path in enumerate(sorted((standard_root / folder).glob('*.pdf'))):
             company_name = pdf_path.stem
@@ -620,7 +624,7 @@ def build_mock_ocr_cache(sample_root: Path, cache_dir: Path, input_dir: Path | N
             encoding='utf-8',
         )
 
-    notice_files = sorted((standard_root / _cfg.directory_mapping['责催']).glob('*.pdf'))
+    notice_files = sorted((standard_root / get_subdir('责催')).glob('*.pdf'))
 
     if input_dir and input_dir.exists():
         std_page_map: Dict[Path, int] = {}

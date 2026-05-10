@@ -7,9 +7,10 @@ from typing import Dict, List, Optional, Tuple
 
 import yaml
 
+from paths import ROOT
 
 _CONFIG_CACHE: Optional[dict] = None
-_CONFIG_PATH = Path(__file__).parents[3] / 'config.yaml'
+_CONFIG_PATH = ROOT / 'config.yaml'
 
 
 def _load_config() -> dict:

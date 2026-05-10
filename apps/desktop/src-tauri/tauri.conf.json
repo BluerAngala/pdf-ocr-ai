@@ -6,7 +6,7 @@
     "distDir": "../dist"
   },
   "package": {
-    "productName": "公积金 OCR 工具",
+    "productName": "GJJ-OCR-Tool",
     "version": "1.0.0"
   },
   "tauri": {
@@ -46,7 +46,7 @@
     },
     "windows": [
       {
-        "title": "公积金 OCR 工具",
+        "title": "GJJ OCR Tool",
         "width": 1000,
         "height": 740,
         "minWidth": 880,
@@ -61,7 +61,7 @@
     },
     "bundle": {
       "active": true,
-      "targets": "all",
+      "targets": ["nsis"],
       "identifier": "com.gjj.ocr.desktop",
       "icon": [
         "icons/32x32.png",
@@ -69,6 +69,13 @@
         "icons/128x128@2x.png",
         "icons/icon.icns",
         "icons/icon.ico"
+      ],
+      "resources": [
+        "resources/gjj-ocr-server.exe",
+        "resources/config.yaml",
+        "resources/poppler/**",
+        "resources/server_src",
+        "resources/sample-data/**"
       ]
     }
   }

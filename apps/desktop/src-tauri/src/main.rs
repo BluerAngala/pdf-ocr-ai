@@ -28,22 +28,34 @@ struct JsonRpcRequest {
 
 // 初始化 Python 服务
 async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonService, String> {
-    // 获取 Python 可执行文件路径
     let python_path = get_python_path(&app_handle)?;
     let server_script = get_server_script_path(&app_handle)?;
 
-    // 获取项目根目录作为工作目录
     let project_root = get_project_root()?;
-    eprintln!("[init_python_service] Starting Python with working dir: {:?}", project_root);
+    let bundled = is_bundled();
+    eprintln!("[init_python_service] Starting Python, bundled={}, dir={:?}", bundled, project_root);
 
-    // 启动 Python 子进程
-    let mut child = Command::new(&python_path)
-        .arg(&server_script)
-        .current_dir(&project_root)  // 设置工作目录
+    let mut cmd = Command::new(&python_path);
+    if !bundled {
+        cmd.arg(&server_script);
+    }
+    cmd.current_dir(&project_root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
+        .env("GJJ_OCR_ROOT", &project_root)
+        .env("GJJ_OCR_RESOURCES", &project_root)
+        .env("PYTHONUTF8", "1")
+        .env("PYTHONIOENCODING", "utf-8");
+
+    #[cfg(target_os = "windows")]
+    {
+        #[allow(unused_imports)]
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000); // CREATE_NO_WINDOW
+    }
+
+    let mut child = cmd.spawn()
         .map_err(|e| format!("Failed to start Python: {}", e))?;
 
     let stdin = child.stdin.take().ok_or("Failed to get stdin")?;
@@ -128,15 +140,30 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
     })
 }
 
-// 获取项目根目录（从当前可执行文件路径向上查找）
+fn get_app_dir() -> Result<std::path::PathBuf, String> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| format!("Failed to get current exe: {}", e))?;
+    Ok(exe_path.parent()
+        .ok_or("Cannot determine app directory")?
+        .to_path_buf())
+}
+
+fn get_resources_dir() -> Result<std::path::PathBuf, String> {
+    Ok(get_app_dir()?.join("resources"))
+}
+
+fn is_bundled() -> bool {
+    get_resources_dir().map(|d| d.join("gjj-ocr-server.exe").exists()).unwrap_or(false)
+}
+
 fn get_project_root() -> Result<std::path::PathBuf, String> {
-    // 尝试从当前工作目录推断
+    if is_bundled() {
+        return get_resources_dir();
+    }
+
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current dir: {}", e))?;
     
-    println!("Current dir: {:?}", current_dir);
-    
-    // 如果在 src-tauri/target/debug 或 src-tauri/target/release 目录下
     let mut check_dir = current_dir.clone();
     for _ in 0..5 {
         if let Some(parent) = check_dir.parent() {
@@ -147,14 +174,8 @@ fn get_project_root() -> Result<std::path::PathBuf, String> {
                 continue;
             }
             if check_dir.file_name() == Some(std::ffi::OsStr::new("src-tauri")) {
-                // 从 src-tauri 向上到 apps/desktop，再到 apps，再到项目根目录 (pdf识别)
-                // 路径: .../pdf识别/apps/desktop/src-tauri
-                // parent = .../pdf识别/apps/desktop
-                // parent.parent() = .../pdf识别/apps
-                // parent.parent().parent() = .../pdf识别 (项目根目录)
                 if let Some(apps_desktop) = parent.parent() {
                     if let Some(project_root) = apps_desktop.parent() {
-                        println!("Project root (from src-tauri): {:?}", project_root);
                         return Ok(project_root.to_path_buf());
                     }
                 }
@@ -165,62 +186,41 @@ fn get_project_root() -> Result<std::path::PathBuf, String> {
         }
     }
     
-    // 如果在 apps/desktop 目录下，向上一级到 apps，再向上到项目根目录
-    if current_dir.file_name() == Some(std::ffi::OsStr::new("desktop")) {
-        if let Some(apps) = current_dir.parent() {
-            if let Some(project_root) = apps.parent() {
-                println!("Project root (from desktop): {:?}", project_root);
-                return Ok(project_root.to_path_buf());
-            }
-        }
-    }
-    
-    // 如果在 apps 目录下，向上一级到项目根目录
-    if current_dir.file_name() == Some(std::ffi::OsStr::new("apps")) {
-        if let Some(project_root) = current_dir.parent() {
-            println!("Project root (from apps): {:?}", project_root);
-            return Ok(project_root.to_path_buf());
-        }
-    }
-    
-    println!("Using current dir as project root: {:?}", current_dir);
-    // 否则假设当前目录就是项目根目录
     Ok(current_dir)
 }
 
-// 获取 Python 路径
 fn get_python_path(_app_handle: &tauri::AppHandle) -> Result<String, String> {
-    let project_root = get_project_root()?;
-    
-    // 优先使用虚拟环境（从项目根目录查找）
-    let venv_python = if cfg!(target_os = "windows") {
-        project_root.join(".venv312").join("Scripts").join("python.exe")
-    } else {
-        project_root.join(".venv312").join("bin").join("python")
-    };
+    if is_bundled() {
+        let exe_path = get_resources_dir()?.join("gjj-ocr-server.exe");
+        println!("Using bundled server exe: {:?}", exe_path);
+        return Ok(exe_path.to_string_lossy().to_string());
+    }
 
+    let project_root = get_project_root()?;
+    let venv_python = project_root.join(".venv312").join("Scripts").join("python.exe");
     if venv_python.exists() {
         println!("Using venv Python: {:?}", venv_python);
         return Ok(venv_python.to_string_lossy().to_string());
     }
-
-    // fallback 到系统 Python
-    println!("Using system Python");
     Ok("python".to_string())
 }
 
-// 获取服务端脚本路径
 fn get_server_script_path(_app_handle: &tauri::AppHandle) -> Result<String, String> {
+    if is_bundled() {
+        return Ok(String::new());
+    }
     let project_root = get_project_root()?;
-    
     let server_script = project_root.join("apps").join("server").join("src").join("server.py");
-    
     if !server_script.exists() {
         return Err(format!("Server script not found: {:?}", server_script));
     }
-    
-    println!("Server script: {:?}", server_script);
     Ok(server_script.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn get_project_root_cmd() -> Result<String, String> {
+    let root = get_project_root()?;
+    Ok(root.to_string_lossy().to_string())
 }
 
 // Tauri 命令：发送 JSON-RPC 请求
@@ -372,6 +372,7 @@ fn main() {
             select_folder,
             select_files,
             open_path,
+            get_project_root_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

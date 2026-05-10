@@ -31,9 +31,7 @@ from non_litigation_product import load_non_litigation_cases
 from text_postprocessor import TextPostProcessor
 from system_resource import detect_system_resources
 
-ROOT = Path(__file__).resolve().parents[3]
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from paths import ROOT
 
 from config_loader import load_config
 _cfg = load_config()
@@ -1475,7 +1473,11 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
 
 
 def export_company_named_files(input_dir: Path, output_dir: Path, target_names: List[str],
-                               output_cache_dir: Path, source_name: str, marker: str) -> int:
+                               output_cache_dir: Path, source_name: Optional[str], marker: str) -> int:
+    if not source_name:
+        print(f"  [ERROR] {marker} 未配置 source_pdf")
+        return 0
+
     source_pdf = input_dir / source_name
 
     if not source_pdf.exists():

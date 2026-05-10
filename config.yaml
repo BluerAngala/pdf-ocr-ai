@@ -8,7 +8,7 @@ paths:
     ocr_cache_dirname: "ocr-cache"
   files:
     excel_filename: "台账及命名规则.xlsx"
-    standard_output_dirname: "对应输出文件（标准版）"
+    standard_output_dirname: "standard-output"
     audit_log_filename: "audit-log.json"
     ocr_cache_suffix: "_ultra_result.json"
 

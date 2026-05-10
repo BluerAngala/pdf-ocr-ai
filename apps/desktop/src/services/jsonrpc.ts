@@ -36,8 +36,13 @@ export function setupJsonRpcListeners(
     if (pendingRequests.has(id)) {
       const { resolve, reject } = pendingRequests.get(id)!;
       pendingRequests.delete(id);
-      if (response.error) reject(new Error(response.error.message));
-      else resolve(response.result);
+      if (response.error) {
+        const errMsg =
+          typeof response.error === "string"
+            ? response.error
+            : response.error?.message || JSON.stringify(response.error);
+        reject(new Error(errMsg));
+      } else resolve(response.result);
     }
   });
 
@@ -80,21 +85,21 @@ function mockResponse(method: string, params: any): any {
       return {
         success: true,
         summary: {
-          sample_root: params.sample_root,
-          result_root: params.sample_root + "/output",
+          sample_root: params.preset_id || params.sample_root || "",
+          result_root: "/output",
           runtime_seconds: 5.2,
           mode: params.mode,
           created_count: 12,
           quality: { total_files: 12, page_count_matched: 11, page_count_match_rate: 0.92 },
           validation: { total: 12, passed: 11, warnings: 1, failed: 0, pass_rate: 0.92 },
         },
-        html_report_path: params.sample_root + "/output/report.html",
+        html_report_path: "/output/report.html",
       };
     case "enforcement.extract":
       return {
         processed: 3,
         extracted: [],
-        updated_excel_path: params.excel_path + ".updated.xlsx",
+        updated_excel_path: "updated.xlsx",
       };
     case "ocr.get_cache_status":
       return { cached_files: [], total_cached: 0, cache_dir: "/tmp/ocr-cache" };

@@ -16,9 +16,7 @@ from typing import Dict, List, Optional, Any
 
 import pandas as pd
 
-ROOT = Path(__file__).resolve().parents[3]
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from paths import ROOT
 
 from config_loader import load_config
 

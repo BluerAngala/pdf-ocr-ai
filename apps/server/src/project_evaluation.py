@@ -155,7 +155,8 @@ def run_project_evaluation(root_dir: Path, sample_root: Path | None = None, inpu
 
 
 def main() -> int:
-    root_dir = Path(__file__).resolve().parents[3]
+    from paths import ROOT
+    root_dir = ROOT
     report = run_project_evaluation(root_dir)
     output_path = root_dir / 'output' / 'project-evaluation.json'
     output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding='utf-8')

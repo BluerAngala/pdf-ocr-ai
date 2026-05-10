@@ -9,6 +9,7 @@ if str(SRC) not in sys.path:
 from non_litigation_export import (
     build_mock_ocr_cache,
     ensure_non_litigation_input_structure,
+    export_company_named_files,
     export_non_litigation_standard_outputs,
     get_non_litigation_input_root,
     get_non_litigation_ocr_cache_dir,
@@ -44,3 +45,16 @@ def test_export_non_litigation_standard_outputs_should_match_standard_page_count
 
     for actual, expected in pairs:
         assert inspect_pdf_page_count(actual) == inspect_pdf_page_count(expected)
+
+
+def test_export_company_named_files_should_skip_when_source_pdf_missing(tmp_path: Path):
+    result = export_company_named_files(
+        input_dir=tmp_path,
+        output_dir=tmp_path / 'out',
+        target_names=['a.pdf'],
+        output_cache_dir=tmp_path / 'cache',
+        source_name=None,
+        marker='授权委托书',
+    )
+
+    assert result == 0

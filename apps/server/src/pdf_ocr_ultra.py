@@ -176,11 +176,31 @@ class ImagePreprocessor:
 @dataclass
 class OCRConfig:
     """OCR配置 - 优化版"""
-    _base_dir: Path = Path(__file__).parents[3]
-    _server_dir: Path = Path(__file__).parents[1]
-    poppler_path: str = str(_server_dir / "tools" / "poppler" / "poppler-24.08.0" / "Library" / "bin")
+    _base_dir: Path = None  # type: ignore
+    _server_dir: Path = None  # type: ignore
+
+    def __post_init__(self):
+        import sys
+        from paths import ROOT, RESOURCES_DIR
+        if self._base_dir is None:
+            self._base_dir = ROOT
+        if self._server_dir is None:
+            if getattr(sys, "frozen", False):
+                self._server_dir = RESOURCES_DIR
+            else:
+                self._server_dir = Path(__file__).resolve().parents[1]
+
+    @property
+    def poppler_path(self) -> str:
+        if getattr(sys, "frozen", False):
+            return str(self._server_dir / "poppler" / "poppler-24.08.0" / "Library" / "bin")
+        return str(self._server_dir / "tools" / "poppler" / "poppler-24.08.0" / "Library" / "bin")
+
+    @property
+    def output_dir(self) -> str:
+        return str(self._base_dir / "output")
+
     dpi: int = 200
-    output_dir: str = str(_base_dir / "output")
     max_image_size: int = 800  # 降低到800px，与预处理器保持一致
     parallel_workers: int = min(cpu_count(), 4)
     max_retries: int = 2

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import os
+import shutil
+import tempfile
 from pathlib import Path
 from typing import Dict, List
 
@@ -11,9 +14,25 @@ from config_loader import load_config
 _cfg = load_config()
 
 
+def _safe_load_workbook(path):
+    if getattr(os, "frozen", False):
+        tmp_dir = tempfile.mkdtemp()
+        tmp_path = os.path.join(tmp_dir, "workbook.xlsx")
+        shutil.copy2(str(path), tmp_path)
+        try:
+            return load_workbook(tmp_path, data_only=True)
+        finally:
+            try:
+                os.remove(tmp_path)
+                os.rmdir(tmp_dir)
+            except OSError:
+                pass
+    return load_workbook(path, data_only=True)
+
+
 def load_non_litigation_cases(sample_root: Path) -> List[Dict]:
     excel_path = sample_root / _cfg.excel_filename
-    workbook = load_workbook(excel_path, data_only=True)
+    workbook = _safe_load_workbook(excel_path)
     sheet = workbook.active
     cases: List[Dict] = []
     for row in sheet.iter_rows(values_only=True):

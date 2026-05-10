@@ -5,26 +5,70 @@
 """
 
 import json
+import os
 import sys
 import threading
 import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-# 强制无缓冲输出
-sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1)
-sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
+os.environ.setdefault("PYTHONUTF8", "1")
+if hasattr(sys, "flags") and not sys.flags.utf8_mode:
+    try:
+        sys.flags.utf8_mode = 1
+    except (AttributeError, TypeError):
+        pass
 
-# 添加项目根目录到路径
-# __file__ = apps/server/src/server.py
-# parents[0] = apps/server/src
-# parents[1] = apps/server
-# parents[2] = apps
-# parents[3] = project_root (pdf识别)
-ROOT = Path(__file__).resolve().parents[3]
-SERVER_SRC = Path(__file__).resolve().parent
-if str(SERVER_SRC) not in sys.path:
-    sys.path.insert(0, str(SERVER_SRC))
+import re as _re
+_SURROGATE_RE = _re.compile(r'[\ud800-\udfff]')
+
+def _sanitize(obj):
+    if isinstance(obj, str):
+        return _SURROGATE_RE.sub('\ufffd', obj)
+    if isinstance(obj, dict):
+        return {k: _sanitize(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_sanitize(v) for v in obj)
+    return obj
+
+def _safe_json_dumps(obj, **kwargs):
+    return json.dumps(_sanitize(obj), ensure_ascii=False, **kwargs)
+
+sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1, errors='replace')
+sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1, errors='replace')
+
+if getattr(sys, "frozen", False):
+    _server_src = Path(sys.executable).resolve().parent / "server_src"
+else:
+    _server_src = Path(__file__).resolve().parent
+if str(_server_src) not in sys.path:
+    sys.path.insert(0, str(_server_src))
+
+from paths import ROOT, SERVER_SRC
+
+PRESET_SAMPLE_PATHS = {
+    "non-litigation-batch1": ["sample-data/non-litigation-batch1", "样本材料/非诉组自动化样本材料"],
+    "non-litigation-batch2": ["sample-data/non-litigation-batch2", "样本材料/非诉组自动化样本材料（第2批）"],
+    "enforcement-extract": ["sample-data/enforcement/extract", "样本材料/强制组-自动化/提取信息"],
+    "enforcement-print": ["sample-data/enforcement/print", "样本材料/强制组-自动化/自动打印"],
+}
+
+PRESET_EXCEL_PATHS = {
+    "non-litigation-batch1": ["sample-data/non-litigation-batch1/ledger.xlsx", "样本材料/非诉组自动化样本材料/台账及命名规则.xlsx"],
+    "non-litigation-batch2": ["sample-data/non-litigation-batch2/ledger.xlsx", "样本材料/非诉组自动化样本材料（第2批）/台账及命名规则.xlsx"],
+    "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx", "样本材料/强制组-自动化/提取信息/非诉表格.xlsx"],
+    "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx", "样本材料/强制组-自动化/自动打印/AOL网上网立台账.xlsx"],
+}
+
+
+def _resolve_preset_path(path_list):
+    for p in path_list:
+        candidate = ROOT / p
+        if candidate.exists():
+            return candidate.resolve()
+    return (ROOT / path_list[0]).resolve()
 
 # 启动时打印调试信息
 startup_info = {
@@ -32,16 +76,10 @@ startup_info = {
     "method": "notify.log",
     "params": {
         "level": "debug",
-        "message": f"Server startup - ROOT: {ROOT}, SERVER_SRC: {SERVER_SRC}, cwd: {Path.cwd()}, __file__: {__file__}"
+        "message": f"Server startup - ROOT: {ROOT}, SERVER_SRC: {SERVER_SRC}, cwd: {Path.cwd()}"
     }
 }
-print(json.dumps(startup_info, ensure_ascii=False), file=sys.stderr, flush=True)
-
-# 验证 SRC 目录是否存在
-if not SERVER_SRC.exists():
-    error_msg = f"SERVER_SRC directory does not exist: {SERVER_SRC}"
-    print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": error_msg}}, ensure_ascii=False), file=sys.stderr, flush=True)
-    sys.exit(1)
+print(_safe_json_dumps(startup_info), file=sys.stderr, flush=True)
 
 
 class ProgressEmitter:
@@ -63,13 +101,13 @@ class ProgressEmitter:
         if detail:
             params["detail"] = detail
         notification = {"jsonrpc": "2.0", "method": "notify.progress", "params": params}
-        print(json.dumps(notification, ensure_ascii=False), file=sys.stderr, flush=True)
+        print(_safe_json_dumps(notification), file=sys.stderr, flush=True)
 
     def log(self, level: str, message: str):
         import datetime
         params = {"level": level, "message": message, "timestamp": datetime.datetime.now().isoformat()}
         notification = {"jsonrpc": "2.0", "method": "notify.log", "params": params}
-        print(json.dumps(notification, ensure_ascii=False), file=sys.stderr, flush=True)
+        print(_safe_json_dumps(notification), file=sys.stderr, flush=True)
 
     def complete(self, success: bool = True, result: Any = None, error: str = None):
         import datetime
@@ -83,7 +121,7 @@ class ProgressEmitter:
         else:
             params["error"] = error
         notification = {"jsonrpc": "2.0", "method": "notify.task_complete", "params": params}
-        print(json.dumps(notification, ensure_ascii=False), file=sys.stderr, flush=True)
+        print(_safe_json_dumps(notification), file=sys.stderr, flush=True)
 
 
 class JsonRpcServer:
@@ -118,14 +156,12 @@ class JsonRpcServer:
         self.methods['system.check_dependencies'] = self._system_check_dependencies
 
     def _send_response(self, result: Any, id: Any):
-        """发送响应到 stdout"""
         response = {"jsonrpc": "2.0", "result": result, "id": id}
-        print(json.dumps(response, ensure_ascii=False), flush=True)
+        print(_safe_json_dumps(response), flush=True)
 
     def _send_error(self, code: int, message: str, id: Any, data: Optional[Dict] = None):
-        """发送错误响应"""
         error = {"jsonrpc": "2.0", "error": {"code": code, "message": message, "data": data}, "id": id}
-        print(json.dumps(error, ensure_ascii=False), flush=True)
+        print(_safe_json_dumps(error), flush=True)
 
     # ============ OCR 模块 ============
 
@@ -181,6 +217,7 @@ class JsonRpcServer:
 
     def _non_litigation_process(self, params: Dict, id: Any) -> Dict:
         """非诉审查完整处理流程"""
+        preset_id = params.get('preset_id')
         sample_root = params.get('sample_root')
         mode = params.get('mode', 'mock')
         force = params.get('force', False)
@@ -190,6 +227,7 @@ class JsonRpcServer:
         try:
             emitter.log("info", "开始非诉审查处理...")
             emitter.log("info", f"Python sys.path: {sys.path}")
+            emitter.log("debug", f"收到参数: preset_id={preset_id!r}, sample_root={sample_root!r}, params_keys={list(params.keys())}")
 
             try:
                 from non_litigation_export import (
@@ -209,9 +247,15 @@ class JsonRpcServer:
                 emitter.log("error", f"导入错误堆栈: {tb.format_exc()}")
                 raise
 
-            sample_root_path = Path(sample_root)
-            if not sample_root_path.is_absolute():
-                sample_root_path = (ROOT / sample_root_path).resolve()
+            if preset_id and preset_id in PRESET_SAMPLE_PATHS:
+                sample_root_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
+                emitter.log("info", f"通过预设 {preset_id} 解析路径: {sample_root_path}")
+            elif sample_root:
+                sample_root_path = Path(sample_root)
+                if not sample_root_path.is_absolute():
+                    sample_root_path = (ROOT / sample_root_path).resolve()
+            else:
+                sample_root_path = (ROOT / '样本材料' / '非诉组自动化样本材料').resolve()
             input_root = ensure_non_litigation_input_structure(ROOT)
             if (sample_root_path / '原始文件').exists():
                 input_root = sample_root_path / '原始文件'
@@ -287,12 +331,18 @@ class JsonRpcServer:
 
     def _non_litigation_get_cases(self, params: Dict, id: Any) -> Dict:
         """获取案件列表"""
+        preset_id = params.get('preset_id')
         sample_root = params.get('sample_root')
         try:
             from non_litigation_product import load_non_litigation_cases
-            sample_path = Path(sample_root)
-            if not sample_path.is_absolute():
-                sample_path = (ROOT / sample_path).resolve()
+            if preset_id and preset_id in PRESET_SAMPLE_PATHS:
+                sample_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
+            elif sample_root:
+                sample_path = Path(sample_root)
+                if not sample_path.is_absolute():
+                    sample_path = (ROOT / sample_path).resolve()
+            else:
+                sample_path = (ROOT / '样本材料' / '非诉组自动化样本材料').resolve()
             cases = load_non_litigation_cases(sample_path)
             return {"cases": cases}
         except Exception as e:
@@ -324,11 +374,18 @@ class JsonRpcServer:
 
     def _enforcement_extract(self, params: Dict, id: Any) -> Dict:
         """从裁定书提取信息"""
+        preset_id = params.get('preset_id')
         input_dir = params.get('input_dir')
         excel_path = params.get('excel_path')
         try:
             from enforcement_extractor import process_enforcement_cases
-            result = process_enforcement_cases(input_dir=Path(input_dir), excel_path=Path(excel_path))
+            if preset_id and preset_id in PRESET_SAMPLE_PATHS:
+                input_dir = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
+                excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
+            else:
+                input_dir = Path(input_dir) if input_dir else Path('.')
+                excel_path = Path(excel_path) if excel_path else Path('.')
+            result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path)
             return {
                 "processed": result.get('processed', 0),
                 "extracted": result.get('extracted', []),
@@ -396,7 +453,7 @@ class JsonRpcServer:
                 except Exception:
                     pass
         except Exception as e:
-            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"_system_get_status import error: {e}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"_system_get_status import error: {e}"}}), file=sys.stderr, flush=True)
         memory_gb = 0
         try:
             import psutil
@@ -476,28 +533,30 @@ class JsonRpcServer:
         id = request.get('id')
 
         # 调试日志
-        print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Handling request: method={method}, id={id}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Handling request: method={method}, id={id}"}}), file=sys.stderr, flush=True)
 
         if method not in self.methods:
             self._send_error(-32601, f"Method not found: {method}", id)
             return
 
         try:
-            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Calling method: {method}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Calling method: {method}"}}), file=sys.stderr, flush=True)
             result = self.methods[method](params, id)
-            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Method {method} completed, sending response"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"Method {method} completed, sending response"}}), file=sys.stderr, flush=True)
             self._send_response(result, id)
         except Exception as e:
             import traceback as tb
-            print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Method {method} failed: {str(e)}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Method {method} failed: {str(e)}"}}), file=sys.stderr, flush=True)
             self._send_error(-32000, str(e), id, {"traceback": tb.format_exc()})
 
     def run(self):
         """运行服务器主循环"""
-        print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"}}), file=sys.stderr, flush=True)
 
-        # Windows 下 stdin 默认编码可能是 cp936(gbk)，需强制用 UTF-8 读取
-        stdin_reader = open(sys.stdin.fileno(), mode='r', encoding='utf-8', buffering=1)
+        import io
+        if getattr(os, "frozen", False):
+            sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
+        stdin_reader = sys.stdin
 
         while True:
             try:
@@ -517,10 +576,10 @@ class JsonRpcServer:
             except KeyboardInterrupt:
                 break
             except Exception as e:
-                print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Server error: {str(e)}"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+                print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Server error: {str(e)}"}}), file=sys.stderr, flush=True)
 
         stdin_reader.close()
-        print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已停止"}}, ensure_ascii=False), file=sys.stderr, flush=True)
+        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已停止"}}), file=sys.stderr, flush=True)
 
 
 if __name__ == '__main__':

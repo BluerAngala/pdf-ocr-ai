@@ -16,9 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-ROOT = Path(__file__).resolve().parents[3]
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+from paths import ROOT
 
 from config_loader import load_config
 from enforcement_extractor import RulingPDFExtractor, RulingInfo, extract_ruling_from_pdf

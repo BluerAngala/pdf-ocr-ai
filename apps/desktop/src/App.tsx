@@ -9,7 +9,7 @@ import type {
   DependenciesCheck,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
-import { getPresetById } from "./presets";
+import { getPresetById, getPresets } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus } from "./services/system";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -81,7 +81,7 @@ export default function App() {
         }
       },
     );
-    addLog("info", "应用已启动");
+    getPresets().then(() => addLog("info", "应用已启动"));
   }, []);
 
   const navigateToModule = useCallback(
@@ -161,16 +161,17 @@ export default function App() {
     try {
       let res: ProcessingResult;
       if (currentModule === "non-litigation") {
+        const config = MODULE_CONFIG[currentModule];
         res = await sendRequest("non_litigation.process", {
-          sample_root: sampleRoot,
+          preset_id: config.presetId,
           mode: mockMode ? "mock" : "real_ocr",
           force: forceOcr,
           task_id: taskId,
         });
       } else if (currentModule === "enforcement") {
+        const config = MODULE_CONFIG[currentModule];
         const rawResult = await sendRequest("enforcement.extract", {
-          input_dir: sampleRoot,
-          excel_path: excelFile,
+          preset_id: config.presetId,
         });
         res = {
           summary: {
@@ -193,8 +194,9 @@ export default function App() {
       setResult(res);
       addLog("info", "处理完成！");
     } catch (err: any) {
-      addLog("error", `处理失败: ${err.message}`);
-      alert(`处理失败: ${err.message}`);
+      const msg = typeof err === "string" ? err : err?.message || err?.toString() || "未知错误";
+      addLog("error", `处理失败: ${msg}`);
+      alert(`处理失败: ${msg}`);
       setPreviewState("empty");
     } finally {
       setRunning(false);

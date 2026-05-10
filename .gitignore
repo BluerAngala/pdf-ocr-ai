@@ -121,6 +121,13 @@ tools/poppler/
 *.so
 *.dylib
 
+# PyInstaller
+*.spec
+
+# Tauri resources & platform icons
+apps/desktop/src-tauri/resources/
+apps/desktop/src-tauri/icons/*.icns
+
 # Test scripts (local development)
 test_rpc.py
 test_server.py

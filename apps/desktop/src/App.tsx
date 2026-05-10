@@ -107,6 +107,11 @@ export default function App() {
     setCurrentView("home");
   }, []);
 
+  const clearResult = useCallback(() => {
+    setPreviewState("empty");
+    setResult(null);
+  }, []);
+
   const loadPreset = useCallback(() => {
     const config = MODULE_CONFIG[currentModule];
     const preset = getPresetById(config.presetId);
@@ -287,6 +292,7 @@ export default function App() {
           result={result}
           onOpenReport={openReport}
           onOpenOutput={openOutput}
+          onClearResult={clearResult}
           logs={logs}
           logsExpanded={logsExpanded}
           onToggleLogs={() => setLogsExpanded((v) => !v)}

@@ -9,6 +9,7 @@ interface Props {
   result: ProcessingResult | null;
   onOpenReport: () => void;
   onOpenOutput: () => void;
+  onClearResult: () => void;
 }
 
 const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = {
@@ -77,6 +78,7 @@ export default function PreviewPanel({
   result,
   onOpenReport,
   onOpenOutput,
+  onClearResult,
 }: Props) {
   const badge = STATUS_BADGE[previewState];
   const percentage = progressTotal > 0 ? Math.round((progressCurrent / progressTotal) * 100) : 0;
@@ -217,15 +219,21 @@ export default function PreviewPanel({
             <div className="flex gap-2 justify-center pt-1">
               <button
                 onClick={onOpenReport}
-                className="h-7 px-3.5 text-[11px] font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors cursor-pointer"
+                className="h-9 px-5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors cursor-pointer"
               >
                 📄 查看报告
               </button>
               <button
                 onClick={onOpenOutput}
-                className="h-7 px-3.5 text-[11px] font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
+                className="h-9 px-5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
               >
                 📂 打开输出
+              </button>
+              <button
+                onClick={onClearResult}
+                className="h-9 px-5 text-sm font-medium text-slate-500 bg-white border border-slate-200 rounded-md hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors cursor-pointer"
+              >
+                🗑 清空当前
               </button>
             </div>
           </div>

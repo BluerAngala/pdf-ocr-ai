@@ -2,9 +2,77 @@
   "pages": [
     {
       "page": 1,
-      "text": "穗公积金中心越秀责字〔2025〕856号"
+      "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025〕856号\n名称：广州吾能学网络科技有限公司",
+      "original_text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字〔2025]856号\n名称：广州吾能学网络科技有限公司",
+      "method": "region_first",
+      "duration": 15.367976188659668,
+      "region_attempts": [
+        {
+          "region": "责令号区域",
+          "region_key": "notice_header",
+          "method": "region:责令号区域",
+          "duration": 15.367976188659668,
+          "text_length": 59,
+          "text": "广州住房公积金管理中心\n责令限期办理决定书\n穗公积金中心越秀责字[2025]856号\n名称：广州吾能学网络科技有限公司"
+        }
+      ],
+      "region_stats": {
+        "attempt_count": 1,
+        "total_duration": 15.368,
+        "max_text_length": 59,
+        "total_text_length": 59,
+        "regions": [
+          "责令号区域"
+        ]
+      },
+      "region_text_length": 56,
+      "fallback_used": false,
+      "fallback_trigger_reason": null,
+      "notice_matched": true,
+      "boundary_detected": false,
+      "marker_detected": false,
+      "region_usable": false
     }
   ],
   "total_pages": 1,
-  "filename": "3.pdf"
+  "filename": "3.pdf",
+  "method": "region_first_sequential",
+  "total_duration": 15.807550199970137,
+  "fallback_pages": 0,
+  "region_pages": 1,
+  "optimization_strategy": "region_first_sequential",
+  "stopped_early": true,
+  "selected_notice": "穗公积金中心越秀责字〔2025〕856号",
+  "selected_page": 1,
+  "selected_root_notice": "穗公积金中心越秀责字〔2025〕856号",
+  "candidate_notices": [
+    {
+      "page": 1,
+      "number": "穗公积金中心越秀责字〔2025〕856号",
+      "root_number": "穗公积金中心越秀责字〔2025〕856号",
+      "is_base_number": true,
+      "company_name": "广州吾能学网络科技有限公司"
+    }
+  ],
+  "performance_summary": {
+    "doc_type": "责催",
+    "file_name": "3.pdf",
+    "page_count": 1,
+    "total_duration": 15.8076,
+    "fallback_pages": 0,
+    "fallback_rate": 0.0,
+    "region_attempts_total": 1,
+    "region_ocr_duration_total": 15.368,
+    "slowest_page": {
+      "page": 1,
+      "duration": 15.368,
+      "method": "region_first",
+      "fallback_used": false,
+      "fallback_trigger_reason": null
+    }
+  },
+  "matched_target": "8-责催-穗公积金中心越秀责字（2025）856号.pdf",
+  "matched_target_notice": "穗公积金中心越秀责字〔2025〕856号",
+  "export_match_type": "exact",
+  "same_root_remap": false
 }

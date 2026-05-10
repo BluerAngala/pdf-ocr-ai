@@ -28,6 +28,7 @@ interface Props {
   result: ProcessingResult | null;
   onOpenReport: () => void;
   onOpenOutput: () => void;
+  onClearResult: () => void;
   logs: LogEntry[];
   logsExpanded: boolean;
   onToggleLogs: () => void;
@@ -60,6 +61,7 @@ export default function DetailView({
   result,
   onOpenReport,
   onOpenOutput,
+  onClearResult,
   logs,
   logsExpanded,
   onToggleLogs,
@@ -184,14 +186,17 @@ export default function DetailView({
             result={result}
             onOpenReport={onOpenReport}
             onOpenOutput={onOpenOutput}
+            onClearResult={onClearResult}
           />
 
-          <div
-            className="h-1 shrink-0 cursor-row-resize hover:bg-blue-400/30 active:bg-blue-400/50 transition-colors rounded-full my-1"
-            onMouseDown={startVerticalDrag}
-          />
+          {logsExpanded && (
+            <div
+              className="h-1 shrink-0 cursor-row-resize hover:bg-blue-400/30 active:bg-blue-400/50 transition-colors rounded-full my-1"
+              onMouseDown={startVerticalDrag}
+            />
+          )}
 
-          <div style={{ height: logsHeight }} className="shrink-0">
+          <div style={{ height: logsExpanded ? logsHeight : 38 }} className="shrink-0">
             <LogsPanel
               logs={logs}
               expanded={logsExpanded}

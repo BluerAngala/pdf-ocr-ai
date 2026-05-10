@@ -1,22 +1,13 @@
-/**
- * 预设样本路径配置
- * 方便一键加载测试数据
- */
-
 export interface PresetConfig {
-  id: string;
-  name: string;
-  description: string;
-  sampleRoot: string;
-  excelPath: string;
-  mode: 'mock' | 'real_ocr';
+  id: string
+  name: string
+  description: string
+  sampleRoot: string
+  excelPath: string
+  mode: 'mock' | 'real_ocr'
 }
 
-// 获取项目根目录（相对于 Python server 的 cwd，即项目根目录）
-const getProjectRoot = () => {
-  // Rust 侧已将 Python cwd 设为项目根目录，直接使用相对路径即可
-  return '.';
-};
+const getProjectRoot = () => '.'
 
 export const PRESETS: PresetConfig[] = [
   {
@@ -51,14 +42,8 @@ export const PRESETS: PresetConfig[] = [
     excelPath: `${getProjectRoot()}/样本材料/强制组-自动化/自动打印/AOL网上网立台账.xlsx`,
     mode: 'real_ocr'
   }
-];
+]
 
-// 根据 ID 获取预设
 export function getPresetById(id: string): PresetConfig | undefined {
-  return PRESETS.find(p => p.id === id);
-}
-
-// 获取所有预设
-export function getAllPresets(): PresetConfig[] {
-  return PRESETS;
+  return PRESETS.find(p => p.id === id)
 }

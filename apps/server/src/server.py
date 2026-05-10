@@ -17,14 +17,14 @@ sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1)
 
 # 添加项目根目录到路径
 # __file__ = apps/server/src/server.py
-# parent = apps/server/src
-# parent.parent = apps/server
-# parent.parent.parent = apps
-# parent.parent.parent.parent = project_root (pdf识别)
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
-SRC = ROOT / 'src'
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+# parents[0] = apps/server/src
+# parents[1] = apps/server
+# parents[2] = apps
+# parents[3] = project_root (pdf识别)
+ROOT = Path(__file__).resolve().parents[3]
+SERVER_SRC = Path(__file__).resolve().parent
+if str(SERVER_SRC) not in sys.path:
+    sys.path.insert(0, str(SERVER_SRC))
 
 # 启动时打印调试信息
 startup_info = {
@@ -32,14 +32,14 @@ startup_info = {
     "method": "notify.log",
     "params": {
         "level": "debug",
-        "message": f"Server startup - ROOT: {ROOT}, SRC: {SRC}, cwd: {Path.cwd()}, __file__: {__file__}"
+        "message": f"Server startup - ROOT: {ROOT}, SERVER_SRC: {SERVER_SRC}, cwd: {Path.cwd()}, __file__: {__file__}"
     }
 }
 print(json.dumps(startup_info, ensure_ascii=False), file=sys.stderr, flush=True)
 
 # 验证 SRC 目录是否存在
-if not SRC.exists():
-    error_msg = f"SRC directory does not exist: {SRC}"
+if not SERVER_SRC.exists():
+    error_msg = f"SERVER_SRC directory does not exist: {SERVER_SRC}"
     print(json.dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": error_msg}}, ensure_ascii=False), file=sys.stderr, flush=True)
     sys.exit(1)
 

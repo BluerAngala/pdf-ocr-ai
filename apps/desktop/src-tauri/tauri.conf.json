@@ -47,10 +47,10 @@
     "windows": [
       {
         "title": "公积金 OCR 工具",
-        "width": 1200,
-        "height": 900,
-        "minWidth": 900,
-        "minHeight": 700,
+        "width": 1000,
+        "height": 740,
+        "minWidth": 880,
+        "minHeight": 660,
         "resizable": true,
         "fullscreen": false,
         "center": true

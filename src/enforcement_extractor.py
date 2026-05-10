@@ -60,74 +60,229 @@ class RulingInfo:
         }
 
 
+@dataclass
+class ExtractionResult:
+    """提取结果（带置信度）"""
+    value: Any
+    confidence: float = 0.0
+    source: str = ""  # 使用的规则/策略名称
+    
+    def __bool__(self):
+        return self.value is not None and self.confidence > 0
+
+
+class RuleBasedExtractor:
+    """基于规则的提取器（配置驱动）"""
+    
+    def __init__(self, rules_config: List[Dict[str, Any]]):
+        """
+        初始化规则提取器
+        
+        Args:
+            rules_config: 规则配置列表，每项包含：
+                - name: 规则名称
+                - pattern: 正则表达式
+                - weight: 权重（置信度基础分）
+                - post_process: 后处理函数名（可选）
+        """
+        self.rules = []
+        for rule in rules_config:
+            try:
+                pattern = rule.get('pattern', '')
+                # 处理YAML转义
+                pattern = pattern.replace('\\d', r'\d')
+                compiled = re.compile(pattern)
+                self.rules.append({
+                    'name': rule.get('name', 'unnamed'),
+                    'pattern': compiled,
+                    'weight': rule.get('weight', 1.0),
+                    'post_process': rule.get('post_process'),
+                })
+            except re.error as e:
+                print(f"[WARN] 规则编译失败: {rule.get('name')}, 错误: {e}")
+    
+    def extract(self, text: str) -> ExtractionResult:
+        """
+        使用所有规则尝试提取，返回置信度最高的结果
+        """
+        best_result = ExtractionResult(None, 0.0, "")
+        
+        for rule in self.rules:
+            match = rule['pattern'].search(text)
+            if match:
+                value = match.group(1) if match.lastindex else match.group(0)
+                
+                # 后处理
+                if rule['post_process']:
+                    value = self._apply_post_process(value, rule['post_process'])
+                
+                # 计算置信度（基于权重和匹配质量）
+                confidence = rule['weight'] * self._calculate_match_quality(match, text)
+                
+                if confidence > best_result.confidence:
+                    best_result = ExtractionResult(value, confidence, rule['name'])
+        
+        return best_result
+    
+    def extract_all(self, text: str) -> List[ExtractionResult]:
+        """返回所有匹配结果（按置信度排序）"""
+        results = []
+        
+        for rule in self.rules:
+            for match in rule['pattern'].finditer(text):
+                value = match.group(1) if match.lastindex else match.group(0)
+                
+                if rule['post_process']:
+                    value = self._apply_post_process(value, rule['post_process'])
+                
+                confidence = rule['weight'] * self._calculate_match_quality(match, text)
+                results.append(ExtractionResult(value, confidence, rule['name']))
+        
+        # 按置信度排序
+        results.sort(key=lambda x: x.confidence, reverse=True)
+        return results
+    
+    def _calculate_match_quality(self, match: re.Match, text: str) -> float:
+        """计算匹配质量（0-1之间）"""
+        # 匹配长度适中得分高
+        match_len = len(match.group(0))
+        if match_len < 3:
+            return 0.5
+        elif match_len > 100:
+            return 0.7
+        return 1.0
+    
+    def _apply_post_process(self, value: str, process_name: str) -> Any:
+        """应用后处理"""
+        processors = {
+            'parse_amount': self._parse_amount,
+            'normalize_date': self._normalize_date,
+            'clean_name': self._clean_name,
+        }
+        processor = processors.get(process_name)
+        return processor(value) if processor else value
+    
+    @staticmethod
+    def _parse_amount(amount_str: str) -> Optional[float]:
+        """解析金额字符串"""
+        try:
+            # 移除千分位逗号和空格
+            cleaned = amount_str.replace(',', '').replace(' ', '').replace('，', '')
+            return float(cleaned)
+        except ValueError:
+            return None
+    
+    @staticmethod
+    def _normalize_date(date_str: str) -> str:
+        """标准化日期格式"""
+        # 统一中文零字符
+        date_str = date_str.replace('○', '〇').replace('零', '〇')
+        return date_str.strip()
+    
+    @staticmethod
+    def _clean_name(name: str) -> str:
+        """清理名称"""
+        suffixes = [
+            '，住所地', ',住所地', '，统一社会信用代码', ',统一社会信用代码',
+            '，法定代表人', ',法定代表人', '，职务', ',职务',
+            '，住所', ',住所', '，地址', ',地址',
+        ]
+        for suffix in suffixes:
+            if suffix in name:
+                name = name.split(suffix)[0]
+        return name.strip()
+
+
 class RulingTextExtractor:
-    """裁定书文本信息提取器"""
+    """裁定书文本信息提取器（配置驱动）"""
     
     def __init__(self):
-        self._compile_patterns()
+        self._init_extractors()
     
-    def _compile_patterns(self):
-        """编译正则表达式模式"""
-        # 法院案号
-        court_case_pattern = _extraction_cfg.get('court_case_pattern', r'[（(]\d{4}[）)]\s*粤\s*\d+\s*行审\s*\d+\s*号')
-        self.court_case_re = re.compile(court_case_pattern)
+    def _init_extractors(self):
+        """初始化配置驱动的提取器"""
+        # 法院案号提取器
+        court_case_rules = [{
+            'name': 'court_case',
+            'pattern': _extraction_cfg.get('court_case_pattern', r'[（(]\d{4}[）)]\s*粤\s*\d+\s*行审\s*\d+\s*号'),
+            'weight': 1.0,
+        }]
+        self.court_case_extractor = RuleBasedExtractor(court_case_rules)
         
-        # 责令号
-        notice_pattern = _extraction_cfg.get('notice_number_in_ruling_pattern', 
-                                             r'穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号')
-        self.notice_re = re.compile(notice_pattern)
+        # 责令号提取器
+        notice_rules = [{
+            'name': 'notice_number',
+            'pattern': _extraction_cfg.get('notice_number_in_ruling_pattern', 
+                                          r'穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号'),
+            'weight': 1.0,
+        }]
+        self.notice_extractor = RuleBasedExtractor(notice_rules)
         
-        # 执行标的金额
-        self.amount_res = []
-        for pattern in _extraction_cfg.get('amount_patterns', []):
-            try:
-                # 处理YAML转义问题：将\d转换为\d
-                pattern = pattern.replace('\\d', r'\d')
-                self.amount_res.append(re.compile(pattern))
-            except re.error:
-                continue
+        # 金额提取器（多规则）
+        amount_rules = []
+        for i, pattern in enumerate(_extraction_cfg.get('amount_patterns', [])):
+            amount_rules.append({
+                'name': f'amount_rule_{i}',
+                'pattern': pattern,
+                'weight': 1.0 - (i * 0.1),  # 前面的规则权重更高
+                'post_process': 'parse_amount',
+            })
+        self.amount_extractor = RuleBasedExtractor(amount_rules)
         
-        # 裁定日期
-        self.date_res = []
-        for pattern in _extraction_cfg.get('date_patterns', []):
-            try:
-                # 处理YAML转义问题：将\d转换为\d
-                pattern = pattern.replace('\\d', r'\d')
-                self.date_res.append(re.compile(pattern))
-            except re.error:
-                continue
+        # 日期提取器（多规则）
+        date_rules = []
+        for i, pattern in enumerate(_extraction_cfg.get('date_patterns', [])):
+            date_rules.append({
+                'name': f'date_rule_{i}',
+                'pattern': pattern,
+                'weight': 1.0 - (i * 0.1),
+                'post_process': 'normalize_date',
+            })
+        self.date_extractor = RuleBasedExtractor(date_rules)
         
-        # 审判员
-        self.judge_res = []
-        for pattern in _extraction_cfg.get('judge_patterns', []):
-            try:
-                self.judge_res.append(re.compile(pattern))
-            except re.error:
-                continue
+        # 审判员提取器
+        judge_rules = []
+        for i, pattern in enumerate(_extraction_cfg.get('judge_patterns', [])):
+            judge_rules.append({
+                'name': f'judge_rule_{i}',
+                'pattern': pattern,
+                'weight': 1.0,
+                'post_process': 'clean_name',
+            })
+        self.judge_extractor = RuleBasedExtractor(judge_rules)
         
-        # 书记员
-        self.clerk_res = []
-        for pattern in _extraction_cfg.get('clerk_patterns', []):
-            try:
-                self.clerk_res.append(re.compile(pattern))
-            except re.error:
-                continue
+        # 书记员提取器
+        clerk_rules = []
+        for i, pattern in enumerate(_extraction_cfg.get('clerk_patterns', [])):
+            clerk_rules.append({
+                'name': f'clerk_rule_{i}',
+                'pattern': pattern,
+                'weight': 1.0,
+                'post_process': 'clean_name',
+            })
+        self.clerk_extractor = RuleBasedExtractor(clerk_rules)
         
-        # 申请执行人
-        self.applicant_res = []
-        for pattern in _extraction_cfg.get('applicant_patterns', []):
-            try:
-                self.applicant_res.append(re.compile(pattern))
-            except re.error:
-                continue
+        # 申请执行人提取器
+        applicant_rules = []
+        for i, pattern in enumerate(_extraction_cfg.get('applicant_patterns', [])):
+            applicant_rules.append({
+                'name': f'applicant_rule_{i}',
+                'pattern': pattern,
+                'weight': 1.0,
+                'post_process': 'clean_name',
+            })
+        self.applicant_extractor = RuleBasedExtractor(applicant_rules)
         
-        # 被执行人
-        self.respondent_res = []
-        for pattern in _extraction_cfg.get('respondent_patterns', []):
-            try:
-                self.respondent_res.append(re.compile(pattern))
-            except re.error:
-                continue
+        # 被执行人提取器
+        respondent_rules = []
+        for i, pattern in enumerate(_extraction_cfg.get('respondent_patterns', [])):
+            respondent_rules.append({
+                'name': f'respondent_rule_{i}',
+                'pattern': pattern,
+                'weight': 1.0,
+                'post_process': 'clean_name',
+            })
+        self.respondent_extractor = RuleBasedExtractor(respondent_rules)
     
     def _preprocess_text(self, text: str) -> str:
         """预处理文本：移除多余换行和空格，便于正则匹配"""
@@ -138,163 +293,107 @@ class RulingTextExtractor:
         return text.strip()
     
     def extract(self, text: str) -> RulingInfo:
-        """从文本中提取裁定信息"""
+        """从文本中提取裁定信息（使用配置驱动的规则引擎）"""
         info = RulingInfo(raw_text=text)
         
         # 预处理文本以便更好地匹配
         processed_text = self._preprocess_text(text)
         
         # 提取法院案号
-        info.court_case_number = self._extract_court_case_number(text)
+        case_result = self.court_case_extractor.extract(text)
+        if case_result:
+            info.court_case_number = self._normalize_case_number(case_result.value)
         
         # 提取责令号（使用预处理后的文本）
-        info.notice_numbers = self._extract_notice_numbers(processed_text)
+        notice_results = self.notice_extractor.extract_all(processed_text)
+        info.notice_numbers = self._normalize_notice_numbers(notice_results)
         
         # 提取申请执行人
-        info.applicants = self._extract_applicants(text)
+        applicant_results = self.applicant_extractor.extract_all(text)
+        info.applicants = self._convert_to_party_list(applicant_results, '申请执行人')
         
         # 提取被执行人
-        info.respondents = self._extract_respondents(text)
+        respondent_results = self.respondent_extractor.extract_all(text)
+        info.respondents = self._convert_to_party_list(respondent_results, '被执行人')
         
         # 提取执行标的金额（使用预处理后的文本）
-        info.execution_amount = self._extract_amount(processed_text)
+        amount_result = self.amount_extractor.extract(processed_text)
+        if amount_result:
+            info.execution_amount = amount_result.value
         
         # 提取裁定日期
-        info.ruling_date = self._extract_date(text)
+        date_result = self.date_extractor.extract(text)
+        if date_result:
+            info.ruling_date = date_result.value
         
         # 提取审判员
-        info.judge = self._extract_judge(text)
+        judge_result = self.judge_extractor.extract(text)
+        if judge_result:
+            info.judge = judge_result.value
         
         # 提取书记员
-        info.clerk = self._extract_clerk(text)
+        clerk_result = self.clerk_extractor.extract(text)
+        if clerk_result:
+            info.clerk = clerk_result.value
         
         return info
     
-    def _extract_court_case_number(self, text: str) -> str:
-        """提取法院案号"""
-        match = self.court_case_re.search(text)
-        if match:
-            # 标准化格式：统一使用中文括号
-            case_num = match.group(0)
-            case_num = case_num.replace('(', '（').replace(')', '）')
-            case_num = case_num.replace('[', '（').replace(']', '）')
-            return case_num
-        return ""
+    def extract_with_confidence(self, text: str) -> Dict[str, Any]:
+        """提取信息并返回置信度（用于调试和优化）"""
+        processed_text = self._preprocess_text(text)
+        
+        results = {
+            'court_case_number': self.court_case_extractor.extract(text),
+            'notice_numbers': self.notice_extractor.extract_all(processed_text),
+            'applicants': self.applicant_extractor.extract_all(text),
+            'respondents': self.respondent_extractor.extract_all(text),
+            'execution_amount': self.amount_extractor.extract(processed_text),
+            'ruling_date': self.date_extractor.extract(text),
+            'judge': self.judge_extractor.extract(text),
+            'clerk': self.clerk_extractor.extract(text),
+        }
+        
+        return results
     
-    def _extract_notice_numbers(self, text: str) -> List[str]:
-        """提取责令号列表"""
-        matches = self.notice_re.findall(text)
-        # 去重并保持顺序
+    def _normalize_case_number(self, case_num: str) -> str:
+        """标准化法院案号格式"""
+        case_num = case_num.replace('(', '（').replace(')', '）')
+        case_num = case_num.replace('[', '（').replace(']', '）')
+        return case_num
+    
+    def _normalize_notice_numbers(self, results: List[ExtractionResult]) -> List[str]:
+        """标准化责令号列表"""
         seen = set()
-        result = []
-        for match in matches:
+        normalized = []
+        for result in results:
+            num = result.value
             # 标准化括号
-            normalized = match.replace('(', '〔').replace(')', '〕')
-            normalized = normalized.replace('[', '〔').replace(']', '〕')
-            normalized = normalized.replace('（', '〔').replace('）', '〕')
-            normalized = normalized.replace('［', '〔').replace('］', '〕')
-            normalized = normalized.replace('【', '〔').replace('】', '〕')
-            if normalized not in seen:
-                seen.add(normalized)
-                result.append(normalized)
-        return result
+            num = num.replace('(', '〔').replace(')', '〕')
+            num = num.replace('[', '〔').replace(']', '〕')
+            num = num.replace('（', '〔').replace('）', '〕')
+            num = num.replace('［', '〔').replace('］', '〕')
+            num = num.replace('【', '〔').replace('】', '〕')
+            if num not in seen:
+                seen.add(num)
+                normalized.append(num)
+        return normalized
     
-    def _extract_applicants(self, text: str) -> List[Dict[str, str]]:
-        """提取申请执行人列表"""
-        applicants = []
+    def _convert_to_party_list(self, results: List[ExtractionResult], party_type: str) -> List[Dict[str, str]]:
+        """将提取结果转换为当事人列表"""
+        parties = []
         seen = set()
         
-        for pattern in self.applicant_res:
-            for match in pattern.finditer(text):
-                name = match.group(1).strip()
-                # 清理常见后缀
-                name = self._clean_party_name(name)
-                if name and name not in seen and len(name) > 2:
-                    seen.add(name)
-                    applicants.append({
-                        'name': name,
-                        'type': '申请执行人'
-                    })
+        for result in results:
+            name = result.value
+            if name and name not in seen and len(name) > 2:
+                seen.add(name)
+                parties.append({
+                    'name': name,
+                    'type': party_type,
+                    'confidence': result.confidence,
+                })
         
-        return applicants
-    
-    def _extract_respondents(self, text: str) -> List[Dict[str, str]]:
-        """提取被执行人列表"""
-        respondents = []
-        seen = set()
-        
-        for pattern in self.respondent_res:
-            for match in pattern.finditer(text):
-                name = match.group(1).strip()
-                # 清理常见后缀
-                name = self._clean_party_name(name)
-                if name and name not in seen and len(name) > 2:
-                    seen.add(name)
-                    respondents.append({
-                        'name': name,
-                        'type': '被执行人'
-                    })
-        
-        return respondents
-    
-    def _clean_party_name(self, name: str) -> str:
-        """清理当事人名称"""
-        # 移除常见的地址、代码等后缀
-        suffixes = [
-            '，住所地', ',住所地', '，统一社会信用代码', ',统一社会信用代码',
-            '，法定代表人', ',法定代表人', '，职务', ',职务',
-            '，住所', ',住所', '，地址', ',地址',
-        ]
-        for suffix in suffixes:
-            if suffix in name:
-                name = name.split(suffix)[0]
-        return name.strip()
-    
-    def _extract_amount(self, text: str) -> Optional[float]:
-        """提取执行标的金额"""
-        for pattern in self.amount_res:
-            match = pattern.search(text)
-            if match:
-                amount_str = match.group(1)
-                # 移除千分位逗号和空格
-                amount_str = amount_str.replace(',', '').replace(' ', '')
-                try:
-                    return float(amount_str)
-                except ValueError:
-                    continue
-        return None
-    
-    def _extract_date(self, text: str) -> Optional[str]:
-        """提取裁定日期"""
-        for pattern in self.date_res:
-            match = pattern.search(text)
-            if match:
-                # 如果有捕获组，使用第一个捕获组；否则使用整个匹配
-                date_str = match.group(1) if match.lastindex else match.group(0)
-                # 标准化日期格式
-                date_str = date_str.replace('○', '〇').replace('零', '〇')
-                return date_str
-        return None
-    
-    def _extract_judge(self, text: str) -> str:
-        """提取审判员"""
-        # 移除空格后匹配
-        text_no_space = text.replace(' ', '').replace('\u3000', '')
-        for pattern in self.judge_res:
-            match = pattern.search(text_no_space)
-            if match:
-                return match.group(1).strip()
-        return ""
-    
-    def _extract_clerk(self, text: str) -> str:
-        """提取书记员"""
-        # 移除空格后匹配
-        text_no_space = text.replace(' ', '').replace('\u3000', '')
-        for pattern in self.clerk_res:
-            match = pattern.search(text_no_space)
-            if match:
-                return match.group(1).strip()
-        return ""
+        return parties
 
 
 class RulingPDFExtractor:

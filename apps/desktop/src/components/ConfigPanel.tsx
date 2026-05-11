@@ -113,28 +113,26 @@ export default function ConfigPanel({
                 📊 选择文件
               </button>
             </div>
-            {isNonLitigation && (
-              <div className="flex items-center gap-4 pt-1">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={mockMode}
-                    onChange={(e) => onMockModeChange(e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
-                  />
-                  🎭 Mock 模式
-                </label>
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={forceOcr}
-                    onChange={(e) => onForceOcrChange(e.target.checked)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
-                  />
-                  🔄 强制 OCR
-                </label>
-              </div>
-            )}
+            <div className="flex items-center gap-4 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={mockMode}
+                  onChange={(e) => onMockModeChange(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
+                />
+                🎭 Mock 模式
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={forceOcr}
+                  onChange={(e) => onForceOcrChange(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
+                />
+                🔄 强制 OCR
+              </label>
+            </div>
           </div>
         </div>
       </div>

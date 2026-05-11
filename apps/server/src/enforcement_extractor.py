@@ -604,7 +604,7 @@ def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True) -> Dict[str, Ruli
     return results
 
 
-def process_enforcement_cases(input_dir: Path, excel_path: Path) -> Dict[str, Any]:
+def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool = True, mock_mode: bool = False) -> Dict[str, Any]:
     """
     强制执行组完整处理流程（供 server.py 调用）
 
@@ -615,7 +615,12 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path) -> Dict[str, An
     """
     from enforcement_product import load_enforcement_cases
 
-    pdf_results = batch_extract_rulings(input_dir, use_ocr=False)
+    if mock_mode:
+        print("[INFO] Mock 模式：使用模拟数据")
+        mock_results = _build_mock_rulings(input_dir)
+        pdf_results = mock_results
+    else:
+        pdf_results = batch_extract_rulings(input_dir, use_ocr=use_ocr)
     processed = len(pdf_results)
 
     extracted = []
@@ -649,8 +654,6 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path) -> Dict[str, An
             stats["matched_rows"] = matched_count
             stats["unmatched_rows"] = max(0, len(registry.cases) - matched_count)
 
-            output_dir = USER_DATA_DIR / "output" / "enforcement"
-            output_dir.mkdir(parents=True, exist_ok=True)
             from enforcement_export import build_output_excel
             excel_output = output_dir / "执行组识别结果.xlsx"
             try:
@@ -661,12 +664,64 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path) -> Dict[str, An
         except Exception as e:
             print(f"[WARN] 台账匹配/导出失败: {e}")
 
+    output_dir = USER_DATA_DIR / "output" / "enforcement"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     return {
         "processed": processed,
         "extracted": extracted,
         "updated_excel_path": updated_excel_path,
+        "output_dir": str(output_dir),
         "stats": stats,
     }
+
+
+def _build_mock_rulings(input_dir: Path) -> Dict[str, RulingInfo]:
+    """构造 mock 裁定信息，用于快速测试 UI 流程"""
+    mock_data = [
+        RulingInfo(
+            court_case_number="（2025）粤7101行审3355号",
+            notice_numbers=["穗公积金中心责字〔2025〕3355号"],
+            applicants=[{"name": "广州住房公积金管理中心", "role": "申请执行人"}],
+            respondents=[{"name": "张某", "role": "被执行人"}],
+            execution_amount=15000.0,
+            ruling_date="2025-01-15",
+            judge="李某",
+            clerk="王某",
+            ruling_result="准予强制执行",
+            is_withdraw=False,
+        ),
+        RulingInfo(
+            court_case_number="（2025）粤7101行审3423号",
+            notice_numbers=["穗公积金中心责字〔2025〕3423号"],
+            applicants=[{"name": "广州住房公积金管理中心", "role": "申请执行人"}],
+            respondents=[{"name": "陈某", "role": "被执行人"}],
+            execution_amount=28000.0,
+            ruling_date="2025-02-20",
+            judge="赵某",
+            clerk="刘某",
+            ruling_result="准予强制执行",
+            is_withdraw=False,
+        ),
+        RulingInfo(
+            court_case_number="（2025）粤7101行审3500号",
+            notice_numbers=["穗公积金中心责字〔2025〕3500号"],
+            applicants=[{"name": "广州住房公积金管理中心", "role": "申请执行人"}],
+            respondents=[{"name": "黄某", "role": "被执行人"}],
+            execution_amount=5200.0,
+            ruling_date="2025-03-10",
+            judge="李某",
+            clerk="王某",
+            ruling_result="撤回执行",
+            is_withdraw=True,
+        ),
+    ]
+    results = {}
+    for info in mock_data:
+        key = info.court_case_number
+        results[key] = info
+        print(f"[INFO] Mock: {key}")
+    return results
 
 
 if __name__ == "__main__":

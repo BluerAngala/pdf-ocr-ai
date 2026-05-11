@@ -391,6 +391,8 @@ class JsonRpcServer:
         preset_id = params.get('preset_id')
         input_dir = params.get('input_dir')
         excel_path = params.get('excel_path')
+        force_ocr = params.get('force_ocr', False)
+        mock_mode = params.get('mock_mode', False)
         try:
             from enforcement_extractor import process_enforcement_cases
             if preset_id and preset_id in PRESET_SAMPLE_PATHS:
@@ -399,11 +401,12 @@ class JsonRpcServer:
             else:
                 input_dir = Path(input_dir) if input_dir else Path('.')
                 excel_path = Path(excel_path) if excel_path else Path('.')
-            result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path)
+            result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path, use_ocr=force_ocr, mock_mode=mock_mode)
             return {
                 "processed": result.get('processed', 0),
                 "extracted": result.get('extracted', []),
                 "updated_excel_path": result.get('updated_excel_path', ''),
+                "output_dir": result.get('output_dir', ''),
                 "stats": result.get('stats', {}),
             }
         except Exception as e:

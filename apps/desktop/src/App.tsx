@@ -202,15 +202,18 @@ export default function App() {
         const config = MODULE_CONFIG[currentModule];
         const rawResult = await sendRequest("enforcement.extract", {
           preset_id: config.presetId,
+          force_ocr: forceOcr,
+          mock_mode: mockMode,
         });
         res = {
           processed: rawResult.processed || 0,
           extracted: rawResult.extracted || [],
           enforcement_stats: rawResult.stats || {},
           updated_excel_path: rawResult.updated_excel_path || "",
+          html_report_path: rawResult.updated_excel_path || undefined,
           summary: {
             created_count: rawResult.processed || 0,
-            result_root: rawResult.updated_excel_path || undefined,
+            result_root: rawResult.output_dir || undefined,
           },
         };
       } else if (currentModule === "print") {
@@ -247,7 +250,7 @@ export default function App() {
   }, [currentModule, sampleRoot, excelFile, mockMode, forceOcr, addLog]);
 
   const openReport = useCallback(async () => {
-    const path = result?.html_report_path;
+    const path = result?.html_report_path || result?.summary?.result_root;
     if (!path) {
       alert("报告尚未生成");
       return;

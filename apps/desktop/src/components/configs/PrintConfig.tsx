@@ -12,6 +12,7 @@ interface Props {
   rangeEnd: number;
   companyNameColumn: string;
   printMode: "single" | "double";
+  pageRange: "all" | "custom";
   customStartPage: number;
   customEndPage: number;
   onSampleRootChange: (v: string) => void;
@@ -22,6 +23,7 @@ interface Props {
   onRangeEndChange: (v: number) => void;
   onCompanyNameColumnChange: (v: string) => void;
   onPrintModeChange: (v: "single" | "double") => void;
+  onPageRangeChange: (v: "all" | "custom") => void;
   onCustomStartPageChange: (v: number) => void;
   onCustomEndPageChange: (v: number) => void;
   onPreset: () => void;
@@ -91,6 +93,7 @@ export default function PrintConfig({
   rangeEnd,
   companyNameColumn,
   printMode,
+  pageRange: _pageRange,
   customStartPage,
   customEndPage,
   onSampleRootChange,
@@ -101,6 +104,7 @@ export default function PrintConfig({
   onRangeEndChange,
   onCompanyNameColumnChange,
   onPrintModeChange,
+  onPageRangeChange: _onPageRangeChange,
   onCustomStartPageChange,
   onCustomEndPageChange,
   onPreset,

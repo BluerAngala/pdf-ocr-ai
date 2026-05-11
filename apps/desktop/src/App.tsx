@@ -271,8 +271,8 @@ export default function App() {
         const config = MODULE_CONFIG[currentModule];
         res = await sendRequest("non_litigation.process", {
           preset_id: config.presetId,
-          mode: mockMode ? "mock" : "real_ocr",
-          force: forceOcr,
+          mode: "real_ocr",
+          force: false,
           task_id: taskId,
         });
       } else if (currentModule === "enforcement") {

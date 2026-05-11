@@ -287,10 +287,12 @@ class JsonRpcServer:
             emitter.progress("ocr_cache", 1, 4, "开始 OCR 识别...")
             emitter.log("info", f"OCR 模式: {mode}, input_root: {input_root}, sample_root: {sample_root_path}")
             if mode == 'real_ocr':
-                if force and ocr_cache_dir.exists():
+                # 当切换到 real_ocr 模式时，清除可能存在的 mock 缓存
+                if ocr_cache_dir.exists():
                     import shutil
                     shutil.rmtree(ocr_cache_dir)
                     ocr_cache_dir.mkdir(parents=True, exist_ok=True)
+                    emitter.log("info", "已清除旧缓存，开始真实 OCR 识别...")
                 build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False)
                 cache_files = list(ocr_cache_dir.glob('*_ultra_result.json'))
                 emitter.log("info", f"OCR 缓存文件数: {len(cache_files)}")

@@ -49,16 +49,16 @@ export default function ConfigPanel({
   moduleType,
   sampleRoot,
   excelFile,
-  mockMode,
-  forceOcr,
+  mockMode: _mockMode,
+  forceOcr: _forceOcr,
   running,
   printerName,
   printCopies,
   printers,
   onSampleRootChange,
   onExcelFileChange,
-  onMockModeChange,
-  onForceOcrChange,
+  onMockModeChange: _onMockModeChange,
+  onForceOcrChange: _onForceOcrChange,
   onPrinterNameChange,
   onPrintCopiesChange,
   onPreset,
@@ -91,13 +91,9 @@ export default function ConfigPanel({
         <NonLitigationConfig
           sampleRoot={sampleRoot}
           excelFile={excelFile}
-          mockMode={mockMode}
-          forceOcr={forceOcr}
           running={running}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
-          onMockModeChange={onMockModeChange}
-          onForceOcrChange={onForceOcrChange}
           onPreset={onPreset}
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}
@@ -109,11 +105,11 @@ export default function ConfigPanel({
         <EnforcementConfig
           sampleRoot={sampleRoot}
           excelFile={excelFile}
-          forceOcr={forceOcr}
+          forceOcr={_forceOcr}
           running={running}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
-          onForceOcrChange={onForceOcrChange}
+          onForceOcrChange={_onForceOcrChange}
           onPreset={onPreset}
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}

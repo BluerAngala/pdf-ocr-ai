@@ -1,4 +1,4 @@
-export type ModuleType = "non-litigation" | "enforcement" | "print";
+export type ModuleType = "non-litigation" | "enforcement" | "print" | "company-query";
 
 export interface ModuleConfig {
   title: string;
@@ -43,6 +43,28 @@ export interface TimingStats {
   };
 }
 
+export interface EnforcementExtracted {
+  court_case_number: string;
+  notice_numbers: string[];
+  applicants: { name: string; type: string; confidence: number }[];
+  respondents: { name: string; type: string; confidence: number }[];
+  execution_amount: number | null;
+  ruling_date: string | null;
+  judge: string;
+  clerk: string;
+  court_name: string;
+  ruling_result: string;
+  is_withdraw: boolean;
+}
+
+export interface EnforcementStats {
+  total_pdfs: number;
+  total_excel_rows: number;
+  matched_rows: number;
+  unmatched_rows: number;
+  withdraw_count: number;
+}
+
 export interface ProcessingResult {
   summary?: {
     sample_root?: string;
@@ -69,6 +91,9 @@ export interface ProcessingResult {
   timing_statistics?: TimingStats;
   html_report_path?: string;
   processed?: number;
+  extracted?: EnforcementExtracted[];
+  enforcement_stats?: EnforcementStats;
+  updated_excel_path?: string;
 }
 
 export interface SystemStatus {

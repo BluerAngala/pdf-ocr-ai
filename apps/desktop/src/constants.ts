@@ -4,6 +4,7 @@ export const MODULE_CONFIG: Record<string, ModuleConfig> = {
   "non-litigation": { title: "非诉审查", presetId: "non-litigation-batch1" },
   enforcement: { title: "强制执行提取", presetId: "enforcement-extract" },
   print: { title: "自动打印", presetId: "enforcement-print" },
+  "company-query": { title: "企业信息查询", presetId: "company-query" },
 };
 
 export const PHASE_NAMES: Record<string, string> = {

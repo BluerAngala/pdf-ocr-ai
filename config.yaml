@@ -8,14 +8,14 @@ paths:
     ocr_cache_dirname: "ocr-cache"
   files:
     excel_filename: "台账及命名规则.xlsx"
-    standard_output_dirname: "standard-output"
+    standard_output_dirname: "对应输出文件（标准版）"
     audit_log_filename: "audit-log.json"
     ocr_cache_suffix: "_ultra_result.json"
   standard_output_subdirs:
-    责催: "notice"
-    申请书: "application"
-    授权书: "authorization"
-    所函: "solicitor-letter"
+    责催: "输出文件（责催）"
+    申请书: "输出文件（申请书）"
+    授权书: "输出文件（授权书）"
+    所函: "输出文件（所函）"
 
 doc_types:
   - key: "责催"
@@ -101,8 +101,6 @@ ocr_corrections:
       correct: "岭南律师事务所"
     - wrong: "岭南律师"
       correct: "岭南律师事务所"
-    - wrong: "公积金中心"
-      correct: "住房公积金管理中心"
     - wrong: "越秀责字"
       correct: "越秀责字"
     - wrong: "穗公积金中心"
@@ -241,6 +239,7 @@ enforcement:
     input_dirname: "提取信息"
     output_dirname: "enforcement-results"
     excel_filename: "非诉表格.xlsx"
+    excel_output_filename: "执行组识别结果.xlsx"
     json_output_filename: "enforcement_extracted.json"
   
   excel_parsing:
@@ -253,63 +252,62 @@ enforcement:
       employee: 3            # 职工
       amount: 4              # 金额
       due_date: 5            # 到期日
-      case_number: 13        # 受理案号（需要填充）
-      judge: 14              # 法官/助理/书记员（需要填充）
+      case_number: 12        # 受理案号（需要填充）
+      judge: 13              # 法官/助理/书记员（需要填充）
       ruling_result: 15      # 裁定结果/收到时间（需要填充）
     filter_keywords:
       notice_number: "责字"
   
   # 裁定PDF信息提取规则
   extraction:
-    # 执行标的金额提取正则（支持多种格式和上下文）
+    # 执行标的金额提取正则（在去除CJK间距后的文本上匹配）
     amount_patterns:
-      # 标准格式：住房公积金 12903 元
-      - '住房公积\s*金\s*(\d[\d,\s]*)\s*元'
-      - '公积金\s*(\d[\d,\s]*)\s*元'
-      - '部分住房公积\s*金\s*(\d[\d,\s]*)\s*元'
-      # 执行标的格式：执行标的为 12903 元
-      - '执行标的.*?([\d,\s]+)\s*元'
-      # 金额前缀格式：金额：12903元 / 款项：12903元
-      - '(?:金额|款项|本金|欠款)\s*[：:]\s*([\d,\s]+)\s*元'
-      # 数字+元格式（兜底）
-      - '([\d]{4,}[\d,\s]*)\s*元'
+      - '住房公积金(\d[\d,]*)\s*元'
+      - '公积金(\d[\d,]*)\s*元'
+      - '部分住房公积金(\d[\d,]*)\s*元'
+      - '执行标的[为]?\s*(\d[\d,]*)\s*元'
+      - '(?:金额|款项|本金|欠款)[：:]\s*(\d[\d,]*)\s*元'
+      - '(\d{4,})\s*元'
     
-    # 裁定日期提取正则（多格式支持）
+    # 裁定日期提取正则（在去除CJK间距后的文本上匹配）
     date_patterns:
-      # 中文大写日期：二〇二五年四月二十八日
       - '(二[〇○零][一二三四五六七八九十〇]{2,4}年[一二三四五六七八九十〇]{1,2}月[一二三四五六七八九十〇]{1,3}日)'
-      # 阿拉伯数字日期：2025年4月28日 / 2025-04-28 / 2025/04/28
       - '(\d{4}年\d{1,2}月\d{1,2}日)'
       - '(\d{4}-\d{1,2}-\d{1,2})'
       - '(\d{4}/\d{1,2}/\d{1,2})'
-      # 混合格式：2025年四月二十八日
       - '(\d{4}年[一二三四五六七八九十〇]{1,2}月[一二三四五六七八九十〇]{1,3}日)'
-      # 简写格式：25年4月28日
-      - '(\d{2}年\d{1,2}月\d{1,2}日)'
     
-    # 审判员提取正则（支持空格分隔，姓名可能有空格）
+    # 审判员提取正则（在去除CJK间距后的文本上匹配，仅捕获中文姓名2-3字）
     judge_patterns:
-      - '审\s*判\s*员\s*([\S\s]{2,8}?)(?:\s|$)'
-      - '审判员\s*([\S\s]{2,8}?)(?:\s|$)'
+      - '审判员([\u4e00-\u9fff]{2,3})'
     
-    # 书记员提取正则（支持空格分隔，姓名可能有空格）
+    # 书记员提取正则（在去除CJK间距后的文本上匹配，仅捕获中文姓名）
     clerk_patterns:
-      - '书\s*记\s*员\s*([\S\s]{2,8}?)(?:\s|$)'
-      - '书记员\s*([\S\s]{2,8}?)(?:\s|$)'
+      - '书记员([\u4e00-\u9fff]{2,4})'
     
-    # 申请执行人提取正则（可能有多个）
+    # 申请执行人提取正则
     applicant_patterns:
-      - '申请执行人[：:]\s*([^，。,\n]+?)[，。,\n]'
+      - '申请执行人[：:]\s*([^，。,，、\n]+?)[，。,，、\n]'
     
-    # 被执行人提取正则（可能有多个）
+    # 被执行人提取正则
     respondent_patterns:
-      - '被执行人[：:]\s*([^，。,\n]+?)[，。,\n]'
+      - '被执行人[：:]\s*([^，。,，、\n]+?)[，。,，、\n]'
     
-    # 法院案号提取正则（用于匹配台账）
-    court_case_pattern: '[（(]\d{4}[）)]\s*粤\s*\d+\s*行审\s*\d+\s*号'
+    # 法院案号提取正则（在去除CJK间距后的文本上匹配）
+    court_case_pattern: '[（(]\d{4}[）)]粤\d+行审\d+号'
     
-    # 责令号提取正则（用于关联台账）
-    notice_number_in_ruling_pattern: '穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号'
+    # 责令号提取正则（在去除CJK间距后的文本上匹配，匹配完整责令号）
+    notice_number_in_ruling_pattern: '穗公积金中心\S*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+号'
+    
+    # 责令号范围提取（处理"3360号至3361号"类格式）
+    notice_number_range_pattern: '责字[〔\[(［【](\d{4})[〕\)\]］】](\d+)号至(\d+)号'
+    
+    # 撤回执行检测关键词
+    withdraw_keywords:
+      - '撤回执行'
+      - '撤回强制执行'
+      - '不准予强制执行'
+      - '不予执行'
   
   # OCR纠错（强制执行组特有）
   ocr_corrections:

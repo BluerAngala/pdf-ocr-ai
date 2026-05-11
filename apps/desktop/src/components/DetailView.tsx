@@ -1,10 +1,11 @@
 import { useState, useCallback, useRef } from "react";
-import type { PreviewState, ProcessingResult, LogEntry } from "../types";
+import type { ModuleType, PreviewState, ProcessingResult, LogEntry } from "../types";
 import ConfigPanel from "./ConfigPanel";
 import PreviewPanel from "./PreviewPanel";
 import LogsPanel from "./LogsPanel";
 
 interface Props {
+  moduleType: ModuleType;
   title: string;
   sampleRoot: string;
   excelFile: string;
@@ -38,6 +39,7 @@ interface Props {
 }
 
 export default function DetailView({
+  moduleType,
   title,
   sampleRoot,
   excelFile,
@@ -157,6 +159,7 @@ export default function DetailView({
       >
         <div style={{ width: leftWidth }} className="shrink-0">
           <ConfigPanel
+            moduleType={moduleType}
             sampleRoot={sampleRoot}
             excelFile={excelFile}
             mockMode={mockMode}
@@ -178,6 +181,7 @@ export default function DetailView({
 
         <div ref={rightRef} className="flex-1 flex flex-col min-h-0 min-w-0" style={{ gap: 0 }}>
           <PreviewPanel
+            moduleType={moduleType}
             previewState={previewState}
             phase={phase}
             progressCurrent={progressCurrent}

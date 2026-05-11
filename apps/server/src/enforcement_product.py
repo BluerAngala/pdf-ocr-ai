@@ -119,8 +119,9 @@ class EnforcementCaseRegistry:
             
             self.cases.append(case)
             
-            # 建立索引
-            self._notice_index[case.notice_number] = case
+            # 建立索引（使用标准化后的责令号作为键）
+            normalized_notice = self._normalize_notice_number(case.notice_number)
+            self._notice_index[normalized_notice] = case
             
             if case.respondent:
                 if case.respondent not in self._respondent_index:
@@ -157,10 +158,28 @@ class EnforcementCaseRegistry:
             return None
     
     def find_by_notice_number(self, notice_number: str) -> Optional[EnforcementCase]:
-        """通过责令号查找案件"""
-        # 标准化责令号格式
+        """通过责令号查找案件（支持长短格式匹配）"""
         normalized = self._normalize_notice_number(notice_number)
-        return self._notice_index.get(normalized)
+        if normalized in self._notice_index:
+            return self._notice_index[normalized]
+        for excel_notice, case in self._notice_index.items():
+            excel_norm = self._normalize_notice_number(excel_notice)
+            if normalized.endswith(excel_norm) or excel_norm.endswith(normalized):
+                return case
+        return None
+    
+    def find_all_by_notice_number(self, notice_number: str) -> List[EnforcementCase]:
+        """通过责令号查找所有匹配案件（支持长短格式匹配）"""
+        normalized = self._normalize_notice_number(notice_number)
+        results = []
+        if normalized in self._notice_index:
+            results.append(self._notice_index[normalized])
+        for excel_notice, case in self._notice_index.items():
+            excel_norm = self._normalize_notice_number(excel_notice)
+            if excel_norm != normalized:
+                if normalized.endswith(excel_norm) or excel_norm.endswith(normalized):
+                    results.append(case)
+        return results
     
     def find_by_court_case_number(self, case_number: str) -> Optional[EnforcementCase]:
         """通过法院案号查找案件"""
@@ -193,11 +212,12 @@ class EnforcementCaseRegistry:
         """
         matched_cases = []
         
-        # 1. 通过责令号匹配
+        # 1. 通过责令号匹配（支持一个裁定对应多行台账）
         for notice_number in getattr(ruling_info, 'notice_numbers', []):
-            case = self.find_by_notice_number(notice_number)
-            if case:
-                matched_cases.append(case)
+            cases = self.find_all_by_notice_number(notice_number)
+            for case in cases:
+                if case not in matched_cases:
+                    matched_cases.append(case)
         
         if matched_cases:
             return matched_cases

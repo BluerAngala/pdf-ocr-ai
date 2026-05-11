@@ -1,4 +1,7 @@
+import type { ModuleType } from "../types";
+
 interface Props {
+  moduleType: ModuleType;
   sampleRoot: string;
   excelFile: string;
   mockMode: boolean;
@@ -13,6 +16,7 @@ interface Props {
 }
 
 export default function ConfigPanel({
+  moduleType,
   sampleRoot,
   excelFile,
   mockMode,
@@ -25,6 +29,8 @@ export default function ConfigPanel({
   onSelectFolder,
   onSelectExcel,
 }: Props) {
+  const isNonLitigation = moduleType === "non-litigation";
+
   return (
     <div className="h-full flex flex-col gap-4 overflow-y-auto">
       <div className="bg-white rounded-lg border border-slate-200 shadow-sm">
@@ -47,7 +53,9 @@ export default function ConfigPanel({
         </div>
         <div className="p-4 space-y-3.5">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-500">🗂️ 样本材料文件夹</label>
+            <label className="text-xs font-medium text-slate-500">
+              🗂️ {isNonLitigation ? "样本材料文件夹" : "裁定 PDF 文件夹"}
+            </label>
             <input
               type="text"
               readOnly
@@ -72,7 +80,9 @@ export default function ConfigPanel({
             </button>
           </div>
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-slate-500">📋 台账 Excel 文件</label>
+            <label className="text-xs font-medium text-slate-500">
+              📋 {isNonLitigation ? "台账 Excel 文件" : "案件台账"}
+            </label>
             <input
               type="text"
               readOnly
@@ -96,26 +106,28 @@ export default function ConfigPanel({
               📊 选择文件
             </button>
           </div>
-          <div className="flex items-center gap-4 pt-1">
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
-              <input
-                type="checkbox"
-                checked={mockMode}
-                onChange={(e) => onMockModeChange(e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
-              />
-              🎭 Mock 模式
-            </label>
-            <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
-              <input
-                type="checkbox"
-                checked={forceOcr}
-                onChange={(e) => onForceOcrChange(e.target.checked)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
-              />
-              🔄 强制 OCR
-            </label>
-          </div>
+          {isNonLitigation && (
+            <div className="flex items-center gap-4 pt-1">
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={mockMode}
+                  onChange={(e) => onMockModeChange(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
+                />
+                🎭 Mock 模式
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={forceOcr}
+                  onChange={(e) => onForceOcrChange(e.target.checked)}
+                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500/30 w-3.5 h-3.5"
+                />
+                🔄 强制 OCR
+              </label>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -1,10 +1,11 @@
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parents[4]
-SRC = ROOT / 'apps' / 'server' / 'src'
+SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+from paths import ROOT
 
 from non_litigation_export import discover_notice_files, get_notice_input_dirs
 from project_evaluation import evaluate_non_litigation_quality

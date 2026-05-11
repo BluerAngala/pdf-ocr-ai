@@ -7,6 +7,8 @@
 1. 从裁定PDF中提取关键信息（案号、当事人、执行标的、日期、审判员/书记员等）
 2. 支持多个申请执行人和被执行人的识别
 3. 通过责令号或法院案号与台账进行关联
+4. 支持撤回执行裁定识别
+5. 支持责令号范围展开（如"3360号至3361号"）
 """
 
 import json
@@ -16,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
-from paths import ROOT
+from paths import ROOT, USER_DATA_DIR
 
 from config_loader import load_config
 
@@ -25,25 +27,121 @@ _enforcement_cfg = _cfg.raw_config.get('enforcement', {})
 _extraction_cfg = _enforcement_cfg.get('extraction', {})
 
 
+CJK_RANGE = re.compile(r'([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])')
+CJK_PUNCT = re.compile(r'([\u4e00-\u9fff])\s+([，。；：、！？…——（）《》〔〕【】［］""])')
+CJK_DIGIT_BEFORE = re.compile(r'([\u4e00-\u9fff])\s+(\d)')
+CJK_DIGIT_AFTER = re.compile(r'(\d)\s+([\u4e00-\u9fff])')
+CJK_BRACKET_BEFORE = re.compile(r'([（(])\s+(\d{4})')
+CJK_BRACKET_AFTER = re.compile(r'(\d{4})\s+([）)])')
+
+
+def remove_cjk_spacing(text: str) -> str:
+    """移除中文字符之间的排版间距（多轮替换，直至稳定）"""
+    two_group_patterns = [
+        CJK_RANGE,
+        CJK_PUNCT,
+        CJK_DIGIT_BEFORE,
+        CJK_DIGIT_AFTER,
+        CJK_BRACKET_BEFORE,
+        CJK_BRACKET_AFTER,
+    ]
+    single_group_patterns = [
+        (re.compile(r'(\d)\s+号'), r'\1号'),
+        (re.compile(r'粤\s+(\d+)'), r'粤\1'),
+        (re.compile(r'行审\s+(\d+)'), r'行审\1'),
+    ]
+    for _ in range(10):
+        prev = text
+        for pat in two_group_patterns:
+            text = pat.sub(r'\1\2', text)
+        for pat, repl in single_group_patterns:
+            text = pat.sub(repl, text)
+        if text == prev:
+            break
+    return text
+
+
+CHINESE_DIGIT_MAP = {
+    '一': 1, '二': 2, '三': 3, '四': 4, '五': 5,
+    '六': 6, '七': 7, '八': 8, '九': 9,
+    '〇': 0, '○': 0, '零': 0,
+}
+
+CHINESE_DIGIT_ONLY = {'一', '二', '三', '四', '五', '六', '七', '八', '九', '〇', '○', '零'}
+
+
+def chinese_digits_to_int(text: str) -> Optional[int]:
+    """将中文数字字符串转为整数（支持二十八→28、二〇二五→2025）"""
+    text = text.replace('○', '〇').replace('零', '〇')
+
+    if all(ch in CHINESE_DIGIT_ONLY for ch in text):
+        result = ''
+        for ch in text:
+            if ch in CHINESE_DIGIT_MAP:
+                result += str(CHINESE_DIGIT_MAP[ch])
+        return int(result) if result else None
+
+    current = 0
+    result = 0
+    for ch in text:
+        if ch in CHINESE_DIGIT_MAP:
+            current = CHINESE_DIGIT_MAP[ch]
+        elif ch == '十':
+            current = (current or 1) * 10
+            result += current
+            current = 0
+        elif ch == '百':
+            current = (current or 1) * 100
+            result += current
+            current = 0
+        else:
+            return None
+    result += current
+    return result if result > 0 else None
+
+
+def chinese_date_to_arabic(text: str) -> str:
+    """将中文日期字符串（如'二〇二五年四月二十八日'）转为阿拉伯数字格式（'2025年4月28日'）"""
+    year_match = re.search(r'(二[〇○]([一二三四五六七八九十〇]{2}))年', text)
+    month_match = re.search(r'([一二三四五六七八九十〇]{1,2})月', text)
+    day_match = re.search(r'([一二三四五六七八九十〇]{1,3})日', text)
+
+    if year_match:
+        year_str = year_match.group(1)
+        year_num = chinese_digits_to_int(year_str)
+        text = text.replace(year_match.group(0), f'{year_num}年')
+
+    if month_match:
+        month_str = month_match.group(1)
+        month_num = chinese_digits_to_int(month_str)
+        text = text.replace(month_match.group(0), f'{month_num}月')
+
+    if day_match:
+        day_str = day_match.group(1)
+        day_num = chinese_digits_to_int(day_str)
+        text = text.replace(day_match.group(0), f'{day_num}日')
+
+    return text
+
+
 @dataclass
 class RulingInfo:
     """裁定书提取信息数据结构"""
-    court_case_number: str = ""                    # 法院案号，如（2025）粤7101行审3355号
-    notice_numbers: List[str] = field(default_factory=list)  # 关联的责令号列表
-    applicants: List[Dict[str, str]] = field(default_factory=list)   # 申请执行人列表
-    respondents: List[Dict[str, str]] = field(default_factory=list)  # 被执行人列表
-    execution_amount: Optional[float] = None       # 执行标的金额
-    ruling_date: Optional[str] = None              # 裁定日期
-    judge: str = ""                                # 审判员
-    clerk: str = ""                                # 书记员
-    court_name: str = "广州铁路运输法院"            # 法院名称
-    ruling_result: str = "准予强制执行"             # 裁定结果
-    
-    # 原始文本（用于调试）
+    court_case_number: str = ""
+    notice_numbers: List[str] = field(default_factory=list)
+    applicants: List[Dict[str, str]] = field(default_factory=list)
+    respondents: List[Dict[str, str]] = field(default_factory=list)
+    execution_amount: Optional[float] = None
+    ruling_date: Optional[str] = None
+    judge: str = ""
+    clerk: str = ""
+    court_name: str = "广州铁路运输法院"
+    ruling_result: str = "准予强制执行"
+    is_withdraw: bool = False
+
     raw_text: str = ""
-    
+
     def to_dict(self) -> Dict[str, Any]:
-        """转换为字典格式"""
         return {
             'court_case_number': self.court_case_number,
             'notice_numbers': self.notice_numbers,
@@ -55,6 +153,7 @@ class RulingInfo:
             'clerk': self.clerk,
             'court_name': self.court_name,
             'ruling_result': self.ruling_result,
+            'is_withdraw': self.is_withdraw,
         }
 
 
@@ -63,32 +162,22 @@ class ExtractionResult:
     """提取结果（带置信度）"""
     value: Any
     confidence: float = 0.0
-    source: str = ""  # 使用的规则/策略名称
-    
+    source: str = ""
+
     def __bool__(self):
         return self.value is not None and self.confidence > 0
 
 
 class RuleBasedExtractor:
     """基于规则的提取器（配置驱动）"""
-    
+
     def __init__(self, rules_config: List[Dict[str, Any]]):
-        """
-        初始化规则提取器
-        
-        Args:
-            rules_config: 规则配置列表，每项包含：
-                - name: 规则名称
-                - pattern: 正则表达式
-                - weight: 权重（置信度基础分）
-                - post_process: 后处理函数名（可选）
-        """
         self.rules = []
         for rule in rules_config:
             try:
                 pattern = rule.get('pattern', '')
-                # 处理YAML转义
                 pattern = pattern.replace('\\d', r'\d')
+                pattern = re.sub(r'\\u([0-9a-fA-F]{4})', lambda m: chr(int(m.group(1), 16)), pattern)
                 compiled = re.compile(pattern)
                 self.rules.append({
                     'name': rule.get('name', 'unnamed'),
@@ -98,60 +187,41 @@ class RuleBasedExtractor:
                 })
             except re.error as e:
                 print(f"[WARN] 规则编译失败: {rule.get('name')}, 错误: {e}")
-    
+
     def extract(self, text: str) -> ExtractionResult:
-        """
-        使用所有规则尝试提取，返回置信度最高的结果
-        """
         best_result = ExtractionResult(None, 0.0, "")
-        
         for rule in self.rules:
             match = rule['pattern'].search(text)
             if match:
                 value = match.group(1) if match.lastindex else match.group(0)
-                
-                # 后处理
                 if rule['post_process']:
                     value = self._apply_post_process(value, rule['post_process'])
-                
-                # 计算置信度（基于权重和匹配质量）
                 confidence = rule['weight'] * self._calculate_match_quality(match, text)
-                
                 if confidence > best_result.confidence:
                     best_result = ExtractionResult(value, confidence, rule['name'])
-        
         return best_result
-    
+
     def extract_all(self, text: str) -> List[ExtractionResult]:
-        """返回所有匹配结果（按置信度排序）"""
         results = []
-        
         for rule in self.rules:
             for match in rule['pattern'].finditer(text):
                 value = match.group(1) if match.lastindex else match.group(0)
-                
                 if rule['post_process']:
                     value = self._apply_post_process(value, rule['post_process'])
-                
                 confidence = rule['weight'] * self._calculate_match_quality(match, text)
                 results.append(ExtractionResult(value, confidence, rule['name']))
-        
-        # 按置信度排序
         results.sort(key=lambda x: x.confidence, reverse=True)
         return results
-    
+
     def _calculate_match_quality(self, match: re.Match, text: str) -> float:
-        """计算匹配质量（0-1之间）"""
-        # 匹配长度适中得分高
         match_len = len(match.group(0))
         if match_len < 3:
             return 0.5
         elif match_len > 100:
             return 0.7
         return 1.0
-    
+
     def _apply_post_process(self, value: str, process_name: str) -> Any:
-        """应用后处理"""
         processors = {
             'parse_amount': self._parse_amount,
             'normalize_date': self._normalize_date,
@@ -159,27 +229,22 @@ class RuleBasedExtractor:
         }
         processor = processors.get(process_name)
         return processor(value) if processor else value
-    
+
     @staticmethod
     def _parse_amount(amount_str: str) -> Optional[float]:
-        """解析金额字符串"""
         try:
-            # 移除千分位逗号和空格
             cleaned = amount_str.replace(',', '').replace(' ', '').replace('，', '')
             return float(cleaned)
         except ValueError:
             return None
-    
+
     @staticmethod
     def _normalize_date(date_str: str) -> str:
-        """标准化日期格式"""
-        # 统一中文零字符
         date_str = date_str.replace('○', '〇').replace('零', '〇')
         return date_str.strip()
-    
+
     @staticmethod
     def _clean_name(name: str) -> str:
-        """清理名称"""
         suffixes = [
             '，住所地', ',住所地', '，统一社会信用代码', ',统一社会信用代码',
             '，法定代表人', ',法定代表人', '，职务', ',职务',
@@ -193,41 +258,36 @@ class RuleBasedExtractor:
 
 class RulingTextExtractor:
     """裁定书文本信息提取器（配置驱动）"""
-    
+
     def __init__(self):
         self._init_extractors()
-    
+
     def _init_extractors(self):
-        """初始化配置驱动的提取器"""
-        # 法院案号提取器
         court_case_rules = [{
             'name': 'court_case',
-            'pattern': _extraction_cfg.get('court_case_pattern', r'[（(]\d{4}[）)]\s*粤\s*\d+\s*行审\s*\d+\s*号'),
+            'pattern': _extraction_cfg.get('court_case_pattern', r'[（(]\d{4}[）)]粤\d+行审\d+号'),
             'weight': 1.0,
         }]
         self.court_case_extractor = RuleBasedExtractor(court_case_rules)
-        
-        # 责令号提取器
+
         notice_rules = [{
             'name': 'notice_number',
-            'pattern': _extraction_cfg.get('notice_number_in_ruling_pattern', 
-                                          r'穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号'),
+            'pattern': _extraction_cfg.get('notice_number_in_ruling_pattern',
+                                          r'穗公积金中心\S*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+号'),
             'weight': 1.0,
         }]
         self.notice_extractor = RuleBasedExtractor(notice_rules)
-        
-        # 金额提取器（多规则）
+
         amount_rules = []
         for i, pattern in enumerate(_extraction_cfg.get('amount_patterns', [])):
             amount_rules.append({
                 'name': f'amount_rule_{i}',
                 'pattern': pattern,
-                'weight': 1.0 - (i * 0.1),  # 前面的规则权重更高
+                'weight': 1.0 - (i * 0.1),
                 'post_process': 'parse_amount',
             })
         self.amount_extractor = RuleBasedExtractor(amount_rules)
-        
-        # 日期提取器（多规则）
+
         date_rules = []
         for i, pattern in enumerate(_extraction_cfg.get('date_patterns', [])):
             date_rules.append({
@@ -237,8 +297,7 @@ class RulingTextExtractor:
                 'post_process': 'normalize_date',
             })
         self.date_extractor = RuleBasedExtractor(date_rules)
-        
-        # 审判员提取器
+
         judge_rules = []
         for i, pattern in enumerate(_extraction_cfg.get('judge_patterns', [])):
             judge_rules.append({
@@ -248,8 +307,7 @@ class RulingTextExtractor:
                 'post_process': 'clean_name',
             })
         self.judge_extractor = RuleBasedExtractor(judge_rules)
-        
-        # 书记员提取器
+
         clerk_rules = []
         for i, pattern in enumerate(_extraction_cfg.get('clerk_patterns', [])):
             clerk_rules.append({
@@ -259,8 +317,7 @@ class RulingTextExtractor:
                 'post_process': 'clean_name',
             })
         self.clerk_extractor = RuleBasedExtractor(clerk_rules)
-        
-        # 申请执行人提取器
+
         applicant_rules = []
         for i, pattern in enumerate(_extraction_cfg.get('applicant_patterns', [])):
             applicant_rules.append({
@@ -270,8 +327,7 @@ class RulingTextExtractor:
                 'post_process': 'clean_name',
             })
         self.applicant_extractor = RuleBasedExtractor(applicant_rules)
-        
-        # 被执行人提取器
+
         respondent_rules = []
         for i, pattern in enumerate(_extraction_cfg.get('respondent_patterns', [])):
             respondent_rules.append({
@@ -281,106 +337,167 @@ class RulingTextExtractor:
                 'post_process': 'clean_name',
             })
         self.respondent_extractor = RuleBasedExtractor(respondent_rules)
-    
+
     def _preprocess_text(self, text: str) -> str:
-        """预处理文本：移除多余换行和空格，便于正则匹配"""
-        # 将换行符替换为空格，避免跨行内容被连接在一起
+        """预处理文本：移除换行，移除CJK间距"""
         text = text.replace('\n', ' ').replace('\r', ' ')
-        # 标准化空格
         text = re.sub(r'\s+', ' ', text)
+        text = remove_cjk_spacing(text)
         return text.strip()
-    
+
+    def _detect_withdraw(self, text: str) -> bool:
+        """检测是否为撤回执行裁定"""
+        keywords = _extraction_cfg.get('withdraw_keywords', ['撤回执行', '撤回强制执行', '不准予强制执行', '不予执行'])
+        for kw in keywords:
+            if kw in text:
+                return True
+        return False
+
+    def _expand_notice_ranges(self, text: str) -> List[str]:
+        """展开责令号范围（如 3360号至3361号 → 两个独立的责令号）"""
+        range_pattern = _extraction_cfg.get('notice_number_range_pattern',
+                                            r'责字[〔\[(［【](\d{4})[〕\)\]］】](\d+)号至(\d+)号')
+        expanded = []
+        for match in re.finditer(range_pattern, text):
+            year = match.group(1)
+            start_num = int(match.group(2))
+            end_num = int(match.group(3))
+            for num in range(start_num, end_num + 1):
+                expanded.append(f'责字〔{year}〕{num}号')
+        return expanded
+
     def extract(self, text: str) -> RulingInfo:
-        """从文本中提取裁定信息（使用配置驱动的规则引擎）"""
+        """从文本中提取裁定信息"""
         info = RulingInfo(raw_text=text)
-        
-        # 预处理文本以便更好地匹配
-        processed_text = self._preprocess_text(text)
-        
-        # 提取法院案号
-        case_result = self.court_case_extractor.extract(text)
+
+        compact_text = self._preprocess_text(text)
+
+        case_result = self.court_case_extractor.extract(compact_text)
         if case_result:
             info.court_case_number = self._normalize_case_number(case_result.value)
-        
-        # 提取责令号（使用预处理后的文本）
-        notice_results = self.notice_extractor.extract_all(processed_text)
+
+        notice_results = self.notice_extractor.extract_all(compact_text)
         info.notice_numbers = self._normalize_notice_numbers(notice_results)
-        
-        # 提取申请执行人
+
+        range_notices = self._expand_notice_ranges(compact_text)
+        for rn in range_notices:
+            normalized = self._normalize_notice_number(rn)
+            existing_normalized = [self._normalize_notice_number(n) for n in info.notice_numbers]
+            if normalized not in existing_normalized:
+                info.notice_numbers.append(rn)
+
+        info.notice_numbers = self._dedup_notice_numbers(info.notice_numbers)
+
         applicant_results = self.applicant_extractor.extract_all(text)
         info.applicants = self._convert_to_party_list(applicant_results, '申请执行人')
-        
-        # 提取被执行人
+
         respondent_results = self.respondent_extractor.extract_all(text)
         info.respondents = self._convert_to_party_list(respondent_results, '被执行人')
-        
-        # 提取执行标的金额（使用预处理后的文本）
-        amount_result = self.amount_extractor.extract(processed_text)
+
+        amount_result = self.amount_extractor.extract(compact_text)
         if amount_result:
             info.execution_amount = amount_result.value
-        
-        # 提取裁定日期
-        date_result = self.date_extractor.extract(text)
+
+        date_result = self.date_extractor.extract(compact_text)
         if date_result:
             info.ruling_date = date_result.value
-        
-        # 提取审判员
-        judge_result = self.judge_extractor.extract(text)
+
+        judge_result = self.judge_extractor.extract(compact_text)
         if judge_result:
-            info.judge = judge_result.value
-        
-        # 提取书记员
-        clerk_result = self.clerk_extractor.extract(text)
+            info.judge = self._clean_person_name(judge_result.value.strip())
+
+        clerk_result = self.clerk_extractor.extract(compact_text)
         if clerk_result:
-            info.clerk = clerk_result.value
-        
+            info.clerk = self._clean_person_name(clerk_result.value.strip())
+
+        info.is_withdraw = self._detect_withdraw(text)
+        if info.is_withdraw:
+            info.ruling_result = "撤回执行"
+
+        if not info.ruling_date:
+            info.ruling_date = self._extract_date_by_proximity(compact_text)
+
         return info
-    
+
+    def _extract_date_by_proximity(self, text: str) -> Optional[str]:
+        """后备日期提取：在审判员/书记员附近的日期"""
+        for target in ['审判员', '书记员', '本件与原本核对无异']:
+            idx = text.find(target)
+            if idx >= 0:
+                segment = text[max(0, idx - 100):idx + 100]
+                date_result = self.date_extractor.extract(segment)
+                if date_result:
+                    return date_result.value
+        return None
+
     def extract_with_confidence(self, text: str) -> Dict[str, Any]:
-        """提取信息并返回置信度（用于调试和优化）"""
-        processed_text = self._preprocess_text(text)
-        
-        results = {
-            'court_case_number': self.court_case_extractor.extract(text),
-            'notice_numbers': self.notice_extractor.extract_all(processed_text),
+        compact_text = self._preprocess_text(text)
+
+        return {
+            'court_case_number': self.court_case_extractor.extract(compact_text),
+            'notice_numbers': self.notice_extractor.extract_all(compact_text),
             'applicants': self.applicant_extractor.extract_all(text),
             'respondents': self.respondent_extractor.extract_all(text),
-            'execution_amount': self.amount_extractor.extract(processed_text),
-            'ruling_date': self.date_extractor.extract(text),
-            'judge': self.judge_extractor.extract(text),
-            'clerk': self.clerk_extractor.extract(text),
+            'execution_amount': self.amount_extractor.extract(compact_text),
+            'ruling_date': self.date_extractor.extract(compact_text),
+            'judge': self.judge_extractor.extract(compact_text),
+            'clerk': self.clerk_extractor.extract(compact_text),
+            'is_withdraw': self._detect_withdraw(text),
         }
-        
-        return results
-    
+
     def _normalize_case_number(self, case_num: str) -> str:
-        """标准化法院案号格式"""
+        """标准化法院案号：去除所有空格，统一括号为中文括号"""
+        case_num = case_num.replace(' ', '')
         case_num = case_num.replace('(', '（').replace(')', '）')
         case_num = case_num.replace('[', '（').replace(']', '）')
         return case_num
-    
+
+    def _normalize_notice_number(self, num: str) -> str:
+        """标准化责令号：统一括号为〔〕"""
+        num = num.replace('(', '〔').replace(')', '〕')
+        num = num.replace('[', '〔').replace(']', '〕')
+        num = num.replace('（', '〔').replace('）', '〕')
+        num = num.replace('［', '〔').replace('］', '〕')
+        num = num.replace('【', '〔').replace('】', '〕')
+        num = num.replace(' ', '')
+        return num
+
     def _normalize_notice_numbers(self, results: List[ExtractionResult]) -> List[str]:
-        """标准化责令号列表"""
         seen = set()
         normalized = []
         for result in results:
-            num = result.value
-            # 标准化括号
-            num = num.replace('(', '〔').replace(')', '〕')
-            num = num.replace('[', '〔').replace(']', '〕')
-            num = num.replace('（', '〔').replace('）', '〕')
-            num = num.replace('［', '〔').replace('］', '〕')
-            num = num.replace('【', '〔').replace('】', '〕')
+            num = self._normalize_notice_number(result.value)
             if num not in seen:
                 seen.add(num)
-                normalized.append(num)
+                normalized.append(result.value)
         return normalized
-    
+
+    @staticmethod
+    def _clean_person_name(name: str) -> str:
+        """清理人名，去除尾部可能混入的日期数字或标记"""
+        noise_chars = {'二', '〇', '○', '零', '一', '三', '四', '五', '六', '七', '八', '九', '十', '—', '本'}
+        while len(name) > 1 and name[-1] in noise_chars:
+            name = name[:-1]
+        name = re.sub(r'—?\d+—?$', '', name)
+        return name.strip()
+
+    def _dedup_notice_numbers(self, numbers: List[str]) -> List[str]:
+        """去除短格式责令号（如'责字〔2023〕3360号'为'穗公积金中心萝岗责字〔2023〕3360号'的子串）"""
+        normalized = [(n, self._normalize_notice_number(n)) for n in numbers]
+        result = []
+        for num, norm_num in normalized:
+            is_subset = False
+            for other, norm_other in normalized:
+                if other != num and norm_other.endswith(norm_num) and len(norm_other) > len(norm_num):
+                    is_subset = True
+                    break
+            if not is_subset:
+                result.append(num)
+        return result
+
     def _convert_to_party_list(self, results: List[ExtractionResult], party_type: str) -> List[Dict[str, str]]:
-        """将提取结果转换为当事人列表"""
         parties = []
         seen = set()
-        
         for result in results:
             name = result.value
             if name and name not in seen and len(name) > 2:
@@ -390,20 +507,18 @@ class RulingTextExtractor:
                     'type': party_type,
                     'confidence': result.confidence,
                 })
-        
         return parties
 
 
 class RulingPDFExtractor:
     """裁定PDF文件信息提取器"""
-    
+
     def __init__(self, use_ocr: bool = True):
         self.use_ocr = use_ocr
         self.text_extractor = RulingTextExtractor()
         self._ocr_engine = None
-    
+
     def _get_ocr_engine(self):
-        """延迟初始化OCR引擎"""
         if self._ocr_engine is None and self.use_ocr:
             try:
                 from pdf_ocr_ultra import UltraFastOCR, OCRConfig
@@ -417,24 +532,19 @@ class RulingPDFExtractor:
                 print("[WARN] OCR引擎加载失败，将使用pdfplumber文本提取")
                 self.use_ocr = False
         return self._ocr_engine
-    
+
     def extract_from_pdf(self, pdf_path: Path) -> RulingInfo:
         """从PDF文件中提取裁定信息"""
-        # 首先尝试使用pdfplumber提取文本
         text = self._extract_text_from_pdf(pdf_path)
-        
-        # 如果文本太短或为空，使用OCR
+
         if len(text.strip()) < 100 and self.use_ocr:
             text = self._extract_text_with_ocr(pdf_path)
-        
-        # 应用OCR纠错
+
         text = self._apply_corrections(text)
-        
-        # 提取信息
+
         return self.text_extractor.extract(text)
-    
+
     def _extract_text_from_pdf(self, pdf_path: Path) -> str:
-        """使用pdfplumber提取文本"""
         try:
             import pdfplumber
             texts = []
@@ -446,13 +556,12 @@ class RulingPDFExtractor:
         except Exception as e:
             print(f"[WARN] pdfplumber提取失败: {e}")
             return ""
-    
+
     def _extract_text_with_ocr(self, pdf_path: Path) -> str:
-        """使用OCR提取文本"""
         ocr = self._get_ocr_engine()
         if ocr is None:
             return ""
-        
+
         try:
             result = ocr.process_pdf(pdf_path)
             texts = []
@@ -463,9 +572,8 @@ class RulingPDFExtractor:
         except Exception as e:
             print(f"[WARN] OCR提取失败: {e}")
             return ""
-    
+
     def _apply_corrections(self, text: str) -> str:
-        """应用OCR纠错"""
         corrections = _enforcement_cfg.get('ocr_corrections', [])
         for correction in corrections:
             wrong = correction.get('wrong', '')
@@ -476,51 +584,92 @@ class RulingPDFExtractor:
 
 
 def extract_ruling_from_pdf(pdf_path: Path, use_ocr: bool = True) -> RulingInfo:
-    """
-    从裁定PDF中提取信息的便捷函数
-    
-    Args:
-        pdf_path: PDF文件路径
-        use_ocr: 是否使用OCR（当pdfplumber提取失败时）
-    
-    Returns:
-        RulingInfo: 提取的裁定信息
-    """
     extractor = RulingPDFExtractor(use_ocr=use_ocr)
     return extractor.extract_from_pdf(pdf_path)
 
 
 def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True) -> Dict[str, RulingInfo]:
-    """
-    批量提取目录下所有裁定PDF的信息
-    
-    Args:
-        pdf_dir: 包含裁定PDF的目录
-        use_ocr: 是否使用OCR
-    
-    Returns:
-        Dict[str, RulingInfo]: 以法院案号为键的提取结果字典
-    """
     results = {}
     extractor = RulingPDFExtractor(use_ocr=use_ocr)
-    
+
     for pdf_file in sorted(pdf_dir.glob("*.pdf")):
         print(f"[INFO] 处理: {pdf_file.name}")
         try:
             info = extractor.extract_from_pdf(pdf_file)
-            if info.court_case_number:
-                results[info.court_case_number] = info
-            else:
-                # 如果无法提取案号，使用文件名作为键
-                results[pdf_file.stem] = info
+            key = info.court_case_number if info.court_case_number else pdf_file.stem
+            results[key] = info
         except Exception as e:
             print(f"[ERROR] 处理 {pdf_file.name} 失败: {e}")
-    
+
     return results
 
 
+def process_enforcement_cases(input_dir: Path, excel_path: Path) -> Dict[str, Any]:
+    """
+    强制执行组完整处理流程（供 server.py 调用）
+
+    流程：
+    1. 批量提取裁定PDF信息
+    2. 加载台账并与提取结果匹配
+    3. 返回结构化的处理结果
+    """
+    from enforcement_product import load_enforcement_cases
+
+    pdf_results = batch_extract_rulings(input_dir, use_ocr=False)
+    processed = len(pdf_results)
+
+    extracted = []
+    for key, info in pdf_results.items():
+        extracted.append(info.to_dict())
+
+    stats = {"total_pdfs": processed, "total_excel_rows": 0, "matched_rows": 0, "unmatched_rows": 0, "withdraw_count": 0}
+    updated_excel_path = ""
+
+    if excel_path.exists():
+        try:
+            registry = load_enforcement_cases(excel_path)
+            stats["total_excel_rows"] = len(registry.cases)
+
+            for info in pdf_results.values():
+                if info.is_withdraw:
+                    stats["withdraw_count"] += 1
+
+            matched_count = 0
+            for case in registry.cases:
+                for info in pdf_results.values():
+                    for ocr_notice in info.notice_numbers:
+                        norm_ocr = ocr_notice.strip()
+                        norm_excel = case.notice_number.strip()
+                        if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
+                            matched_count += 1
+                            break
+                    else:
+                        continue
+                    break
+            stats["matched_rows"] = matched_count
+            stats["unmatched_rows"] = max(0, len(registry.cases) - matched_count)
+
+            output_dir = USER_DATA_DIR / "output" / "enforcement"
+            output_dir.mkdir(parents=True, exist_ok=True)
+            from enforcement_export import build_output_excel
+            excel_output = output_dir / "执行组识别结果.xlsx"
+            try:
+                build_output_excel(registry, pdf_results, excel_output)
+                updated_excel_path = str(excel_output)
+            except Exception:
+                pass
+        except Exception as e:
+            print(f"[WARN] 台账匹配/导出失败: {e}")
+
+    return {
+        "processed": processed,
+        "extracted": extracted,
+        "updated_excel_path": updated_excel_path,
+        "stats": stats,
+    }
+
+
 if __name__ == "__main__":
-    # 测试代码
     test_pdf = Path("样本材料/强制组-自动化/提取信息/（2025）粤7101行审3355号.pdf")
     if test_pdf.exists():
         info = extract_ruling_from_pdf(test_pdf, use_ocr=False)

@@ -36,6 +36,18 @@ const MODULES: {
       "M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3",
   },
   {
+    key: "company-query",
+    title: "企业信息查询",
+    desc: "企业工商信息、司法信息\n批量查询与结果导出",
+    color: "emerald",
+    iconBg: "bg-emerald-50 group-hover:bg-emerald-100",
+    hoverBorder: "hover:border-emerald-200",
+    hoverIconBg: "group-hover:bg-emerald-100",
+    arrowColor: "text-emerald-600",
+    iconPath:
+      "M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4",
+  },
+  {
     key: "print",
     title: "自动打印",
     desc: "企业信息、裁定、责令\n批量自动打印输出",
@@ -53,6 +65,7 @@ const ICON_COLORS: Record<string, string> = {
   blue: "text-blue-600",
   amber: "text-amber-600",
   slate: "text-slate-600",
+  emerald: "text-emerald-600",
 };
 
 interface Props {
@@ -68,18 +81,18 @@ export default function HomeView({ onNavigate }: Props) {
           <p className="text-lg text-slate-500">选择功能模块开始处理</p>
         </div>
 
-        <div className="grid grid-cols-3 gap-6 w-full max-w-3xl">
+        <div className="grid grid-cols-2 gap-6 w-full max-w-2xl">
           {MODULES.map((m) => (
             <button
               key={m.key}
               onClick={() => onNavigate(m.key)}
-              className={`group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 p-6 text-left cursor-pointer`}
+              className={`group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 p-8 text-center cursor-pointer`}
             >
               <div
-                className={`w-10 h-10 ${m.iconBg} rounded-lg flex items-center justify-center mb-4 transition-colors`}
+                className={`w-12 h-12 ${m.iconBg} rounded-lg flex items-center justify-center mb-4 mx-auto transition-colors`}
               >
                 <svg
-                  className={`w-5 h-5 ${ICON_COLORS[m.color]}`}
+                  className={`w-6 h-6 ${ICON_COLORS[m.color]}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -92,10 +105,10 @@ export default function HomeView({ onNavigate }: Props) {
                   />
                 </svg>
               </div>
-              <h3 className="text-base font-semibold text-[#0F172A] mb-1.5">{m.title}</h3>
-              <p className="text-xs text-slate-500 leading-relaxed whitespace-pre-line">{m.desc}</p>
+              <h3 className="text-lg font-semibold text-[#0F172A] mb-1.5">{m.title}</h3>
+              <p className="text-sm text-slate-500 leading-relaxed whitespace-pre-line">{m.desc}</p>
               <div
-                className={`mt-3 flex items-center gap-1 text-xs font-medium ${m.arrowColor} opacity-0 group-hover:opacity-100 transition-opacity`}
+                className={`absolute bottom-3 right-3 flex items-center gap-1 text-sm font-medium ${m.arrowColor} opacity-0 group-hover:opacity-100 transition-opacity`}
               >
                 <span>进入模块</span>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -174,17 +174,30 @@ export default function App() {
           preset_id: config.presetId,
         });
         res = {
+          processed: rawResult.processed || 0,
+          extracted: rawResult.extracted || [],
+          enforcement_stats: rawResult.stats || {},
+          updated_excel_path: rawResult.updated_excel_path || "",
           summary: {
             created_count: rawResult.processed || 0,
+            result_root: rawResult.updated_excel_path || undefined,
+          },
+        };
+      } else if (currentModule === "print") {
+        addLog("info", "[模拟] 自动打印处理...");
+        res = {
+          summary: {
+            created_count: 5,
             quality: { page_count_match_rate: 1 },
             validation: { pass_rate: 1 },
           },
         };
       } else {
-        addLog("info", "[模拟] 自动打印处理...");
+        // company-query or other modules
+        addLog("info", `[模拟] ${MODULE_CONFIG[currentModule].title}处理...`);
         res = {
           summary: {
-            created_count: 5,
+            created_count: 3,
             quality: { page_count_match_rate: 1 },
             validation: { pass_rate: 1 },
           },
@@ -271,6 +284,7 @@ export default function App() {
         <HomeView onNavigate={navigateToModule} />
       ) : (
         <DetailView
+          moduleType={currentModule}
           title={moduleTitle}
           sampleRoot={sampleRoot}
           excelFile={excelFile}

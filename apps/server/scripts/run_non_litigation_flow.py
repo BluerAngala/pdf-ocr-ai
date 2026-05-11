@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
-ROOT = Path(__file__).resolve().parents[3]
+from paths import ROOT, USER_DATA_DIR
 SRC = Path(__file__).resolve().parent.parent / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
@@ -43,9 +43,9 @@ from project_evaluation import evaluate_non_litigation_quality
 
 SAMPLE_ROOT = ROOT / '样本材料' / '非诉组自动化样本材料'
 BATCH2_SAMPLE_ROOT = ROOT / '样本材料' / '非诉组自动化样本材料（第2批）'
-DEFAULT_SUMMARY_PATH = ROOT / 'output' / 'non-litigation-run-summary.json'
-DEFAULT_HTML_REPORT_PATH = ROOT / 'output' / 'ocr-validation-report.html'
-ALL_BATCH_SUMMARY_PATH = ROOT / 'output' / 'non-litigation-run-summary-all-batches.json'
+DEFAULT_SUMMARY_PATH = USER_DATA_DIR / 'output' / 'non-litigation-run-summary.json'
+DEFAULT_HTML_REPORT_PATH = USER_DATA_DIR / 'output' / 'ocr-validation-report.html'
+ALL_BATCH_SUMMARY_PATH = USER_DATA_DIR / 'output' / 'non-litigation-run-summary-all-batches.json'
 
 BATCH_CONFIGS = {
     'batch1': {
@@ -59,10 +59,10 @@ BATCH_CONFIGS = {
     'batch2': {
         'label': '第二批',
         'sample_root': BATCH2_SAMPLE_ROOT,
-        'result_root': ROOT / 'output' / 'non-litigation-results-batch2',
-        'ocr_cache_dir': ROOT / 'temp' / 'non-litigation' / 'ocr-cache-batch2',
-        'summary_path': ROOT / 'output' / 'non-litigation-run-summary-batch2.json',
-        'html_report_path': ROOT / 'output' / 'ocr-validation-report-batch2.html',
+        'result_root': USER_DATA_DIR / 'output' / 'non-litigation-results-batch2',
+        'ocr_cache_dir': USER_DATA_DIR / 'temp' / 'non-litigation' / 'ocr-cache-batch2',
+        'summary_path': USER_DATA_DIR / 'output' / 'non-litigation-run-summary-batch2.json',
+        'html_report_path': USER_DATA_DIR / 'output' / 'ocr-validation-report-batch2.html',
     },
 }
 

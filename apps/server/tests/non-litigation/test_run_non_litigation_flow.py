@@ -1,10 +1,11 @@
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parents[4]
-SRC = ROOT / 'apps' / 'server' / 'src'
+SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+from paths import ROOT, USER_DATA_DIR
 SCRIPTS = ROOT / 'apps' / 'server' / 'scripts'
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
@@ -34,9 +35,9 @@ def test_run_non_litigation_flow_should_build_summary_with_expected_paths_and_ou
         str(ROOT / 'input' / 'non-litigation'),
         str(ROOT / '样本材料' / '非诉组自动化样本材料' / '原始文件'),
     }
-    assert summary['result_root'] == str(ROOT / 'output' / 'non-litigation-results')
-    assert summary['ocr_cache_dir'] == str(ROOT / 'temp' / 'non-litigation' / 'ocr-cache')
-    assert summary['html_report_path'] == str(DEFAULT_HTML_REPORT_PATH)
+    assert summary['result_root'] == str(USER_DATA_DIR / 'output' / 'non-litigation-results')
+    assert summary['ocr_cache_dir'] == str(USER_DATA_DIR / 'temp' / 'non-litigation' / 'ocr-cache')
+    assert summary['html_report_path'] == str(USER_DATA_DIR / 'output' / 'ocr-validation-report.html')
     assert summary['created_count'] > 0
     assert summary['quality']['total_files'] > 0
     assert summary['runtime_seconds'] >= summary['export_runtime_seconds']
@@ -63,9 +64,9 @@ def test_build_run_summary_should_use_sample_original_dir_when_present(monkeypat
 
     summary = build_run_summary(ROOT, sample_root=batch2_root)
     assert summary['input_root'] == str(batch2_root / '原始文件')
-    assert summary['result_root'] == str(ROOT / 'output' / 'non-litigation-results-batch2')
-    assert summary['ocr_cache_dir'] == str(ROOT / 'temp' / 'non-litigation' / 'ocr-cache-batch2')
-    assert summary['html_report_path'] == str(ROOT / 'output' / 'ocr-validation-report-batch2.html')
+    assert summary['result_root'] == str(USER_DATA_DIR / 'output' / 'non-litigation-results-batch2')
+    assert summary['ocr_cache_dir'] == str(USER_DATA_DIR / 'temp' / 'non-litigation' / 'ocr-cache-batch2')
+    assert summary['html_report_path'] == str(USER_DATA_DIR / 'output' / 'ocr-validation-report-batch2.html')
 
 
 def test_build_run_summary_should_allow_injected_paths(monkeypatch, tmp_path: Path):

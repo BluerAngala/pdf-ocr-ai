@@ -1,10 +1,11 @@
 from pathlib import Path
 import sys
 
-ROOT = Path(__file__).resolve().parents[4]
-SRC = ROOT / 'apps' / 'server' / 'src'
+SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+from paths import ROOT
 
 from non_litigation_export import build_mock_ocr_cache, ensure_non_litigation_input_structure, get_non_litigation_input_root, get_non_litigation_ocr_cache_dir, get_non_litigation_result_root
 from project_evaluation import build_test_health, run_project_evaluation

@@ -5,8 +5,8 @@
 
 功能：
 1. 批量处理裁定PDF，提取信息
-2. 与台账进行匹配关联
-3. 导出JSON和更新Excel
+2. 与台账（非诉表格）进行责令号匹配
+3. 导出合并后Excel（原表字段 + OCR识别字段）
 """
 
 import json
@@ -16,10 +16,14 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+import pandas as pd
+import openpyxl
+from openpyxl.utils import get_column_letter
+
 from paths import ROOT
 
 from config_loader import load_config
-from enforcement_extractor import RulingPDFExtractor, RulingInfo, extract_ruling_from_pdf
+from enforcement_extractor import RulingPDFExtractor, RulingInfo, extract_ruling_from_pdf, chinese_date_to_arabic
 from enforcement_product import EnforcementCaseRegistry, load_enforcement_cases
 
 _cfg = load_config()
@@ -27,133 +31,129 @@ _enforcement_cfg = _cfg.raw_config.get('enforcement', {})
 _paths_cfg = _enforcement_cfg.get('paths', {})
 
 
-@dataclass
-class ExtractionResult:
-    """提取结果数据结构"""
-    pdf_filename: str = ""
-    court_case_number: str = ""
-    matched: bool = False
-    matched_notice_numbers: List[str] = field(default_factory=list)
-    ruling_info: Optional[RulingInfo] = None
-    error: Optional[str] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
-        return {
-            'pdf_filename': self.pdf_filename,
-            'court_case_number': self.court_case_number,
-            'matched': self.matched,
-            'matched_notice_numbers': self.matched_notice_numbers,
-            'ruling_info': self.ruling_info.to_dict() if self.ruling_info else None,
-            'error': self.error,
+def build_output_excel(
+    registry: EnforcementCaseRegistry,
+    pdf_results: Dict[str, RulingInfo],
+    output_path: Path,
+) -> Path:
+    """
+    构建输出Excel：合并非诉表格字段与OCR识别字段
+
+    输出列：
+      区号 | 行政审查案号 | 责令号 | 被执行人 | 职工姓名 | 金额 | 法官/法官助理 | 执行时间 | 裁定结果 | 备注
+    """
+    rows = []
+    for case in registry.cases:
+        matched_info = _match_case_to_pdf(case, pdf_results)
+
+        row = {
+            '区号': case.region or '',
+            '行政审查案号': '',
+            '责令号': case.notice_number or '',
+            '被执行人': case.respondent or '',
+            '职工姓名': case.employee or '',
+            '金额': _format_amount(case.amount),
+            '法官/法官助理': '',
+            '执行时间': '',
+            '裁定结果': '',
+            '备注': '',
         }
 
+        if matched_info:
+            row['行政审查案号'] = matched_info.court_case_number or ''
+            row['执行时间'] = _format_date(matched_info.ruling_date) or ''
+            row['裁定结果'] = matched_info.ruling_result or ''
+            judge_parts = []
+            if matched_info.judge:
+                judge_parts.append(matched_info.judge)
+            if matched_info.clerk:
+                judge_parts.append(matched_info.clerk)
+            row['法官/法官助理'] = '/'.join(judge_parts) if judge_parts else ''
 
-class EnforcementExtractor:
-    """强制执行组裁定信息提取器"""
-    
-    def __init__(self, input_dir: Path, use_ocr: bool = False):
-        self.input_dir = input_dir
-        self.use_ocr = use_ocr
-        self.pdf_extractor = RulingPDFExtractor(use_ocr=use_ocr)
-        self.results: List[ExtractionResult] = []
-    
-    def process_all_pdfs(self) -> List[ExtractionResult]:
-        """处理目录下所有裁定PDF"""
-        self.results = []
-        
-        pdf_files = sorted(self.input_dir.glob("*.pdf"))
-        print(f"[INFO] 发现 {len(pdf_files)} 个PDF文件待处理")
-        
-        for pdf_file in pdf_files:
-            result = self._process_single_pdf(pdf_file)
-            self.results.append(result)
-        
-        return self.results
-    
-    def _process_single_pdf(self, pdf_file: Path) -> ExtractionResult:
-        """处理单个PDF文件"""
-        result = ExtractionResult(pdf_filename=pdf_file.name)
-        
-        print(f"[INFO] 处理: {pdf_file.name}")
-        
-        try:
-            # 提取裁定信息
-            ruling_info = self.pdf_extractor.extract_from_pdf(pdf_file)
-            result.ruling_info = ruling_info
-            result.court_case_number = ruling_info.court_case_number
-            
-            if not ruling_info.court_case_number:
-                result.error = "无法提取法院案号"
-                print(f"  [WARN] {result.error}")
-            else:
-                print(f"  [OK] 案号: {ruling_info.court_case_number}")
-                print(f"      责令号: {ruling_info.notice_numbers}")
-                print(f"      被执行人: {[r['name'] for r in ruling_info.respondents]}")
-                print(f"      金额: {ruling_info.execution_amount}")
-                print(f"      日期: {ruling_info.ruling_date}")
-                print(f"      审判员: {ruling_info.judge}")
-        
-        except Exception as e:
-            result.error = str(e)
-            print(f"  [ERROR] 处理失败: {e}")
-        
-        return result
-    
-    def match_with_registry(self, registry: EnforcementCaseRegistry) -> Dict[str, List[str]]:
-        """
-        将提取结果与案件登记簿进行匹配
-        
-        Returns:
-            Dict[str, List[str]]: 匹配统计信息
-        """
-        stats = {
-            'total_processed': len(self.results),
-            'successfully_extracted': 0,
-            'matched_cases': 0,
-            'unmatched_cases': 0,
-            'matched_notice_numbers': [],
-        }
-        
-        for result in self.results:
-            if result.error or not result.ruling_info:
-                continue
-            
-            stats['successfully_extracted'] += 1
-            
-            # 匹配案件
-            matched_cases = registry.match_ruling_info(result.ruling_info)
-            
-            if matched_cases:
-                result.matched = True
-                stats['matched_cases'] += 1
-                
-                # 更新案件信息
-                for case in matched_cases:
-                    registry.update_case_from_ruling(case, result.ruling_info)
-                    result.matched_notice_numbers.append(case.notice_number)
-                    stats['matched_notice_numbers'].append(case.notice_number)
-                
-                print(f"  [MATCHED] {result.court_case_number} -> {len(matched_cases)} 条案件")
-            else:
-                stats['unmatched_cases'] += 1
-                print(f"  [UNMATCHED] {result.court_case_number}")
-        
-        return stats
-    
-    def export_to_json(self, output_path: Path) -> Path:
-        """导出提取结果到JSON"""
-        data = {
-            'export_time': datetime.now().isoformat(),
-            'input_dir': str(self.input_dir),
-            'total_files': len(self.results),
-            'results': [r.to_dict() for r in self.results]
-        }
-        
-        with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        print(f"[INFO] 已导出JSON到: {output_path}")
-        return output_path
+        rows.append(row)
+
+    _sort_rows_by_region(rows)
+    df = pd.DataFrame(rows)
+    df = df.fillna('')
+    columns_order = ['区号', '行政审查案号', '责令号', '被执行人', '职工姓名', '金额', '法官/法官助理', '执行时间', '裁定结果', '备注']
+    df = df[columns_order]
+
+    with pd.ExcelWriter(str(output_path), engine='openpyxl') as writer:
+        df.to_excel(writer, index=False, sheet_name='执行组识别结果')
+        ws = writer.sheets['执行组识别结果']
+        _auto_fit_columns(ws)
+        _apply_header_style(ws)
+
+    return output_path
+
+
+def _match_case_to_pdf(case, pdf_results: Dict[str, RulingInfo]) -> Optional[RulingInfo]:
+    for info in pdf_results.values():
+        for ocr_notice in info.notice_numbers:
+            norm_ocr = _normalize_for_match(ocr_notice)
+            norm_excel = _normalize_for_match(case.notice_number)
+            if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
+                return info
+    return None
+
+
+def _normalize_for_match(text: str) -> str:
+    """标准化责令号用于匹配：统一括号、去空格"""
+    if not text:
+        return ''
+    text = str(text).replace(' ', '')
+    for old, new in [('(', '〔'), (')', '〕'), ('（', '〔'), ('）', '〕'),
+                      ('[', '〔'), (']', '〕'), ('［', '〔'), ('］', '〕'),
+                      ('【', '〔'), ('】', '〕')]:
+        text = text.replace(old, new)
+    return text
+
+
+def _format_amount(amount) -> str:
+    if amount is None:
+        return ''
+    return str(int(amount)) if amount == int(amount) else str(amount)
+
+
+def _format_date(date_str: Optional[str]) -> str:
+    if not date_str:
+        return ''
+    try:
+        return chinese_date_to_arabic(date_str)
+    except Exception:
+        return date_str
+
+
+def _sort_rows_by_region(rows: List[Dict]):
+    region_order = {'萝岗': 1, '越秀': 2, '荔湾': 3, '天河': 4, '海珠': 5,
+                    '白云': 6, '黄埔': 7, '番禺': 8, '花都': 9, '南沙': 10,
+                    '增城': 11, '从化': 12}
+    rows.sort(key=lambda r: (region_order.get(r.get('区号', ''), 99), r.get('责令号', '')))
+
+
+def _auto_fit_columns(ws):
+    for col_cells in ws.columns:
+        max_length = 0
+        col_letter = get_column_letter(col_cells[0].column)
+        for cell in col_cells:
+            if cell.value:
+                cell_len = 0
+                for ch in str(cell.value):
+                    cell_len += 2 if '\u4e00' <= ch <= '\u9fff' else 1
+                max_length = max(max_length, cell_len)
+        adjusted = min(max_length + 4, 60)
+        ws.column_dimensions[col_letter].width = max(adjusted, 8)
+
+
+def _apply_header_style(ws):
+    from openpyxl.styles import Font, PatternFill, Alignment
+    header_font = Font(name='微软雅黑', bold=True, size=11)
+    header_fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+    header_alignment = Alignment(horizontal='center', vertical='center')
+    for cell in ws[1]:
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_alignment
 
 
 def run_enforcement_extraction(
@@ -163,80 +163,167 @@ def run_enforcement_extraction(
     use_ocr: bool = False,
 ) -> Dict[str, Any]:
     """
-    运行强制执行组完整提取流程
-    
-    Args:
-        input_dir: 裁定PDF所在目录
-        excel_path: 非诉表格.xlsx 路径
-        output_dir: 输出目录
-        use_ocr: 是否使用OCR
-    
-    Returns:
-        Dict[str, Any]: 处理结果统计
+    运行强制执行组完整提取+导出流程
+
+    流程：
+    1. 加载台账（非诉表格.xlsx）
+    2. 批量OCR识别裁定PDF（行审案号、责令号、法官/法官助理、责令作出时间）
+    3. 按责令号匹配台账与OCR结果
+    4. 导出合并后Excel
     """
     output_dir.mkdir(parents=True, exist_ok=True)
-    
+
     print("=" * 60)
-    print("强制执行组 - 裁定信息提取")
+    print("强制执行组 - 裁定信息识别与导出")
     print("=" * 60)
-    
-    # 1. 加载台账
+
     print("\n[1/4] 加载台账数据...")
     registry = load_enforcement_cases(excel_path)
-    
-    # 2. 处理裁定PDF
-    print("\n[2/4] 处理裁定PDF...")
-    extractor = EnforcementExtractor(input_dir, use_ocr=use_ocr)
-    results = extractor.process_all_pdfs()
-    
-    # 3. 匹配并更新
-    print("\n[3/4] 匹配案件并更新数据...")
-    stats = extractor.match_with_registry(registry)
-    
-    # 4. 导出结果
+
+    print("\n[2/4] 识别裁定PDF...")
+    pdf_results = {}
+    extractor = RulingPDFExtractor(use_ocr=use_ocr)
+    pdf_files = sorted(input_dir.glob("*.pdf"))
+    print(f"  发现 {len(pdf_files)} 个PDF文件")
+
+    for pdf_file in pdf_files:
+        print(f"  处理: {pdf_file.name}")
+        try:
+            info = extractor.extract_from_pdf(pdf_file)
+            key = info.court_case_number if info.court_case_number else pdf_file.stem
+            pdf_results[key] = info
+            print(f"    案号: {info.court_case_number}")
+            print(f"    责令号: {info.notice_numbers}")
+            print(f"    法官: {info.judge}, 法官助理/书记员: {info.clerk}")
+            print(f"    裁定日期: {info.ruling_date}")
+            print(f"    裁定结果: {info.ruling_result}")
+        except Exception as e:
+            print(f"    [ERROR] 处理失败: {e}")
+
+    print("\n[3/4] 匹配责令号并合并数据...")
+    stats = _match_and_stats(registry, pdf_results)
+
     print("\n[4/4] 导出结果...")
-    
-    # 导出JSON（提取详情）
+
+    excel_output_path = output_dir / _paths_cfg.get('excel_output_filename', '执行组识别结果.xlsx')
+    build_output_excel(registry, pdf_results, excel_output_path)
+
     json_path = output_dir / _paths_cfg.get('json_output_filename', 'enforcement_extracted.json')
-    extractor.export_to_json(json_path)
-    
-    # 导出JSON（案件完整数据）
-    cases_json_path = output_dir / 'enforcement_cases.json'
-    registry.export_to_json(cases_json_path)
-    
-    # 保存更新后的Excel
-    excel_output_path = output_dir / excel_path.name
-    registry.save_to_excel(excel_output_path)
-    
-    # 打印统计
+    _export_json(pdf_results, stats, json_path)
+
+    summary_path = output_dir / 'enforcement_summary.json'
+    _export_summary(registry, pdf_results, summary_path)
+
     print("\n" + "=" * 60)
     print("处理统计")
     print("=" * 60)
-    print(f"  处理PDF文件: {stats['total_processed']}")
-    print(f"  成功提取: {stats['successfully_extracted']}")
-    print(f"  匹配成功: {stats['matched_cases']}")
-    print(f"  未匹配: {stats['unmatched_cases']}")
+    print(f"  PDF文件数: {stats['total_pdfs']}")
+    print(f"  台账行数: {stats['total_excel_rows']}")
+    print(f"  成功匹配: {stats['matched_rows']}")
+    print(f"  未匹配: {stats['unmatched_rows']}")
+    print(f"  撤回执行: {stats['withdraw_count']}")
     print(f"\n输出文件:")
-    print(f"  - {json_path}")
-    print(f"  - {cases_json_path}")
     print(f"  - {excel_output_path}")
-    
+    print(f"  - {json_path}")
+    print(f"  - {summary_path}")
+
     return {
         'stats': stats,
         'output_files': {
-            'json': str(json_path),
-            'cases_json': str(cases_json_path),
             'excel': str(excel_output_path),
+            'json': str(json_path),
+            'summary': str(summary_path),
         }
     }
 
 
+def _match_and_stats(registry: EnforcementCaseRegistry, pdf_results: Dict[str, RulingInfo]) -> Dict[str, Any]:
+    matched = set()
+    withdraw_count = sum(1 for info in pdf_results.values() if info.is_withdraw)
+    for case in registry.cases:
+        for info in pdf_results.values():
+            for ocr_notice in info.notice_numbers:
+                norm_ocr = _normalize_for_match(ocr_notice)
+                norm_excel = _normalize_for_match(case.notice_number)
+                if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
+                    matched.add(case.notice_number)
+                    break
+
+    return {
+        'total_pdfs': len(pdf_results),
+        'total_excel_rows': len(registry.cases),
+        'matched_rows': len(matched),
+        'unmatched_rows': len(registry.cases) - len(matched),
+        'withdraw_count': withdraw_count,
+    }
+
+
+def _export_json(pdf_results: Dict[str, RulingInfo], stats: Dict, output_path: Path):
+    data = {
+        'export_time': datetime.now().isoformat(),
+        'stats': stats,
+        'pdf_results': {k: v.to_dict() for k, v in pdf_results.items()},
+    }
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    print(f"  JSON导出: {output_path}")
+
+
+def _export_summary(registry: EnforcementCaseRegistry, pdf_results: Dict[str, RulingInfo], output_path: Path):
+    summary = {
+        'export_time': datetime.now().isoformat(),
+        'excel_rows': len(registry.cases),
+        'pdf_files': len(pdf_results),
+        'matched': [],
+        'unmatched_excel': [],
+        'unmatched_pdfs': [],
+    }
+
+    matched_excel = set()
+    for case in registry.cases:
+        found = False
+        for info in pdf_results.values():
+            for ocr_notice in info.notice_numbers:
+                norm_ocr = _normalize_for_match(ocr_notice)
+                norm_excel = _normalize_for_match(case.notice_number)
+                if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
+                    found = True
+                    matched_excel.add(case.notice_number)
+                    summary['matched'].append({
+                        '责令号': case.notice_number,
+                        '职工': case.employee,
+                        '行审案号': info.court_case_number,
+                        '法官': info.judge,
+                        '日期': info.ruling_date,
+                    })
+                    break
+            if found:
+                break
+        if not found:
+            summary['unmatched_excel'].append({
+                '责令号': case.notice_number,
+                '被执行人': case.respondent,
+                '职工': case.employee,
+            })
+
+    for key, info in pdf_results.items():
+        if not any(m['行审案号'] == info.court_case_number for m in summary['matched']):
+            summary['unmatched_pdfs'].append({
+                '文件': key,
+                '行审案号': info.court_case_number,
+                '责令号': info.notice_numbers,
+            })
+
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+    print(f"  汇总JSON导出: {output_path}")
+
+
 if __name__ == "__main__":
-    # 测试运行
     input_dir = Path("样本材料/强制组-自动化/提取信息")
     excel_path = Path("样本材料/强制组-自动化/提取信息/非诉表格.xlsx")
     output_dir = Path("output/enforcement")
-    
+
     if input_dir.exists() and excel_path.exists():
         result = run_enforcement_extraction(input_dir, excel_path, output_dir, use_ocr=False)
         print("\n[OK] 处理完成!")

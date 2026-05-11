@@ -31,7 +31,7 @@ from non_litigation_product import load_non_litigation_cases
 from text_postprocessor import TextPostProcessor
 from system_resource import detect_system_resources
 
-from paths import ROOT
+from paths import ROOT, USER_DATA_DIR
 
 from config_loader import load_config
 _cfg = load_config()
@@ -235,26 +235,30 @@ def _select_notice_candidate(candidate_pages: List[Dict]) -> Dict:
     if not candidate_pages:
         return {}
 
-    first_page = candidate_pages[0]
-    decision_numbers = first_page.get('decision_numbers', [])
-    if not decision_numbers:
+    all_candidates = []
+    for page_entry in candidate_pages:
+        for number in page_entry.get('decision_numbers', []):
+            normalized = normalize_notice_number(number)
+            root_number = _get_notice_root_number(normalized)
+            all_candidates.append({
+                'page': page_entry.get('page'),
+                'number': normalized,
+                'root_number': root_number,
+                'is_base_number': normalized == root_number,
+                'company_name': page_entry.get('company_name'),
+            })
+
+    if not all_candidates:
         return {}
 
-    first_number = decision_numbers[0]
-    normalized = normalize_notice_number(first_number)
-    root_number = _get_notice_root_number(normalized)
-    
+    base_candidates = [c for c in all_candidates if c['is_base_number']]
+    best = base_candidates[0] if base_candidates else all_candidates[0]
+
     return {
-        'selected_notice': normalized,
-        'selected_page': first_page.get('page'),
-        'selected_root_notice': root_number,
-        'candidate_notices': [{
-            'page': first_page.get('page'),
-            'number': normalized,
-            'root_number': root_number,
-            'is_base_number': normalized == root_number,
-            'company_name': first_page.get('company_name'),
-        }],
+        'selected_notice': best['number'],
+        'selected_page': best['page'],
+        'selected_root_notice': best['root_number'],
+        'candidate_notices': all_candidates,
     }
 
 
@@ -421,11 +425,11 @@ def get_non_litigation_input_root(project_root: Path) -> Path:
 
 
 def get_non_litigation_result_root(project_root: Path) -> Path:
-    return project_root / 'output' / NON_LITIGATION_RESULT_DIRNAME
+    return USER_DATA_DIR / 'output' / NON_LITIGATION_RESULT_DIRNAME
 
 
 def get_non_litigation_temp_root(project_root: Path) -> Path:
-    return project_root / 'temp' / NON_LITIGATION_TEMP_DIRNAME
+    return USER_DATA_DIR / 'temp' / NON_LITIGATION_TEMP_DIRNAME
 
 
 def get_non_litigation_ocr_cache_dir(project_root: Path) -> Path:
@@ -443,9 +447,10 @@ def ensure_non_litigation_input_structure(project_root: Path) -> Path:
 
 def get_notice_input_dirs(input_dir: Path) -> List[Path]:
     candidate_dirs = [input_dir]
-    nested_notice_dir = input_dir / '责催（证据材料）'
-    if nested_notice_dir.exists() and nested_notice_dir.is_dir():
-        candidate_dirs.append(nested_notice_dir)
+    for subdir_name in ['责催（证据材料）', 'notice-evidence']:
+        nested_dir = input_dir / subdir_name
+        if nested_dir.exists() and nested_dir.is_dir():
+            candidate_dirs.append(nested_dir)
     return candidate_dirs
 
 
@@ -1130,8 +1135,31 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
     shared_region_extractor = None
     shared_post_processor = None
 
+    print(f"\n[INFO] OCR 引擎状态: HAS_OCR={HAS_OCR}, use_mock={use_mock}")
+
     notice_files = discover_notice_files(input_dir)
     notice_path_map = {path.name: path for path in iter_notice_pdf_paths(input_dir)}
+
+    other_files_expected = [
+        (pdf_name, pdf_name.replace('.pdf', ''))
+        for pdf_name in _cfg.source_mapping.values()
+    ]
+    other_existing = [(name, stem) for name, stem in other_files_expected if (input_dir / name).exists()]
+    other_missing = [(name, stem) for name, stem in other_files_expected if not (input_dir / name).exists()]
+
+    total_found = len(notice_files) + len(other_existing)
+    print(f"[INFO] 输入目录: {input_dir}")
+    print(f"[INFO] 文件发现: 责催 {len(notice_files)} 个, 其他 {len(other_existing)} 个, 合计 {total_found} 个")
+    if not notice_files and not other_existing:
+        print(f"[WARN] 输入目录中未发现任何 PDF 文件！")
+        if use_mock and not HAS_OCR:
+            print(f"[WARN] OCR 引擎未安装 (HAS_OCR=False)，且无 Mock 数据")
+        print(f"[WARN] 请将 PDF 文件放入: {input_dir}")
+        for name, stem in other_missing:
+            print(f"[WARN]   缺少: {name}")
+    if other_missing:
+        for name, stem in other_missing:
+            print(f"[WARN] 缺少配置文件: {name}")
 
     profile = None
     parallel_workers = 1
@@ -1509,6 +1537,12 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
     print("\n[INFO] 开始导出文件...")
     print("=" * 60)
 
+    total_targets = sum(len(target_names) for target_names in tree.values())
+    if total_targets == 0:
+        print("\n[WARN] 导出计划为空！台账中未加载到任何案件数据")
+        print(f"  请检查 Excel 文件是否存在于: {sample_root}")
+        print(f"  输入目录: {input_dir}")
+
     export_tasks = []
     for folder_name, target_names in tree.items():
         folder_path = output_root / folder_name
@@ -1533,6 +1567,13 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
             export_tasks.append(('所函', count))
 
     created_count = sum(count for _, count in export_tasks)
+
+    if created_count == 0:
+        print("\n[WARN] 导出 0 个文件！可能原因：")
+        print(f"  1. 输入目录 ({input_dir}) 中没有 PDF 文件")
+        print(f"  2. OCR 缓存未构建成功（先运行 OCR 识别阶段）")
+        print(f"  3. 台账 Excel 中没有匹配的案件数据")
+        print(f"  请检查以上路径和文件是否正确")
 
     audit_path = output_root / 'audit-log.json'
     audit_path.write_text(json.dumps(_audit_log, ensure_ascii=False, indent=2), encoding='utf-8')

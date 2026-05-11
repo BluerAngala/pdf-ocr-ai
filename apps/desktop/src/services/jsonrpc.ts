@@ -103,6 +103,14 @@ function mockResponse(method: string, params: any): any {
       };
     case "ocr.get_cache_status":
       return { cached_files: [], total_cached: 0, cache_dir: "/tmp/ocr-cache" };
+    case "company_query.search":
+      return {
+        companies: [
+          { name: "示例企业有限公司", credit_code: "91110000XXXXXXXXXX", status: "存续" },
+          { name: "示例科技股份有限公司", credit_code: "91110000YYYYYYYYYY", status: "存续" },
+        ],
+        total: 2,
+      };
     case "config.get":
       return {
         doc_types: [],

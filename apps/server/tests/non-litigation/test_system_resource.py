@@ -1,10 +1,11 @@
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[4]
-SRC = ROOT / 'apps' / 'server' / 'src'
+SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+from paths import ROOT
 
 from system_resource import detect_system_resources, ResourceProfile, OCR_MODEL_MEMORY_GB
 

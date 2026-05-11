@@ -167,14 +167,6 @@ fn is_bundled() -> bool {
             }
         }
     }
-    
-    if let Ok(resources_dir) = get_resources_dir() {
-        let server_exe = resources_dir.join("gjj-ocr-server").join("gjj-ocr-server.exe");
-        let exists = server_exe.exists();
-        eprintln!("[is_bundled] Checking server exe: {:?}, exists: {}", server_exe, exists);
-        return exists;
-    }
-    
     false
 }
 

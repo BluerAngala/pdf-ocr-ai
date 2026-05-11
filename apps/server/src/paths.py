@@ -45,6 +45,23 @@ def get_resources_dir() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
+def get_user_data_dir() -> Path:
+    env = os.environ.get("GJJ_OCR_USER_DATA")
+    if env:
+        return Path(env).resolve()
+
+    local_appdata = os.environ.get("LOCALAPPDATA")
+    if local_appdata:
+        return Path(local_appdata) / "gjj-ocr-tool"
+
+    home = Path.home()
+    if home.exists():
+        return home / "AppData" / "Local" / "gjj-ocr-tool"
+
+    return Path.cwd() / "user-data"
+
+
 ROOT = get_project_root()
 SERVER_SRC = get_server_src()
 RESOURCES_DIR = get_resources_dir()
+USER_DATA_DIR = get_user_data_dir()

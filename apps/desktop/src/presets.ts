@@ -40,6 +40,14 @@ const PRESET_DEFS = [
     excelRel: "样本材料/强制组-自动化/自动打印/AOL网上网立台账.xlsx",
     mode: "real_ocr" as const,
   },
+  {
+    id: "company-query",
+    name: "企业信息查询",
+    description: "企业工商信息、司法信息查询",
+    sampleRel: "样本材料/企业信息查询",
+    excelRel: "样本材料/企业信息查询/企业名单.xlsx",
+    mode: "mock" as const,
+  },
 ];
 
 export function buildPresets(projectRoot: string): PresetConfig[] {

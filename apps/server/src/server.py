@@ -47,7 +47,7 @@ else:
 if str(_server_src) not in sys.path:
     sys.path.insert(0, str(_server_src))
 
-from paths import ROOT, SERVER_SRC
+from paths import ROOT, SERVER_SRC, USER_DATA_DIR
 
 PRESET_SAMPLE_PATHS = {
     "non-litigation-batch1": ["sample-data/non-litigation-batch1", "样本材料/非诉组自动化样本材料"],
@@ -69,7 +69,11 @@ def _resolve_preset_path(path_list):
         candidate = ROOT / p
         if candidate.exists():
             return candidate.resolve()
-    return (ROOT / path_list[0]).resolve()
+    raise FileNotFoundError(f"所有预设路径均不存在: {path_list} (ROOT={ROOT})")
+
+
+def _dir_has_pdfs(dir_path: Path) -> bool:
+    return any(dir_path.rglob('*.pdf'))
 
 # 启动时打印调试信息
 startup_info = {
@@ -258,8 +262,12 @@ class JsonRpcServer:
             else:
                 sample_root_path = (ROOT / '样本材料' / '非诉组自动化样本材料').resolve()
             input_root = ensure_non_litigation_input_structure(ROOT)
-            if (sample_root_path / '原始文件').exists():
-                input_root = sample_root_path / '原始文件'
+            original_files_dir = sample_root_path / '原始文件'
+            sample_input_dir = sample_root_path / 'input'
+            if original_files_dir.exists() and list(original_files_dir.glob('*.pdf')):
+                input_root = original_files_dir
+            elif sample_input_dir.exists() and _dir_has_pdfs(sample_input_dir):
+                input_root = sample_input_dir
 
             result_root = get_non_litigation_result_root(ROOT)
             ocr_cache_dir = get_non_litigation_ocr_cache_dir(ROOT)
@@ -275,6 +283,11 @@ class JsonRpcServer:
                     shutil.rmtree(ocr_cache_dir)
                     ocr_cache_dir.mkdir(parents=True, exist_ok=True)
                 build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False)
+                cache_files = list(ocr_cache_dir.glob('*_ultra_result.json'))
+                emitter.log("info", f"OCR 缓存文件数: {len(cache_files)}")
+                if not cache_files:
+                    emitter.log("warn", "警告：OCR 缓存为空！请检查输入目录是否有 PDF 文件")
+                    emitter.log("warn", f"输入目录: {input_root}")
             else:
                 emitter.log("info", "开始构建 mock OCR 缓存...")
                 build_mock_ocr_cache(sample_root_path, ocr_cache_dir, input_dir=input_root)
@@ -296,7 +309,7 @@ class JsonRpcServer:
             quality = evaluate_non_litigation_quality(ROOT, result_root, sample_root=sample_root_path)
 
             # 生成报告
-            html_report_path = ROOT / 'output' / 'ocr-validation-report.html'
+            html_report_path = USER_DATA_DIR / 'output' / 'ocr-validation-report.html'
             html_report_path.parent.mkdir(parents=True, exist_ok=True)
             generate_html_report(validation_result, html_report_path, mode=mode, runtime_seconds=0)
 
@@ -390,7 +403,8 @@ class JsonRpcServer:
             return {
                 "processed": result.get('processed', 0),
                 "extracted": result.get('extracted', []),
-                "updated_excel_path": result.get('updated_excel_path', '')
+                "updated_excel_path": result.get('updated_excel_path', ''),
+                "stats": result.get('stats', {}),
             }
         except Exception as e:
             raise Exception(f"强制执行提取失败: {str(e)}")

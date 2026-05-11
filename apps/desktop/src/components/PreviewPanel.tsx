@@ -174,7 +174,7 @@ export default function PreviewPanel({
                 <CompanyQueryResult
                   result={{
                     companies: liveCompanies,
-                    company_stats: liveStats as any,
+                    company_stats: liveStats,
                   }}
                 />
               )}

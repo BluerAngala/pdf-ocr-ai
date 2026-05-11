@@ -630,6 +630,9 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
     stats = {"total_pdfs": processed, "total_excel_rows": 0, "matched_rows": 0, "unmatched_rows": 0, "withdraw_count": 0}
     updated_excel_path = ""
 
+    output_dir = USER_DATA_DIR / "output" / "enforcement"
+    output_dir.mkdir(parents=True, exist_ok=True)
+
     if excel_path.exists():
         try:
             registry = load_enforcement_cases(excel_path)
@@ -640,12 +643,18 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
                     stats["withdraw_count"] += 1
 
             matched_count = 0
+            print(f"[DEBUG] 开始匹配: 台账行数={len(registry.cases)}, PDF数={len(pdf_results)}")
             for case in registry.cases:
+                print(f"[DEBUG] 台账案件: 责令号='{case.notice_number}'")
                 for info in pdf_results.values():
+                    print(f"[DEBUG]   PDF案件: 案号='{info.court_case_number}', 责令号列表={info.notice_numbers}")
                     for ocr_notice in info.notice_numbers:
-                        norm_ocr = ocr_notice.strip()
-                        norm_excel = case.notice_number.strip()
+                        # 使用与台账加载相同的标准化逻辑
+                        norm_ocr = registry._normalize_notice_number(ocr_notice)
+                        norm_excel = registry._normalize_notice_number(case.notice_number)
+                        print(f"[DEBUG]     比较: OCR='{norm_ocr}' vs Excel='{norm_excel}'")
                         if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
+                            print(f"[DEBUG]     ✓ 匹配成功!")
                             matched_count += 1
                             break
                     else:
@@ -663,9 +672,6 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
                 pass
         except Exception as e:
             print(f"[WARN] 台账匹配/导出失败: {e}")
-
-    output_dir = USER_DATA_DIR / "output" / "enforcement"
-    output_dir.mkdir(parents=True, exist_ok=True)
 
     return {
         "processed": processed,

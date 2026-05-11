@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from "react";
-import type { ModuleType, PreviewState, ProcessingResult, LogEntry } from "../types";
+import type { ModuleType, PreviewState, ProcessingResult, LogEntry, PrinterInfo } from "../types";
 import ConfigPanel from "./ConfigPanel";
 import PreviewPanel from "./PreviewPanel";
 import LogsPanel from "./LogsPanel";
@@ -15,6 +15,11 @@ interface Props {
   onExcelFileChange: (v: string) => void;
   onMockModeChange: (v: boolean) => void;
   onForceOcrChange: (v: boolean) => void;
+  printerName: string;
+  printCopies: number;
+  printers: PrinterInfo[];
+  onPrinterNameChange: (v: string) => void;
+  onPrintCopiesChange: (v: number) => void;
   onBack: () => void;
   onPreset: () => void;
   onSelectFolder: () => void;
@@ -49,6 +54,11 @@ export default function DetailView({
   onExcelFileChange,
   onMockModeChange,
   onForceOcrChange,
+  printerName,
+  printCopies,
+  printers,
+  onPrinterNameChange,
+  onPrintCopiesChange,
   onBack,
   onPreset,
   onSelectFolder,
@@ -160,10 +170,15 @@ export default function DetailView({
             mockMode={mockMode}
             forceOcr={forceOcr}
             running={running}
+            printerName={printerName}
+            printCopies={printCopies}
+            printers={printers}
             onSampleRootChange={onSampleRootChange}
             onExcelFileChange={onExcelFileChange}
             onMockModeChange={onMockModeChange}
             onForceOcrChange={onForceOcrChange}
+            onPrinterNameChange={onPrinterNameChange}
+            onPrintCopiesChange={onPrintCopiesChange}
             onPreset={onPreset}
             onSelectFolder={onSelectFolder}
             onSelectExcel={onSelectExcel}

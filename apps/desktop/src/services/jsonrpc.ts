@@ -111,6 +111,39 @@ function mockResponse(method: string, params: any): any {
         ],
         total: 2,
       };
+    case "company_query.process":
+      return {
+        total: 3,
+        success_count: 2,
+        fail_count: 1,
+        companies: [
+          { original_name: "爱玛客服务产业(中国)有限公司广东分公司", current_name: "爱玛客服务产业（中国）有限公司广东分公司", legal_person: "张三", location: "广东省广州市天河区", credit_code: "91440101MA5XXXXXXX", status: "success" },
+          { original_name: "澳思美日用化工(广州)有限公司", current_name: "澳思美日用化工（广州）有限公司（曾用名：澳思美化工）", legal_person: "李四", location: "广东省广州市黄埔区", credit_code: "91440101MA5YYYYYYY", status: "success" },
+          { original_name: "某不存在的公司", current_name: "", legal_person: "", location: "", credit_code: "", status: "failed", error: "未查询到企业数据" },
+        ],
+        output_excel_path: "/output/企业查询结果_mock.xlsx",
+      };
+    case "print.process":
+      return {
+        total_files: 5,
+        printed: 4,
+        failed: 1,
+        printer_used: "Mock Printer",
+        files: [
+          { filename: "裁定书-张三.pdf", status: "printed", pages: 3 },
+          { filename: "责令-李四.pdf", status: "printed", pages: 2 },
+          { filename: "申请书-王五.pdf", status: "printed", pages: 1 },
+          { filename: "授权书-赵六.pdf", status: "printed", pages: 1 },
+          { filename: "所函-钱七.pdf", status: "failed", error: "模拟打印失败" },
+        ],
+      };
+    case "print.list_printers":
+      return {
+        printers: [
+          { name: "Mock Printer", is_default: true },
+          { name: "Microsoft Print to PDF", is_default: false },
+        ],
+      };
     case "config.get":
       return {
         doc_types: [],

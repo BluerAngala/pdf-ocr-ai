@@ -7,6 +7,7 @@ import type {
   ProgressParams,
   SystemStatus,
   DependenciesCheck,
+  PrinterInfo,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { getPresetById, getPresets } from "./presets";
@@ -25,6 +26,9 @@ export default function App() {
   const [excelFile, setExcelFile] = useState("");
   const [mockMode, setMockMode] = useState(false);
   const [forceOcr, setForceOcr] = useState(false);
+  const [printerName, setPrinterName] = useState("");
+  const [printCopies, setPrintCopies] = useState(1);
+  const [printers, setPrinters] = useState<PrinterInfo[]>([]);
 
   const [previewState, setPreviewState] = useState<PreviewState>("empty");
   const [phase, setPhase] = useState("");
@@ -126,6 +130,15 @@ export default function App() {
         setMockMode(preset.mode === "mock");
         addLog("info", `已加载预设: ${preset.name}`);
       }
+      if (module === "print") {
+        sendRequest("print.list_printers", {}).then((res: any) => {
+          const list: PrinterInfo[] = res.printers || [];
+          setPrinters(list);
+          const defaultPrinter = list.find((p) => p.is_default);
+          if (defaultPrinter) setPrinterName(defaultPrinter.name);
+          else if (list.length > 0) setPrinterName(list[0].name);
+        }).catch(() => addLog("warn", "获取打印机列表失败"));
+      }
       addLog("info", `切换到模块: ${config.title}`);
     },
     [addLog],
@@ -189,7 +202,7 @@ export default function App() {
     addLog("info", `开始${MODULE_CONFIG[currentModule].title}处理...`);
 
     try {
-      let res: ProcessingResult;
+      let res: ProcessingResult = {} as ProcessingResult;
       if (currentModule === "non-litigation") {
         const config = MODULE_CONFIG[currentModule];
         res = await sendRequest("non_litigation.process", {
@@ -216,24 +229,45 @@ export default function App() {
             result_root: rawResult.output_dir || undefined,
           },
         };
-      } else if (currentModule === "print") {
-        addLog("info", "[模拟] 自动打印处理...");
+      } else if (currentModule === "company-query") {
+        if (!excelFile) {
+          alert("请选择企业信息数据 Excel 文件");
+          setRunning(false);
+          setPreviewState("empty");
+          return;
+        }
+        const rawResult = await sendRequest("company_query.process", {
+          excel_path: excelFile,
+          task_id: taskId,
+        });
         res = {
-          summary: {
-            created_count: 5,
-            quality: { page_count_match_rate: 1 },
-            validation: { pass_rate: 1 },
-          },
+          companies: rawResult.companies || [],
+          company_stats: rawResult.total !== undefined
+            ? { total: rawResult.total, success_count: rawResult.success_count, fail_count: rawResult.fail_count }
+            : undefined,
+          output_excel_path: rawResult.output_excel_path || "",
+          summary: { result_root: rawResult.output_excel_path || undefined },
         };
-      } else {
-        // company-query or other modules
-        addLog("info", `[模拟] ${MODULE_CONFIG[currentModule].title}处理...`);
+      } else if (currentModule === "print") {
+        if (!sampleRoot) {
+          alert("请选择打印文件夹");
+          setRunning(false);
+          setPreviewState("empty");
+          return;
+        }
+        const rawResult = await sendRequest("print.process", {
+          folder_path: sampleRoot,
+          printer_name: printerName,
+          copies: printCopies,
+          task_id: taskId,
+        });
         res = {
-          summary: {
-            created_count: 3,
-            quality: { page_count_match_rate: 1 },
-            validation: { pass_rate: 1 },
-          },
+          print_files: rawResult.files || [],
+          print_stats: rawResult.total_files !== undefined
+            ? { total_files: rawResult.total_files, printed: rawResult.printed, failed: rawResult.failed }
+            : undefined,
+          printer_used: rawResult.printer_used || "",
+          summary: { result_root: sampleRoot },
         };
       }
       setPreviewState("result");
@@ -247,7 +281,7 @@ export default function App() {
     } finally {
       setRunning(false);
     }
-  }, [currentModule, sampleRoot, excelFile, mockMode, forceOcr, addLog]);
+  }, [currentModule, sampleRoot, excelFile, mockMode, forceOcr, printerName, printCopies, addLog]);
 
   const openReport = useCallback(async () => {
     const path = result?.html_report_path || result?.summary?.result_root;
@@ -327,6 +361,11 @@ export default function App() {
           onExcelFileChange={setExcelFile}
           onMockModeChange={setMockMode}
           onForceOcrChange={setForceOcr}
+          printerName={printerName}
+          printCopies={printCopies}
+          printers={printers}
+          onPrinterNameChange={setPrinterName}
+          onPrintCopiesChange={setPrintCopies}
           onBack={navigateHome}
           onPreset={loadPreset}
           onSelectFolder={selectFolder}

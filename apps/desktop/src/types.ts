@@ -65,6 +65,34 @@ export interface EnforcementStats {
   withdraw_count: number;
 }
 
+export interface CompanyQueryItem {
+  original_name: string;
+  current_name: string;
+  legal_person: string;
+  location: string;
+  credit_code: string;
+  status: "success" | "failed";
+  error?: string;
+}
+
+export interface CompanyQueryStats {
+  total: number;
+  success_count: number;
+  fail_count: number;
+}
+
+export interface PrintFileItem {
+  filename: string;
+  status: "printed" | "failed" | "pending" | "printing";
+  pages?: number;
+  error?: string;
+}
+
+export interface PrinterInfo {
+  name: string;
+  is_default: boolean;
+}
+
 export interface ProcessingResult {
   summary?: {
     sample_root?: string;

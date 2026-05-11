@@ -35,6 +35,13 @@ export default function App() {
   const [cacheTtlDays, setCacheTtlDays] = useState(7);
   const [liveCompanies, setLiveCompanies] = useState<CompanyQueryItem[]>([]);
 
+  // Print module specific states
+  const [printCompanyNameColumn, setPrintCompanyNameColumn] = useState("A");
+  const [printMode, setPrintMode] = useState<"single" | "double">("single");
+  const [printPageRange, setPrintPageRange] = useState<"all" | "custom">("all");
+  const [printCustomStartPage, setPrintCustomStartPage] = useState(1);
+  const [printCustomEndPage, setPrintCustomEndPage] = useState(1);
+
   const [previewState, setPreviewState] = useState<PreviewState>("empty");
   const [phase, setPhase] = useState("");
   const [progressCurrent, setProgressCurrent] = useState(0);
@@ -322,8 +329,16 @@ export default function App() {
         }
         const rawResult = await sendRequest("print.process", {
           folder_path: sampleRoot,
+          excel_path: excelFile || undefined,
+          range_start: excelFile ? rangeStart : undefined,
+          range_end: excelFile ? rangeEnd : undefined,
+          company_name_column: excelFile ? printCompanyNameColumn : undefined,
           printer_name: printerName,
           copies: printCopies,
+          print_mode: printMode,
+          page_range: printPageRange,
+          custom_start_page: printPageRange === "custom" ? printCustomStartPage : undefined,
+          custom_end_page: printPageRange === "custom" ? printCustomEndPage : undefined,
           task_id: taskId,
         });
         res = {
@@ -461,6 +476,16 @@ export default function App() {
           onRangeEndChange={setRangeEnd}
           cacheTtlDays={cacheTtlDays}
           onCacheTtlDaysChange={setCacheTtlDays}
+          printCompanyNameColumn={printCompanyNameColumn}
+          onPrintCompanyNameColumnChange={setPrintCompanyNameColumn}
+          printMode={printMode}
+          onPrintModeChange={setPrintMode}
+          printPageRange={printPageRange}
+          onPrintPageRangeChange={setPrintPageRange}
+          printCustomStartPage={printCustomStartPage}
+          onPrintCustomStartPageChange={setPrintCustomStartPage}
+          printCustomEndPage={printCustomEndPage}
+          onPrintCustomEndPageChange={setPrintCustomEndPage}
           running={running}
           previewState={previewState}
           phase={phase}

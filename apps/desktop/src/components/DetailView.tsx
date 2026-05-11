@@ -40,6 +40,17 @@ interface Props {
   onRangeEndChange: (v: number) => void;
   cacheTtlDays: number;
   onCacheTtlDaysChange: (v: number) => void;
+  // Print module specific
+  printCompanyNameColumn: string;
+  onPrintCompanyNameColumnChange: (v: string) => void;
+  printMode: "single" | "double";
+  onPrintModeChange: (v: "single" | "double") => void;
+  printPageRange: "all" | "custom";
+  onPrintPageRangeChange: (v: "all" | "custom") => void;
+  printCustomStartPage: number;
+  onPrintCustomStartPageChange: (v: number) => void;
+  printCustomEndPage: number;
+  onPrintCustomEndPageChange: (v: number) => void;
   running: boolean;
   previewState: PreviewState;
   phase: string;
@@ -88,6 +99,17 @@ export default function DetailView({
   onRangeEndChange,
   cacheTtlDays,
   onCacheTtlDaysChange,
+  // Print module specific
+  printCompanyNameColumn,
+  onPrintCompanyNameColumnChange,
+  printMode,
+  onPrintModeChange,
+  printPageRange,
+  onPrintPageRangeChange,
+  printCustomStartPage,
+  onPrintCustomStartPageChange,
+  printCustomEndPage,
+  onPrintCustomEndPageChange,
   running,
   previewState,
   phase,
@@ -216,6 +238,16 @@ export default function DetailView({
             onRangeEndChange={onRangeEndChange}
             cacheTtlDays={cacheTtlDays}
             onCacheTtlDaysChange={onCacheTtlDaysChange}
+            printCompanyNameColumn={printCompanyNameColumn}
+            onPrintCompanyNameColumnChange={onPrintCompanyNameColumnChange}
+            printMode={printMode}
+            onPrintModeChange={onPrintModeChange}
+            printPageRange={printPageRange}
+            onPrintPageRangeChange={onPrintPageRangeChange}
+            printCustomStartPage={printCustomStartPage}
+            onPrintCustomStartPageChange={onPrintCustomStartPageChange}
+            printCustomEndPage={printCustomEndPage}
+            onPrintCustomEndPageChange={onPrintCustomEndPageChange}
           />
         </div>
 

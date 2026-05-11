@@ -54,6 +54,7 @@ PRESET_SAMPLE_PATHS = {
     "non-litigation-batch2": ["sample-data/non-litigation-batch2", "样本材料/非诉组自动化样本材料（第2批）"],
     "enforcement-extract": ["sample-data/enforcement/extract", "样本材料/强制组-自动化/提取信息"],
     "enforcement-print": ["sample-data/enforcement/print", "样本材料/强制组-自动化/自动打印"],
+    "company-query": ["sample-data/company-query", "样本材料/企业信息查询"],
 }
 
 PRESET_EXCEL_PATHS = {
@@ -61,6 +62,7 @@ PRESET_EXCEL_PATHS = {
     "non-litigation-batch2": ["sample-data/non-litigation-batch2/台账及命名规则.xlsx", "样本材料/非诉组自动化样本材料（第2批）/台账及命名规则.xlsx"],
     "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx", "样本材料/强制组-自动化/提取信息/非诉表格.xlsx"],
     "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx", "样本材料/强制组-自动化/自动打印/AOL网上网立台账.xlsx"],
+    "company-query": ["sample-data/company-query/companies.xlsx", "样本材料/企业信息查询/5月案件-被执行人信息（新）(1).xlsx"],
 }
 
 
@@ -150,6 +152,11 @@ class JsonRpcServer:
         # 强制执行模块
         self.methods['enforcement.extract'] = self._enforcement_extract
         self.methods['enforcement.fill_excel'] = self._enforcement_fill_excel
+
+        self.methods['company_query.process'] = self._company_query_process
+
+        self.methods['print.process'] = self._print_process
+        self.methods['print.list_printers'] = self._print_list_printers
 
         # 配置模块
         self.methods['config.get'] = self._config_get
@@ -415,6 +422,70 @@ class JsonRpcServer:
     def _enforcement_fill_excel(self, params: Dict, id: Any) -> Dict:
         """回填到 Excel"""
         return {"success": True}
+
+    # ============ 企业信息查询模块 ============
+
+    def _company_query_process(self, params: Dict, id: Any) -> Dict:
+        preset_id = params.get('preset_id')
+        excel_path = params.get('excel_path')
+        task_id = params.get('task_id', f"cq-{id}")
+        emitter = ProgressEmitter(task_id)
+
+        try:
+            from company_query import process_company_query
+            if preset_id and preset_id in PRESET_EXCEL_PATHS:
+                excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
+            else:
+                excel_path = Path(excel_path) if excel_path else Path('.')
+
+            if not Path(excel_path).exists():
+                raise FileNotFoundError(f"Excel 文件不存在: {excel_path}")
+
+            emitter.log("info", f"开始企业信息查询: {Path(excel_path).name}")
+            result = process_company_query(Path(excel_path), emitter=emitter)
+            emitter.log("info", f"查询完成: 成功 {result['success_count']}/{result['total']}")
+            return result
+        except Exception as e:
+            raise Exception(f"企业查询失败: {str(e)}")
+
+    # ============ 自动打印模块 ============
+
+    def _print_process(self, params: Dict, id: Any) -> Dict:
+        folder_path = params.get('folder_path')
+        printer_name = params.get('printer_name', '')
+        copies = params.get('copies', 1)
+        task_id = params.get('task_id', f"print-{id}")
+        emitter = ProgressEmitter(task_id)
+
+        try:
+            from print_service import process_print, list_printers
+            folder = Path(folder_path) if folder_path else Path('.')
+            if not folder.exists():
+                raise FileNotFoundError(f"文件夹不存在: {folder}")
+
+            if not printer_name:
+                printers = list_printers()
+                default = next((p for p in printers if p["is_default"]), None)
+                if default:
+                    printer_name = default["name"]
+                elif printers:
+                    printer_name = printers[0]["name"]
+                else:
+                    raise Exception("未找到可用打印机")
+
+            emitter.log("info", f"开始打印: {folder} → {printer_name}")
+            result = process_print(folder, printer_name, copies, emitter=emitter)
+            emitter.log("info", f"打印完成: {result['printed']}/{result['total_files']}")
+            return result
+        except Exception as e:
+            raise Exception(f"打印失败: {str(e)}")
+
+    def _print_list_printers(self, params: Dict, id: Any) -> Dict:
+        try:
+            from print_service import list_printers
+            return {"printers": list_printers()}
+        except Exception as e:
+            raise Exception(f"获取打印机列表失败: {str(e)}")
 
     # ============ 配置模块 ============
 

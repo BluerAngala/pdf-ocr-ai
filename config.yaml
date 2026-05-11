@@ -323,3 +323,15 @@ enforcement:
       correct: "二〇二"
     - wrong: "二零二"
       correct: "二〇二"
+
+company_query:
+  coze_api_url: "https://api.coze.cn/v1/workflow/run"
+  coze_api_token: "sat_xo6jKTKmaerCALRXHE7ZrRowHOvHARoplcU0HiYQtARY3QMr4C1MXqUO3FAJFuHA"
+  coze_workflow_id: "7637504045536428084"
+  request_delay: 0.5
+  excel_column_name: "被执行人"
+
+print:
+  default_copies: 1
+  file_extensions:
+    - ".pdf"

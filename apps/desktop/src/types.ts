@@ -94,6 +94,12 @@ export interface ProcessingResult {
   extracted?: EnforcementExtracted[];
   enforcement_stats?: EnforcementStats;
   updated_excel_path?: string;
+  companies?: CompanyQueryItem[];
+  company_stats?: CompanyQueryStats;
+  output_excel_path?: string;
+  print_files?: PrintFileItem[];
+  print_stats?: { total_files: number; printed: number; failed: number };
+  printer_used?: string;
 }
 
 export interface SystemStatus {

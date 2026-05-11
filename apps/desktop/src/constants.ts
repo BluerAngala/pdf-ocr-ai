@@ -12,6 +12,8 @@ export const PHASE_NAMES: Record<string, string> = {
   export: "导出文件",
   validation: "验证",
   report: "生成报告",
+  company_query: "企业查询",
+  printing: "打印",
 };
 
 export const LOG_LEVEL_COLORS: Record<string, string> = {

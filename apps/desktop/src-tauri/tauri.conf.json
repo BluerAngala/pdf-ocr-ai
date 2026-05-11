@@ -71,8 +71,7 @@
         "icons/icon.ico"
       ],
       "resources": [
-        "resources/gjj-ocr-server/**",
-        "resources/gjj-ocr-server/gjj-ocr-server.exe",
+        "resources/gjj-ocr-server*",
         "resources/config.yaml",
         "resources/poppler/**",
         "resources/server_src",

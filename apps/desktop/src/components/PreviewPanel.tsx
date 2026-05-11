@@ -127,7 +127,7 @@ function NonLitigationResult({ result }: { result: ProcessingResult }) {
   const showItems = [...failedItems, ...warningItems, ...passItems];
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 h-full">
       <div className="grid grid-cols-5 gap-2">
         <div className="rounded-lg bg-slate-50 p-3 text-center border border-slate-100">
           <p className="text-lg font-bold text-slate-800">{v?.total ?? "-"}</p>
@@ -175,7 +175,7 @@ function NonLitigationResult({ result }: { result: ProcessingResult }) {
           <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
             验证明细
           </h4>
-          <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+          <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto">
             {showItems.map((item, i) => (
               <DetailItem key={i} item={item} />
             ))}
@@ -195,7 +195,7 @@ function EnforcementResult({ result }: { result: ProcessingResult }) {
       : 0;
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-4 h-full">
       {stats && (
         <div className="grid grid-cols-5 gap-2">
           <div className="rounded-lg bg-slate-50 p-3 text-center border border-slate-100">
@@ -239,7 +239,7 @@ function EnforcementResult({ result }: { result: ProcessingResult }) {
           <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
             提取明细
           </h4>
-          <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
+          <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto">
             {extracted.map((item, i) => (
               <ExtractedItem key={i} item={item} />
             ))}
@@ -272,51 +272,13 @@ export default function PreviewPanel({
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">预览</h3>
         <span className={badge.className}>{badge.text}</span>
       </div>
-      <div className="flex-1 flex flex-col min-h-0 p-4 overflow-y-auto">
-        {previewState === "empty" && (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center space-y-2">
-              <svg
-                className="w-10 h-10 text-slate-200 mx-auto"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1}
-                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                />
-              </svg>
-              <p className="text-xs text-slate-400">配置参数后点击「开始处理」</p>
-              <p className="text-[10px] text-slate-300">
-                {isEnforcement ? "将显示提取结果与匹配统计" : "将显示处理进度与结果"}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {previewState === "progress" && (
-          <div className="flex-1 flex items-center">
-            <div className="w-full space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">
-                  阶段: <span className="font-semibold text-slate-800">{phase || "-"}</span>
-                </span>
-                <span className="text-xs font-medium text-slate-500">
-                  {progressCurrent} / {progressTotal}
-                </span>
-              </div>
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                <div
-                  className="progress-bar h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
-                  style={{ width: `${percentage}%` }}
-                />
-              </div>
-              <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-100">
+      <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 overflow-y-auto p-4">
+          {previewState === "empty" && (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center space-y-2">
                 <svg
-                  className="w-4 h-4 text-blue-500 shrink-0 animate-spin"
+                  className="w-10 h-10 text-slate-200 mx-auto"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -324,27 +286,71 @@ export default function PreviewPanel({
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    strokeWidth={1}
+                    d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                   />
                 </svg>
-                <p className="text-xs font-medium text-slate-700 truncate">
-                  {progressMessage || "准备中..."}
+                <p className="text-xs text-slate-400">配置参数后点击「开始处理」</p>
+                <p className="text-[10px] text-slate-300">
+                  {isEnforcement ? "将显示提取结果与匹配统计" : "将显示处理进度与结果"}
                 </p>
               </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {previewState === "progress" && (
+            <div className="flex-1 flex items-center">
+              <div className="w-full space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    阶段: <span className="font-semibold text-slate-800">{phase || "-"}</span>
+                  </span>
+                  <span className="text-xs font-medium text-slate-500">
+                    {progressCurrent} / {progressTotal}
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="progress-bar h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                    style={{ width: `${percentage}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <svg
+                    className="w-4 h-4 text-blue-500 shrink-0 animate-spin"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <p className="text-xs font-medium text-slate-700 truncate">
+                    {progressMessage || "准备中..."}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {previewState === "result" && result && (
+            <>
+              {isEnforcement ? (
+                <EnforcementResult result={result} />
+              ) : (
+                <NonLitigationResult result={result} />
+              )}
+            </>
+          )}
+        </div>
 
         {previewState === "result" && result && (
-          <>
-            {isEnforcement ? (
-              <EnforcementResult result={result} />
-            ) : (
-              <NonLitigationResult result={result} />
-            )}
-
-            <div className="flex gap-2 justify-center pt-1">
+          <div className="shrink-0 px-4 py-3 border-t border-slate-100">
+            <div className="flex gap-2 justify-center">
               <button
                 onClick={onOpenReport}
                 className="h-9 px-5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors cursor-pointer"
@@ -364,7 +370,7 @@ export default function PreviewPanel({
                 🗑 清空当前
               </button>
             </div>
-          </>
+          </div>
         )}
       </div>
     </div>

@@ -47,15 +47,43 @@ export default function App() {
   const logIdRef = useRef(0);
   const currentTaskIdRef = useRef<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null!);
+  const pendingLogsRef = useRef<LogEntry[]>([]);
+  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const MAX_LOGS = 500;
 
-  const addLog = useCallback((level: string, message: string) => {
-    const time = new Date().toLocaleTimeString();
-    setLogs((prev) => [...prev, { id: ++logIdRef.current, level, message, time }]);
+  const flushLogs = useCallback(() => {
+    const pending = pendingLogsRef.current;
+    if (pending.length === 0) return;
+    pendingLogsRef.current = [];
+    setLogs((prev) => {
+      const merged = [...prev, ...pending];
+      return merged.length > MAX_LOGS ? merged.slice(merged.length - MAX_LOGS) : merged;
+    });
   }, []);
+
+  const addLog = useCallback(
+    (level: string, message: string) => {
+      const time = new Date().toLocaleTimeString();
+      pendingLogsRef.current.push({ id: ++logIdRef.current, level, message, time });
+      if (!flushTimerRef.current) {
+        flushTimerRef.current = setTimeout(() => {
+          flushTimerRef.current = null;
+          flushLogs();
+        }, 100);
+      }
+    },
+    [flushLogs],
+  );
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
+
+  useEffect(() => {
+    if (previewState === "result") {
+      setLogsExpanded(false);
+    }
+  }, [previewState]);
 
   const handleProgress = useCallback(
     (params: ProgressParams) => {
@@ -153,7 +181,9 @@ export default function App() {
 
     const taskId = `${currentModule}-${Date.now()}`;
     currentTaskIdRef.current = taskId;
+    flushLogs();
     setRunning(true);
+    setLogsExpanded(true);
     setPreviewState("progress");
     setResult(null);
     addLog("info", `开始${MODULE_CONFIG[currentModule].title}处理...`);

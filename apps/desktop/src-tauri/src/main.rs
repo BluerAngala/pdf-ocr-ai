@@ -98,11 +98,18 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            eprintln!("[Python stdout] {}", line); // 调试输出
             if let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) {
-                // 发送响应到前端
-                let _ = app_handle_clone.emit_all("jsonrpc-response", response);
+                if response.get("jsonrpc").is_some() {
+                    let _ = app_handle_clone.emit_all("jsonrpc-response", response);
+                    continue;
+                }
             }
+            let notification = serde_json::json!({
+                "jsonrpc": "2.0",
+                "method": "notify.log",
+                "params": {"level": "info", "message": line}
+            });
+            let _ = app_handle_clone.emit_all("jsonrpc-notification", notification);
         }
     });
 
@@ -160,9 +167,10 @@ fn get_resources_dir() -> Result<std::path::PathBuf, String> {
 
 fn is_bundled() -> bool {
     if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(file_name) = exe_path.file_name() {
-            if file_name == "GJJ-OCR-Tool.exe" {
-                eprintln!("[is_bundled] Detected by exe name: {:?}", exe_path);
+        if let Some(exe_dir) = exe_path.parent() {
+            let marker = exe_dir.join("resources").join("gjj-ocr-server");
+            if marker.exists() {
+                eprintln!("[is_bundled] Detected by resources marker: {:?}", marker);
                 return true;
             }
         }

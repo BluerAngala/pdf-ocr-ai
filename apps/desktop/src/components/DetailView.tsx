@@ -72,7 +72,7 @@ export default function DetailView({
   logsEndRef,
 }: Props) {
   const [leftWidth, setLeftWidth] = useState(280);
-  const [logsHeight, setLogsHeight] = useState(140);
+  const [logsRatio, setLogsRatio] = useState(0.5);
   const containerRef = useRef<HTMLDivElement>(null);
   const rightRef = useRef<HTMLDivElement>(null);
   const [draggingH, setDraggingH] = useState(false);
@@ -104,12 +104,16 @@ export default function DetailView({
     (e: React.MouseEvent) => {
       e.preventDefault();
       setDraggingV(true);
+      const containerRect = rightRef.current?.getBoundingClientRect();
+      if (!containerRect) return;
+      const totalHeight = containerRect.height;
       const startY = e.clientY;
-      const startHeight = logsHeight;
+      const startRatio = logsRatio;
       const onMove = (ev: MouseEvent) => {
         const delta = startY - ev.clientY;
-        const next = Math.min(400, Math.max(60, startHeight + delta));
-        setLogsHeight(next);
+        const ratioDelta = totalHeight > 0 ? delta / totalHeight : 0;
+        const next = Math.min(0.8, Math.max(0.15, startRatio + ratioDelta));
+        setLogsRatio(next);
       };
       const onUp = () => {
         setDraggingV(false);
@@ -119,37 +123,28 @@ export default function DetailView({
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [logsHeight],
+    [logsRatio],
   );
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <div className="h-10 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-        <div className="flex items-center gap-3">
-          <button
-            onClick={onBack}
-            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <span className="text-sm font-semibold text-slate-800">{title}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onRun}
-            disabled={running}
-            className="px-4 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-md hover:bg-blue-700 active:scale-[0.97] transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            开始处理
-          </button>
-        </div>
+      <div className="h-12 bg-white border-b border-slate-200 flex items-center px-4 shrink-0">
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer px-2.5 py-1.5 -ml-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          <span className="text-sm font-medium">返回</span>
+        </button>
+        <span className="flex-1 text-center text-sm font-semibold text-slate-800">{title}</span>
+        <div className="w-[72px]" />
       </div>
 
       <div
@@ -164,6 +159,7 @@ export default function DetailView({
             excelFile={excelFile}
             mockMode={mockMode}
             forceOcr={forceOcr}
+            running={running}
             onSampleRootChange={onSampleRootChange}
             onExcelFileChange={onExcelFileChange}
             onMockModeChange={onMockModeChange}
@@ -171,6 +167,7 @@ export default function DetailView({
             onPreset={onPreset}
             onSelectFolder={onSelectFolder}
             onSelectExcel={onSelectExcel}
+            onRun={onRun}
           />
         </div>
 
@@ -180,18 +177,23 @@ export default function DetailView({
         />
 
         <div ref={rightRef} className="flex-1 flex flex-col min-h-0 min-w-0" style={{ gap: 0 }}>
-          <PreviewPanel
-            moduleType={moduleType}
-            previewState={previewState}
-            phase={phase}
-            progressCurrent={progressCurrent}
-            progressTotal={progressTotal}
-            progressMessage={progressMessage}
-            result={result}
-            onOpenReport={onOpenReport}
-            onOpenOutput={onOpenOutput}
-            onClearResult={onClearResult}
-          />
+          <div
+            style={{ flex: logsExpanded ? `${1 - logsRatio} 0 0` : "1 0 0" }}
+            className="min-h-0 flex flex-col"
+          >
+            <PreviewPanel
+              moduleType={moduleType}
+              previewState={previewState}
+              phase={phase}
+              progressCurrent={progressCurrent}
+              progressTotal={progressTotal}
+              progressMessage={progressMessage}
+              result={result}
+              onOpenReport={onOpenReport}
+              onOpenOutput={onOpenOutput}
+              onClearResult={onClearResult}
+            />
+          </div>
 
           {logsExpanded && (
             <div
@@ -200,7 +202,10 @@ export default function DetailView({
             />
           )}
 
-          <div style={{ height: logsExpanded ? logsHeight : 38 }} className="shrink-0">
+          <div
+            style={{ flex: logsExpanded ? `${logsRatio} 0 0` : "0 0 38px" }}
+            className={`${logsExpanded ? "min-h-0 flex flex-col" : "h-[38px] shrink-0"}`}
+          >
             <LogsPanel
               logs={logs}
               expanded={logsExpanded}

@@ -1,11 +1,9 @@
 interface Props {
   sampleRoot: string;
   excelFile: string;
-  forceOcr: boolean;
   running: boolean;
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
-  onForceOcrChange: (v: boolean) => void;
   onPreset: () => void;
   onSelectFolder: () => void;
   onSelectExcel: () => void;
@@ -15,11 +13,9 @@ interface Props {
 export default function EnforcementConfig({
   sampleRoot,
   excelFile,
-  forceOcr,
   running,
   onSampleRootChange,
   onExcelFileChange,
-  onForceOcrChange,
   onPreset,
   onSelectFolder,
   onSelectExcel,
@@ -90,17 +86,6 @@ export default function EnforcementConfig({
                 </svg>
                 📊 选择文件
               </button>
-            </div>
-            <div className="flex items-center gap-4 pt-1">
-              <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-500 hover:text-slate-700 transition-colors">
-                <input
-                  type="checkbox"
-                  checked={forceOcr}
-                  onChange={(e) => onForceOcrChange(e.target.checked)}
-                  className="rounded border-slate-300 text-amber-600 focus:ring-amber-500/30 w-3.5 h-3.5"
-                />
-                🔄 强制 OCR
-              </label>
             </div>
           </div>
         </div>

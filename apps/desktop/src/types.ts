@@ -10,6 +10,8 @@ export interface ProgressParams {
   phase: string;
   current: number;
   total: number;
+  file_current: number;
+  file_total: number;
   message: string;
   detail?: Record<string, any>;
 }

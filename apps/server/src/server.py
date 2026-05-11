@@ -94,7 +94,8 @@ class ProgressEmitter:
     def __init__(self, task_id: str = "default"):
         self.task_id = task_id
 
-    def progress(self, phase: str, current: int, total: int, message: str, detail: Optional[Dict] = None):
+    def progress(self, phase: str, current: int, total: int, message: str,
+                 file_current: int = 0, file_total: int = 0, detail: Optional[Dict] = None):
         import datetime
         params = {
             "task_id": self.task_id,
@@ -102,6 +103,8 @@ class ProgressEmitter:
             "status": "running",
             "current": current,
             "total": total,
+            "file_current": file_current,
+            "file_total": file_total,
             "message": message,
             "timestamp": datetime.datetime.now().isoformat()
         }
@@ -284,7 +287,7 @@ class JsonRpcServer:
             ocr_cache_dir.mkdir(parents=True, exist_ok=True)
 
             # OCR 阶段
-            emitter.progress("ocr_cache", 1, 4, "开始 OCR 识别...")
+            emitter.progress("ocr_cache", 1, 4, "开始 OCR 识别...", 0, 0)
             emitter.log("info", f"OCR 模式: {mode}, input_root: {input_root}, sample_root: {sample_root_path}")
             if mode == 'real_ocr':
                 # 当切换到 real_ocr 模式时，清除可能存在的 mock 缓存
@@ -293,7 +296,11 @@ class JsonRpcServer:
                     shutil.rmtree(ocr_cache_dir)
                     ocr_cache_dir.mkdir(parents=True, exist_ok=True)
                     emitter.log("info", "已清除旧缓存，开始真实 OCR 识别...")
-                build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False)
+
+                def ocr_progress(current, total, filename):
+                    emitter.progress("ocr_cache", 1, 4, f"正在识别: {filename}", current, total)
+
+                build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False, progress_callback=ocr_progress)
                 cache_files = list(ocr_cache_dir.glob('*_ultra_result.json'))
                 emitter.log("info", f"OCR 缓存文件数: {len(cache_files)}")
                 if not cache_files:
@@ -303,7 +310,7 @@ class JsonRpcServer:
                 emitter.log("info", "开始构建 mock OCR 缓存...")
                 build_mock_ocr_cache(sample_root_path, ocr_cache_dir, input_dir=input_root)
                 emitter.log("info", "Mock OCR 缓存构建完成")
-            emitter.progress("ocr_cache", 1, 4, "OCR 识别完成")
+            emitter.progress("ocr_cache", 1, 4, "OCR 识别完成", 0, 0)
 
             # 导出阶段
             emitter.progress("export", 2, 4, "开始导出文件...")

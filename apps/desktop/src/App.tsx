@@ -26,7 +26,7 @@ export default function App() {
   const [sampleRoot, setSampleRoot] = useState("");
   const [excelFile, setExcelFile] = useState("");
   const [mockMode, setMockMode] = useState(false);
-  const [forceOcr, setForceOcr] = useState(false);
+  const forceOcr = true;
   const [printerName, setPrinterName] = useState("");
   const [printCopies, setPrintCopies] = useState(1);
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
@@ -46,6 +46,8 @@ export default function App() {
   const [phase, setPhase] = useState("");
   const [progressCurrent, setProgressCurrent] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
+  const [progressFileCurrent, setProgressFileCurrent] = useState(0);
+  const [progressFileTotal, setProgressFileTotal] = useState(0);
   const [progressMessage, setProgressMessage] = useState("");
   const [result, setResult] = useState<ProcessingResult | null>(null);
 
@@ -108,6 +110,8 @@ export default function App() {
       setPhase(PHASE_NAMES[params.phase] || params.phase);
       setProgressCurrent(params.current);
       setProgressTotal(params.total);
+      setProgressFileCurrent(params.file_current || 0);
+      setProgressFileTotal(params.file_total || 0);
       setProgressMessage(params.message);
       addLog("info", `[${params.phase}] ${params.message}`);
       if (currentModule === "company-query" && (params as any).detail?.item) {
@@ -453,11 +457,9 @@ export default function App() {
           sampleRoot={sampleRoot}
           excelFile={excelFile}
           mockMode={mockMode}
-          forceOcr={forceOcr}
           onSampleRootChange={setSampleRoot}
           onExcelFileChange={setExcelFile}
           onMockModeChange={setMockMode}
-          onForceOcrChange={setForceOcr}
           printerName={printerName}
           printCopies={printCopies}
           printers={printers}
@@ -491,6 +493,8 @@ export default function App() {
           phase={phase}
           progressCurrent={progressCurrent}
           progressTotal={progressTotal}
+          progressFileCurrent={progressFileCurrent}
+          progressFileTotal={progressFileTotal}
           progressMessage={progressMessage}
           result={result}
           liveCompanies={liveCompanies}

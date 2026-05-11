@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { ModuleType, PreviewState, ProcessingResult, CompanyQueryItem } from "../types";
 import NonLitigationResult from "./results/NonLitigationResult";
 import EnforcementResult from "./results/EnforcementResult";
@@ -10,6 +11,8 @@ interface Props {
   phase: string;
   progressCurrent: number;
   progressTotal: number;
+  progressFileCurrent: number;
+  progressFileTotal: number;
   progressMessage: string;
   result: ProcessingResult | null;
   liveCompanies: CompanyQueryItem[];
@@ -53,6 +56,8 @@ export default function PreviewPanel({
   phase,
   progressCurrent,
   progressTotal,
+  progressFileCurrent,
+  progressFileTotal,
   progressMessage,
   result,
   liveCompanies,
@@ -61,7 +66,21 @@ export default function PreviewPanel({
   onClearResult,
 }: Props) {
   const badge = STATUS_BADGE[previewState];
-  const percentage = progressTotal > 0 ? Math.round((progressCurrent / progressTotal) * 100) : 0;
+  // 是否有文件级进度
+  const hasFileProgress = progressFileTotal > 0;
+  // 计算整体进度百分比
+  // 每个阶段占 total 分之一，阶段内根据文件进度细分
+  const percentage = useMemo(() => {
+    if (progressTotal <= 0) return 0;
+    // 已完成阶段的进度
+    const completedPhaseProgress = ((progressCurrent - 1) / progressTotal) * 100;
+    // 当前阶段的进度（如果有文件进度）
+    const currentPhaseProgress =
+      hasFileProgress && progressFileTotal > 0
+        ? (progressFileCurrent / progressFileTotal) * (100 / progressTotal)
+        : 100 / progressTotal;
+    return Math.round(completedPhaseProgress + currentPhaseProgress);
+  }, [progressCurrent, progressTotal, progressFileCurrent, progressFileTotal, hasFileProgress]);
   const ResultComponent = RESULT_COMPONENTS[moduleType];
   const emptyHint = EMPTY_HINTS[moduleType];
 
@@ -109,20 +128,28 @@ export default function PreviewPanel({
           {previewState === "progress" && (
             <div className="flex flex-col gap-3">
               <div className="space-y-2">
+                {/* 第一行：阶段名 + 文件进度 */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">
-                    阶段: <span className="font-semibold text-slate-800">{phase || "-"}</span>
-                  </span>
-                  <span className="text-xs font-medium text-slate-500">
-                    {progressCurrent} / {progressTotal}
+                  <span className="text-xs text-slate-600 font-medium">{phase || "-"}中...</span>
+                  {hasFileProgress && (
+                    <span className="text-xs font-medium text-slate-500">
+                      文件 {progressFileCurrent}/{progressFileTotal}
+                    </span>
+                  )}
+                </div>
+                {/* 进度条 + 百分比 */}
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className="progress-bar h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
+                      style={{ width: `${percentage}%` }}
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-blue-600 w-12 text-right">
+                    {percentage}%
                   </span>
                 </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div
-                    className="progress-bar h-full bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
+                {/* 当前操作 */}
                 <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
                   <svg
                     className="w-4 h-4 text-blue-500 shrink-0 animate-spin"

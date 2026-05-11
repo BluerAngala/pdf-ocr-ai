@@ -17,11 +17,11 @@ interface Props {
   sampleRoot: string;
   excelFile: string;
   mockMode: boolean;
-  forceOcr: boolean;
+
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
   onMockModeChange: (v: boolean) => void;
-  onForceOcrChange: (v: boolean) => void;
+
   printerName: string;
   printCopies: number;
   printers: PrinterInfo[];
@@ -56,6 +56,8 @@ interface Props {
   phase: string;
   progressCurrent: number;
   progressTotal: number;
+  progressFileCurrent: number;
+  progressFileTotal: number;
   progressMessage: string;
   result: ProcessingResult | null;
   liveCompanies: CompanyQueryItem[];
@@ -76,11 +78,9 @@ export default function DetailView({
   sampleRoot,
   excelFile,
   mockMode,
-  forceOcr,
   onSampleRootChange,
   onExcelFileChange,
   onMockModeChange,
-  onForceOcrChange,
   printerName,
   printCopies,
   printers,
@@ -115,6 +115,8 @@ export default function DetailView({
   phase,
   progressCurrent,
   progressTotal,
+  progressFileCurrent,
+  progressFileTotal,
   progressMessage,
   result,
   liveCompanies,
@@ -215,7 +217,6 @@ export default function DetailView({
             sampleRoot={sampleRoot}
             excelFile={excelFile}
             mockMode={mockMode}
-            forceOcr={forceOcr}
             running={running}
             printerName={printerName}
             printCopies={printCopies}
@@ -223,7 +224,6 @@ export default function DetailView({
             onSampleRootChange={onSampleRootChange}
             onExcelFileChange={onExcelFileChange}
             onMockModeChange={onMockModeChange}
-            onForceOcrChange={onForceOcrChange}
             onPrinterNameChange={onPrinterNameChange}
             onPrintCopiesChange={onPrintCopiesChange}
             onPreset={onPreset}
@@ -267,6 +267,8 @@ export default function DetailView({
               phase={phase}
               progressCurrent={progressCurrent}
               progressTotal={progressTotal}
+              progressFileCurrent={progressFileCurrent}
+              progressFileTotal={progressFileTotal}
               progressMessage={progressMessage}
               result={result}
               liveCompanies={liveCompanies}

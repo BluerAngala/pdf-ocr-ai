@@ -9,7 +9,7 @@ interface Props {
   sampleRoot: string;
   excelFile: string;
   mockMode: boolean;
-  forceOcr: boolean;
+
   running: boolean;
   printerName: string;
   printCopies: number;
@@ -17,7 +17,7 @@ interface Props {
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
   onMockModeChange: (v: boolean) => void;
-  onForceOcrChange: (v: boolean) => void;
+
   onPrinterNameChange: (v: string) => void;
   onPrintCopiesChange: (v: number) => void;
   onPreset: () => void;
@@ -50,7 +50,7 @@ export default function ConfigPanel({
   sampleRoot,
   excelFile,
   mockMode: _mockMode,
-  forceOcr: _forceOcr,
+
   running,
   printerName,
   printCopies,
@@ -58,7 +58,7 @@ export default function ConfigPanel({
   onSampleRootChange,
   onExcelFileChange,
   onMockModeChange: _onMockModeChange,
-  onForceOcrChange: _onForceOcrChange,
+
   onPrinterNameChange,
   onPrintCopiesChange,
   onPreset,
@@ -105,11 +105,9 @@ export default function ConfigPanel({
         <EnforcementConfig
           sampleRoot={sampleRoot}
           excelFile={excelFile}
-          forceOcr={_forceOcr}
           running={running}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
-          onForceOcrChange={_onForceOcrChange}
           onPreset={onPreset}
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}

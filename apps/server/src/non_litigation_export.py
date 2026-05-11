@@ -1108,7 +1108,8 @@ def run_real_ocr_on_pdf(pdf_path: Path, cache_path: Path, use_mock: bool = False
         return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'error', 'error': str(e)}
 
 
-def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = False) -> Path:
+def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = False,
+                         progress_callback: Optional[callable] = None) -> Path:
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_start = time.perf_counter()
     performance_records: List[Dict] = []
@@ -1227,6 +1228,8 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                     elif status == 'error':
                         error_files_total += 1
                         print(f"  [ERROR] [{completed}/{notice_count}] {source}: {result.get('error', '未知错误')}")
+                    if progress_callback:
+                        progress_callback(completed, notice_count, source)
         else:
             if not use_mock and HAS_OCR:
                 shared_ocr, shared_region_extractor = _build_ocr_processors()
@@ -1249,7 +1252,7 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
             shared_ocr, shared_region_extractor = _build_ocr_processors()
             shared_post_processor = TextPostProcessor()
         print(f"\n[INFO] 处理责催文件... 共 {len(uncached_notice_files)} 个")
-        for source_name, pdf_path, cache_path in uncached_notice_files:
+        for idx, (source_name, pdf_path, cache_path) in enumerate(uncached_notice_files, 1):
             result = run_real_ocr_on_pdf(
                 pdf_path,
                 cache_path,
@@ -1262,6 +1265,8 @@ def build_real_ocr_cache(input_dir: Path, cache_dir: Path, use_mock: bool = Fals
                 post_processor=shared_post_processor,
             )
             record_result(result, pdf_path, '责催')
+            if progress_callback:
+                progress_callback(idx, len(uncached_notice_files), source_name)
 
     other_files = [
         (pdf_name, pdf_name.replace('.pdf', ''))

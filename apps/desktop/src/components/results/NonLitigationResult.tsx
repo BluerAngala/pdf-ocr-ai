@@ -70,7 +70,9 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
           <p className="text-[10px] text-red-600 mt-0.5">✗ 失败</p>
         </div>
         <div className="rounded-lg bg-blue-50 p-3 text-center border border-blue-200">
-          <p className="text-lg font-bold text-blue-700">{Math.round((v?.pass_rate || 0) * 100)}%</p>
+          <p className="text-lg font-bold text-blue-700">
+            {Math.round((v?.pass_rate || 0) * 100)}%
+          </p>
           <p className="text-[10px] text-blue-600 mt-0.5">通过率</p>
         </div>
       </div>
@@ -79,7 +81,9 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-slate-50 px-3 py-2 flex items-center justify-between border border-slate-100">
             <span className="text-[11px] text-slate-500">📄 生成文件</span>
-            <span className="text-sm font-bold text-slate-700">{result.summary.created_count ?? "-"}</span>
+            <span className="text-sm font-bold text-slate-700">
+              {result.summary.created_count ?? "-"}
+            </span>
           </div>
           <div className="rounded-lg bg-slate-50 px-3 py-2 flex items-center justify-between border border-slate-100">
             <span className="text-[11px] text-slate-500">📊 页数匹配率</span>
@@ -92,9 +96,13 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
 
       {showItems.length > 0 && (
         <div>
-          <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">验证明细</h4>
+          <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            验证明细
+          </h4>
           <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto">
-            {showItems.map((item, i) => (<DetailItem key={i} item={item} />))}
+            {showItems.map((item, i) => (
+              <DetailItem key={i} item={item} />
+            ))}
           </div>
         </div>
       )}

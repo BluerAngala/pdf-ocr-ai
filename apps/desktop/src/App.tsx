@@ -131,13 +131,15 @@ export default function App() {
         addLog("info", `已加载预设: ${preset.name}`);
       }
       if (module === "print") {
-        sendRequest("print.list_printers", {}).then((res: any) => {
-          const list: PrinterInfo[] = res.printers || [];
-          setPrinters(list);
-          const defaultPrinter = list.find((p) => p.is_default);
-          if (defaultPrinter) setPrinterName(defaultPrinter.name);
-          else if (list.length > 0) setPrinterName(list[0].name);
-        }).catch(() => addLog("warn", "获取打印机列表失败"));
+        sendRequest("print.list_printers", {})
+          .then((res: any) => {
+            const list: PrinterInfo[] = res.printers || [];
+            setPrinters(list);
+            const defaultPrinter = list.find((p) => p.is_default);
+            if (defaultPrinter) setPrinterName(defaultPrinter.name);
+            else if (list.length > 0) setPrinterName(list[0].name);
+          })
+          .catch(() => addLog("warn", "获取打印机列表失败"));
       }
       addLog("info", `切换到模块: ${config.title}`);
     },
@@ -242,9 +244,14 @@ export default function App() {
         });
         res = {
           companies: rawResult.companies || [],
-          company_stats: rawResult.total !== undefined
-            ? { total: rawResult.total, success_count: rawResult.success_count, fail_count: rawResult.fail_count }
-            : undefined,
+          company_stats:
+            rawResult.total !== undefined
+              ? {
+                  total: rawResult.total,
+                  success_count: rawResult.success_count,
+                  fail_count: rawResult.fail_count,
+                }
+              : undefined,
           output_excel_path: rawResult.output_excel_path || "",
           summary: { result_root: rawResult.output_excel_path || undefined },
         };
@@ -263,9 +270,14 @@ export default function App() {
         });
         res = {
           print_files: rawResult.files || [],
-          print_stats: rawResult.total_files !== undefined
-            ? { total_files: rawResult.total_files, printed: rawResult.printed, failed: rawResult.failed }
-            : undefined,
+          print_stats:
+            rawResult.total_files !== undefined
+              ? {
+                  total_files: rawResult.total_files,
+                  printed: rawResult.printed,
+                  failed: rawResult.failed,
+                }
+              : undefined,
           printer_used: rawResult.printer_used || "",
           summary: { result_root: sampleRoot },
         };

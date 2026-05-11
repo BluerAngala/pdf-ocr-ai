@@ -5,21 +5,28 @@ function ExtractedItem({ item }: { item: EnforcementExtracted }) {
   const parties = [...item.applicants.map((a) => a.name), ...item.respondents.map((r) => r.name)];
 
   return (
-    <div className={`border-l-2 rounded px-3 py-2 ${isWithdraw ? "border-l-amber-500 bg-amber-50/50" : "border-l-blue-500 bg-blue-50/30"}`}>
+    <div
+      className={`border-l-2 rounded px-3 py-2 ${isWithdraw ? "border-l-amber-500 bg-amber-50/50" : "border-l-blue-500 bg-blue-50/30"}`}
+    >
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-slate-700 truncate">
           {item.court_case_number || "（未识别案号）"}
         </span>
-        <span className={`text-[10px] font-semibold shrink-0 ${isWithdraw ? "text-amber-600" : "text-emerald-600"}`}>
+        <span
+          className={`text-[10px] font-semibold shrink-0 ${isWithdraw ? "text-amber-600" : "text-emerald-600"}`}
+        >
           {isWithdraw ? "撤回执行" : item.ruling_result || "准予执行"}
         </span>
       </div>
       {item.notice_numbers.length > 0 && (
-        <p className="text-[11px] text-slate-500 mt-0.5 truncate">责令号: {item.notice_numbers.slice(0, 3).join("、")}</p>
+        <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+          责令号: {item.notice_numbers.slice(0, 3).join("、")}
+        </p>
       )}
       {parties.length > 0 && (
         <p className="text-[10px] text-slate-400 mt-0.5 truncate">
-          {parties.slice(0, 4).join(" · ")}{parties.length > 4 ? " ..." : ""}
+          {parties.slice(0, 4).join(" · ")}
+          {parties.length > 4 ? " ..." : ""}
         </p>
       )}
       {(item.judge || item.clerk || item.ruling_date) && (
@@ -34,7 +41,10 @@ function ExtractedItem({ item }: { item: EnforcementExtracted }) {
 export default function EnforcementResult({ result }: { result: ProcessingResult }) {
   const stats = result.enforcement_stats;
   const extracted = result.extracted || [];
-  const matchRate = stats && stats.total_excel_rows > 0 ? Math.round((stats.matched_rows / stats.total_excel_rows) * 100) : 0;
+  const matchRate =
+    stats && stats.total_excel_rows > 0
+      ? Math.round((stats.matched_rows / stats.total_excel_rows) * 100)
+      : 0;
 
   return (
     <div className="flex flex-col gap-4 h-full">
@@ -66,7 +76,9 @@ export default function EnforcementResult({ result }: { result: ProcessingResult
       <div className="grid grid-cols-2 gap-2">
         <div className="rounded-lg bg-slate-50 px-3 py-2 flex items-center justify-between border border-slate-100">
           <span className="text-[11px] text-slate-500">📄 提取文件</span>
-          <span className="text-sm font-bold text-slate-700">{result.processed ?? extracted.length}</span>
+          <span className="text-sm font-bold text-slate-700">
+            {result.processed ?? extracted.length}
+          </span>
         </div>
         <div className="rounded-lg bg-slate-50 px-3 py-2 flex items-center justify-between border border-slate-100">
           <span className="text-[11px] text-slate-500">📊 匹配率</span>
@@ -76,9 +88,13 @@ export default function EnforcementResult({ result }: { result: ProcessingResult
 
       {extracted.length > 0 && (
         <div>
-          <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">提取明细</h4>
+          <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            提取明细
+          </h4>
           <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto">
-            {extracted.map((item, i) => (<ExtractedItem key={i} item={item} />))}
+            {extracted.map((item, i) => (
+              <ExtractedItem key={i} item={item} />
+            ))}
           </div>
         </div>
       )}

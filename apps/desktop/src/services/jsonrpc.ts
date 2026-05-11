@@ -111,6 +111,8 @@ function mockResponse(method: string, params: any): any {
         ],
         total: 2,
       };
+    case "company_query.cancel":
+      return { cancelled: true };
     case "company_query.process":
       return {
         total: 3,

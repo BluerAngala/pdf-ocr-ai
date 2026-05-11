@@ -1,4 +1,4 @@
-import type { ModuleType, PreviewState, ProcessingResult } from "../types";
+import type { ModuleType, PreviewState, ProcessingResult, CompanyQueryItem } from "../types";
 import NonLitigationResult from "./results/NonLitigationResult";
 import EnforcementResult from "./results/EnforcementResult";
 import CompanyQueryResult from "./results/CompanyQueryResult";
@@ -12,6 +12,7 @@ interface Props {
   progressTotal: number;
   progressMessage: string;
   result: ProcessingResult | null;
+  liveCompanies: CompanyQueryItem[];
   onOpenReport: () => void;
   onOpenOutput: () => void;
   onClearResult: () => void;
@@ -54,6 +55,7 @@ export default function PreviewPanel({
   progressTotal,
   progressMessage,
   result,
+  liveCompanies,
   onOpenReport,
   onOpenOutput,
   onClearResult,
@@ -62,6 +64,17 @@ export default function PreviewPanel({
   const percentage = progressTotal > 0 ? Math.round((progressCurrent / progressTotal) * 100) : 0;
   const ResultComponent = RESULT_COMPONENTS[moduleType];
   const emptyHint = EMPTY_HINTS[moduleType];
+
+  const showLiveTable =
+    moduleType === "company-query" && previewState === "progress" && liveCompanies.length > 0;
+
+  const liveStats = showLiveTable
+    ? {
+        total: progressTotal,
+        success_count: liveCompanies.filter((c) => c.status === "success").length,
+        fail_count: liveCompanies.filter((c) => c.status === "failed").length,
+      }
+    : null;
 
   return (
     <div className="flex-1 bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col overflow-hidden">
@@ -94,8 +107,8 @@ export default function PreviewPanel({
           )}
 
           {previewState === "progress" && (
-            <div className="flex-1 flex items-center">
-              <div className="w-full space-y-3">
+            <div className="flex flex-col gap-3">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-slate-500">
                     阶段: <span className="font-semibold text-slate-800">{phase || "-"}</span>
@@ -110,7 +123,7 @@ export default function PreviewPanel({
                     style={{ width: `${percentage}%` }}
                   />
                 </div>
-                <div className="flex items-center gap-2.5 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-center gap-2.5 p-2.5 bg-slate-50 rounded-lg border border-slate-100">
                   <svg
                     className="w-4 h-4 text-blue-500 shrink-0 animate-spin"
                     fill="none"
@@ -129,6 +142,15 @@ export default function PreviewPanel({
                   </p>
                 </div>
               </div>
+
+              {showLiveTable && liveStats && (
+                <CompanyQueryResult
+                  result={{
+                    companies: liveCompanies,
+                    company_stats: liveStats as any,
+                  }}
+                />
+              )}
             </div>
           )}
 

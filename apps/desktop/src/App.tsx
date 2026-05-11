@@ -8,6 +8,7 @@ import type {
   SystemStatus,
   DependenciesCheck,
   PrinterInfo,
+  CompanyQueryItem,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { getPresetById, getPresets } from "./presets";
@@ -29,6 +30,9 @@ export default function App() {
   const [printerName, setPrinterName] = useState("");
   const [printCopies, setPrintCopies] = useState(1);
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
+  const [rangeStart, setRangeStart] = useState(1);
+  const [rangeEnd, setRangeEnd] = useState(0);
+  const [liveCompanies, setLiveCompanies] = useState<CompanyQueryItem[]>([]);
 
   const [previewState, setPreviewState] = useState<PreviewState>("empty");
   const [phase, setPhase] = useState("");
@@ -98,8 +102,11 @@ export default function App() {
       setProgressTotal(params.total);
       setProgressMessage(params.message);
       addLog("info", `[${params.phase}] ${params.message}`);
+      if (currentModule === "company-query" && (params as any).detail?.item) {
+        setLiveCompanies((prev) => [...prev, (params as any).detail.item as CompanyQueryItem]);
+      }
     },
-    [addLog],
+    [addLog, currentModule],
   );
 
   useEffect(() => {
@@ -184,6 +191,19 @@ export default function App() {
     }
   }, [addLog]);
 
+  const cancelProcessing = useCallback(async () => {
+    const taskId = currentTaskIdRef.current;
+    if (!taskId) return;
+    try {
+      if (currentModule === "company-query") {
+        await sendRequest("company_query.cancel", { task_id: taskId });
+      }
+      addLog("warn", "已发送取消请求...");
+    } catch {
+      addLog("error", "取消请求失败");
+    }
+  }, [currentModule, addLog]);
+
   const startProcessing = useCallback(async () => {
     if (!sampleRoot) {
       alert("请选择样本材料文件夹");
@@ -201,6 +221,7 @@ export default function App() {
     setLogsExpanded(true);
     setPreviewState("progress");
     setResult(null);
+    setLiveCompanies([]);
     addLog("info", `开始${MODULE_CONFIG[currentModule].title}处理...`);
 
     try {
@@ -240,6 +261,8 @@ export default function App() {
         }
         const rawResult = await sendRequest("company_query.process", {
           excel_path: excelFile,
+          range_start: rangeStart,
+          range_end: rangeEnd,
           task_id: taskId,
         });
         res = {
@@ -293,7 +316,18 @@ export default function App() {
     } finally {
       setRunning(false);
     }
-  }, [currentModule, sampleRoot, excelFile, mockMode, forceOcr, printerName, printCopies, addLog]);
+  }, [
+    currentModule,
+    sampleRoot,
+    excelFile,
+    mockMode,
+    forceOcr,
+    printerName,
+    printCopies,
+    rangeStart,
+    rangeEnd,
+    addLog,
+  ]);
 
   const openReport = useCallback(async () => {
     const path = result?.html_report_path || result?.summary?.result_root;
@@ -383,6 +417,11 @@ export default function App() {
           onSelectFolder={selectFolder}
           onSelectExcel={selectExcel}
           onRun={startProcessing}
+          onCancel={cancelProcessing}
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
+          onRangeStartChange={setRangeStart}
+          onRangeEndChange={setRangeEnd}
           running={running}
           previewState={previewState}
           phase={phase}
@@ -390,6 +429,7 @@ export default function App() {
           progressTotal={progressTotal}
           progressMessage={progressMessage}
           result={result}
+          liveCompanies={liveCompanies}
           onOpenReport={openReport}
           onOpenOutput={openOutput}
           onClearResult={clearResult}

@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 
 import json
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Optional
 
 import pandas as pd
 import requests
@@ -17,6 +18,47 @@ class CompanyQueryError(Exception):
         self.message = message
         self.raw_response = raw_response
         super().__init__(self.message)
+
+
+_cancel_flags: Dict[str, bool] = {}
+_cancel_lock = threading.Lock()
+
+
+def request_cancel(task_id: str):
+    with _cancel_lock:
+        _cancel_flags[task_id] = True
+
+
+def is_cancelled(task_id: str) -> bool:
+    with _cancel_lock:
+        return _cancel_flags.get(task_id, False)
+
+
+def clear_cancel(task_id: str):
+    with _cancel_lock:
+        _cancel_flags.pop(task_id, None)
+
+
+def _get_cache_path(excel_path: Path) -> Path:
+    output_dir = Path("output")
+    output_dir.mkdir(exist_ok=True)
+    return output_dir / f"company_query_cache_{excel_path.stem}.json"
+
+
+def _load_cache(cache_path: Path) -> Dict[str, dict]:
+    if not cache_path.exists():
+        return {}
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {item["original_name"]: item for item in data.get("results", []) if "original_name" in item}
+    except Exception:
+        return {}
+
+
+def _save_cache(cache_path: Path, results: List[dict]):
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump({"results": results, "updated_at": datetime.now().isoformat()}, f, ensure_ascii=False, indent=2)
 
 
 def _get_coze_config() -> dict:
@@ -119,36 +161,74 @@ def process_single_company(company_name: str, config: dict) -> dict:
         }
 
 
-def process_company_query(excel_path: Path, emitter=None) -> dict:
+def process_company_query(
+    excel_path: Path,
+    range_start: int = 1,
+    range_end: int = 0,
+    task_id: str = "",
+    emitter=None,
+) -> dict:
     config = _get_coze_config()
     column_name = config["excel_column_name"]
+    cache_path = _get_cache_path(excel_path)
+
+    clear_cancel(task_id)
 
     df = pd.read_excel(excel_path, dtype=str)
     if column_name not in df.columns:
         raise ValueError(f"Excel 中缺少 '{column_name}' 列，可用列: {list(df.columns)}")
 
-    company_names = df[column_name].dropna().tolist()
+    all_names = df[column_name].dropna().tolist()
+
+    start_idx = max(0, range_start - 1)
+    end_idx = len(all_names) if range_end <= 0 else min(range_end, len(all_names))
+    company_names = all_names[start_idx:end_idx]
+
     total = len(company_names)
+
+    cache = _load_cache(cache_path)
     results: List[dict] = []
+    skipped = 0
 
     for i, name in enumerate(company_names):
-        if emitter:
-            emitter.progress("company_query", i + 1, total, f"查询: {name}")
-        result = process_single_company(name, config)
-        results.append(result)
-        if config["request_delay"] > 0:
+        if is_cancelled(task_id):
+            if emitter:
+                emitter.log("warn", f"任务已取消，已完成 {len(results)} 条查询")
+            break
+
+        row_num = start_idx + i + 1
+        if name in cache:
+            result = cache[name]
+            results.append(result)
+            skipped += 1
+            if emitter:
+                emitter.progress("company_query", i + 1, total, f"[缓存] {name}", detail={"item": result, "row": row_num, "cached": True})
+        else:
+            if emitter:
+                emitter.progress("company_query", i + 1, total, f"查询: {name}")
+            result = process_single_company(name, config)
+            results.append(result)
+            cache[name] = result
+            if i % 5 == 0 or i == total - 1:
+                _save_cache(cache_path, list(cache.values()))
+            if emitter:
+                emitter.progress("company_query", i + 1, total, f"完成: {name}", detail={"item": result, "row": row_num, "cached": False})
+
+        if config["request_delay"] > 0 and name not in cache:
             time.sleep(config["request_delay"])
+
+    _save_cache(cache_path, list(cache.values()))
 
     success_count = sum(1 for r in results if r["status"] == "success")
     fail_count = total - success_count
+    cancelled = is_cancelled(task_id)
 
     output_dir = Path("output")
     output_dir.mkdir(exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_excel_path = output_dir / f"企业查询结果_{timestamp}.xlsx"
 
-    result_df = df.copy()
-    n_results = len(results)
+    result_df = df.iloc[start_idx:start_idx + len(results)].copy()
     for col, key in [("现用名", "current_name"), ("法代", "legal_person"), ("所在地", "location"), ("社会信用代码", "credit_code")]:
         if col not in result_df.columns:
             result_df[col] = ""
@@ -158,11 +238,14 @@ def process_company_query(excel_path: Path, emitter=None) -> dict:
         result_df[col] = values[:len(result_df)]
 
     result_df.to_excel(str(output_excel_path), index=False)
+    clear_cancel(task_id)
 
     return {
         "total": total,
         "success_count": success_count,
         "fail_count": fail_count,
+        "skipped_cached": skipped,
+        "cancelled": cancelled,
         "companies": results,
         "output_excel_path": str(output_excel_path),
     }

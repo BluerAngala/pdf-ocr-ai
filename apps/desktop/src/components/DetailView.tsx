@@ -1,5 +1,12 @@
 import { useState, useCallback, useRef } from "react";
-import type { ModuleType, PreviewState, ProcessingResult, LogEntry, PrinterInfo } from "../types";
+import type {
+  ModuleType,
+  PreviewState,
+  ProcessingResult,
+  LogEntry,
+  PrinterInfo,
+  CompanyQueryItem,
+} from "../types";
 import ConfigPanel from "./ConfigPanel";
 import PreviewPanel from "./PreviewPanel";
 import LogsPanel from "./LogsPanel";
@@ -25,6 +32,11 @@ interface Props {
   onSelectFolder: () => void;
   onSelectExcel: () => void;
   onRun: () => void;
+  onCancel: () => void;
+  rangeStart: number;
+  rangeEnd: number;
+  onRangeStartChange: (v: number) => void;
+  onRangeEndChange: (v: number) => void;
   running: boolean;
   previewState: PreviewState;
   phase: string;
@@ -32,6 +44,7 @@ interface Props {
   progressTotal: number;
   progressMessage: string;
   result: ProcessingResult | null;
+  liveCompanies: CompanyQueryItem[];
   onOpenReport: () => void;
   onOpenOutput: () => void;
   onClearResult: () => void;
@@ -64,6 +77,11 @@ export default function DetailView({
   onSelectFolder,
   onSelectExcel,
   onRun,
+  onCancel,
+  rangeStart,
+  rangeEnd,
+  onRangeStartChange,
+  onRangeEndChange,
   running,
   previewState,
   phase,
@@ -71,6 +89,7 @@ export default function DetailView({
   progressTotal,
   progressMessage,
   result,
+  liveCompanies,
   onOpenReport,
   onOpenOutput,
   onClearResult,
@@ -183,6 +202,11 @@ export default function DetailView({
             onSelectFolder={onSelectFolder}
             onSelectExcel={onSelectExcel}
             onRun={onRun}
+            onCancel={onCancel}
+            rangeStart={rangeStart}
+            rangeEnd={rangeEnd}
+            onRangeStartChange={onRangeStartChange}
+            onRangeEndChange={onRangeEndChange}
           />
         </div>
 
@@ -204,6 +228,7 @@ export default function DetailView({
               progressTotal={progressTotal}
               progressMessage={progressMessage}
               result={result}
+              liveCompanies={liveCompanies}
               onOpenReport={onOpenReport}
               onOpenOutput={onOpenOutput}
               onClearResult={onClearResult}

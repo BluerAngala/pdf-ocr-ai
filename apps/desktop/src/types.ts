@@ -11,6 +11,7 @@ export interface ProgressParams {
   current: number;
   total: number;
   message: string;
+  detail?: Record<string, any>;
 }
 
 export interface LogEntry {

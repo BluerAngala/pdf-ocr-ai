@@ -154,6 +154,7 @@ class JsonRpcServer:
         self.methods['enforcement.fill_excel'] = self._enforcement_fill_excel
 
         self.methods['company_query.process'] = self._company_query_process
+        self.methods['company_query.cancel'] = self._company_query_cancel
 
         self.methods['print.process'] = self._print_process
         self.methods['print.list_printers'] = self._print_list_printers
@@ -428,6 +429,8 @@ class JsonRpcServer:
     def _company_query_process(self, params: Dict, id: Any) -> Dict:
         preset_id = params.get('preset_id')
         excel_path = params.get('excel_path')
+        range_start = params.get('range_start', 1)
+        range_end = params.get('range_end', 0)
         task_id = params.get('task_id', f"cq-{id}")
         emitter = ProgressEmitter(task_id)
 
@@ -441,12 +444,27 @@ class JsonRpcServer:
             if not Path(excel_path).exists():
                 raise FileNotFoundError(f"Excel 文件不存在: {excel_path}")
 
-            emitter.log("info", f"开始企业信息查询: {Path(excel_path).name}")
-            result = process_company_query(Path(excel_path), emitter=emitter)
-            emitter.log("info", f"查询完成: 成功 {result['success_count']}/{result['total']}")
+            emitter.log("info", f"开始企业信息查询: {Path(excel_path).name} (第{range_start}-{range_end or '末'}条)")
+            result = process_company_query(
+                Path(excel_path),
+                range_start=range_start,
+                range_end=range_end,
+                task_id=task_id,
+                emitter=emitter,
+            )
+            cached = result.get('skipped_cached', 0)
+            cancelled = result.get('cancelled', False)
+            status_msg = "已取消" if cancelled else "查询完成"
+            emitter.log("info", f"{status_msg}: 成功 {result['success_count']}/{result['total']}，缓存跳过 {cached} 条")
             return result
         except Exception as e:
             raise Exception(f"企业查询失败: {str(e)}")
+
+    def _company_query_cancel(self, params: Dict, id: Any) -> Dict:
+        task_id = params.get('task_id', '')
+        from company_query import request_cancel
+        request_cancel(task_id)
+        return {"cancelled": True, "task_id": task_id}
 
     # ============ 自动打印模块 ============
 

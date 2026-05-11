@@ -24,6 +24,11 @@ interface Props {
   onSelectFolder: () => void;
   onSelectExcel: () => void;
   onRun: () => void;
+  onCancel: () => void;
+  rangeStart: number;
+  rangeEnd: number;
+  onRangeStartChange: (v: number) => void;
+  onRangeEndChange: (v: number) => void;
 }
 
 export default function ConfigPanel({
@@ -46,6 +51,11 @@ export default function ConfigPanel({
   onSelectFolder,
   onSelectExcel,
   onRun,
+  onCancel,
+  rangeStart,
+  rangeEnd,
+  onRangeStartChange,
+  onRangeEndChange,
 }: Props) {
   switch (moduleType) {
     case "non-litigation":
@@ -87,10 +97,15 @@ export default function ConfigPanel({
         <CompanyQueryConfig
           excelFile={excelFile}
           running={running}
+          rangeStart={rangeStart}
+          rangeEnd={rangeEnd}
           onExcelFileChange={onExcelFileChange}
+          onRangeStartChange={onRangeStartChange}
+          onRangeEndChange={onRangeEndChange}
           onPreset={onPreset}
           onSelectExcel={onSelectExcel}
           onRun={onRun}
+          onCancel={onCancel}
         />
       );
     case "print":

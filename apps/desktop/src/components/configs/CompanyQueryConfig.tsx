@@ -1,19 +1,29 @@
 interface Props {
   excelFile: string;
   running: boolean;
+  rangeStart: number;
+  rangeEnd: number;
   onExcelFileChange: (v: string) => void;
+  onRangeStartChange: (v: number) => void;
+  onRangeEndChange: (v: number) => void;
   onPreset: () => void;
   onSelectExcel: () => void;
   onRun: () => void;
+  onCancel: () => void;
 }
 
 export default function CompanyQueryConfig({
   excelFile,
   running,
+  rangeStart,
+  rangeEnd,
   onExcelFileChange,
+  onRangeStartChange,
+  onRangeEndChange,
   onPreset,
   onSelectExcel,
   onRun,
+  onCancel,
 }: Props) {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
@@ -64,27 +74,77 @@ export default function CompanyQueryConfig({
                 📊 选择 Excel 文件
               </button>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-500">📋 查询范围（行号）</label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <div className="text-[10px] text-slate-400 mb-1">从第</div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={rangeStart}
+                    onChange={(e) => onRangeStartChange(Math.max(1, parseInt(e.target.value) || 1))}
+                    disabled={running}
+                    className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+                <span className="text-slate-300 mt-4">—</span>
+                <div className="flex-1">
+                  <div className="text-[10px] text-slate-400 mb-1">到第</div>
+                  <input
+                    type="number"
+                    min={0}
+                    value={rangeEnd}
+                    onChange={(e) => onRangeEndChange(parseInt(e.target.value) || 0)}
+                    disabled={running}
+                    placeholder="0=全部"
+                    className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-slate-400">填 0 表示到末尾，支持断点续查</p>
+            </div>
+
             <p className="text-[10px] text-slate-400 leading-relaxed">
-              Excel 需包含"被执行人"列，系统将逐个查询企业工商信息
+              Excel
+              需包含"被执行人"列，系统将逐个查询企业工商信息。已查询过的条目会自动跳过（缓存）。
             </p>
           </div>
         </div>
       </div>
-      <button
-        onClick={onRun}
-        disabled={running}
-        className="shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-          />
-        </svg>
-        {running ? "查询中..." : "开始查询"}
-      </button>
+
+      {running ? (
+        <button
+          onClick={onCancel}
+          className="shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white bg-red-500 hover:bg-red-600 active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+          取消查询
+        </button>
+      ) : (
+        <button
+          onClick={onRun}
+          className="shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
+          </svg>
+          开始查询
+        </button>
+      )}
     </div>
   );
 }

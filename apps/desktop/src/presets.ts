@@ -45,7 +45,7 @@ const PRESET_DEFS = [
     name: "企业信息查询",
     description: "企业工商信息、司法信息查询",
     sampleRel: "样本材料/企业信息查询",
-    excelRel: "样本材料/企业信息查询/企业名单.xlsx",
+    excelRel: "样本材料/企业信息查询/5月案件-被执行人信息（新）(1).xlsx",
     mode: "mock" as const,
   },
 ];

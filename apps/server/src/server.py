@@ -40,7 +40,8 @@ sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1, 
 sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1, errors='replace')
 
 if getattr(sys, "frozen", False):
-    _server_src = Path(sys.executable).resolve().parent / "server_src"
+    _exe_dir = Path(sys.executable).resolve().parent
+    _server_src = Path(os.environ.get("GJJ_OCR_RESOURCES", str(_exe_dir.parent))) / "server_src"
 else:
     _server_src = Path(__file__).resolve().parent
 if str(_server_src) not in sys.path:
@@ -56,8 +57,8 @@ PRESET_SAMPLE_PATHS = {
 }
 
 PRESET_EXCEL_PATHS = {
-    "non-litigation-batch1": ["sample-data/non-litigation-batch1/ledger.xlsx", "样本材料/非诉组自动化样本材料/台账及命名规则.xlsx"],
-    "non-litigation-batch2": ["sample-data/non-litigation-batch2/ledger.xlsx", "样本材料/非诉组自动化样本材料（第2批）/台账及命名规则.xlsx"],
+    "non-litigation-batch1": ["sample-data/non-litigation-batch1/台账及命名规则.xlsx", "样本材料/非诉组自动化样本材料/台账及命名规则.xlsx"],
+    "non-litigation-batch2": ["sample-data/non-litigation-batch2/台账及命名规则.xlsx", "样本材料/非诉组自动化样本材料（第2批）/台账及命名规则.xlsx"],
     "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx", "样本材料/强制组-自动化/提取信息/非诉表格.xlsx"],
     "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx", "样本材料/强制组-自动化/自动打印/AOL网上网立台账.xlsx"],
 }

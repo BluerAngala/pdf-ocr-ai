@@ -51,6 +51,10 @@ def main():
     if dist_dir.exists():
         print(f"复制打包结果到: {output_dir}")
         shutil.copytree(dist_dir, output_dir)
+        # 清理构建过程中产生的 __pycache__
+        for pycache in output_dir.parent.rglob("__pycache__"):
+            if pycache.is_dir():
+                shutil.rmtree(pycache, ignore_errors=True)
         print("完成!")
     else:
         print(f"错误: 打包结果目录不存在: {dist_dir}")

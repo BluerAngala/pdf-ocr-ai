@@ -101,8 +101,6 @@ function mockResponse(method: string, params: any): any {
         extracted: [],
         updated_excel_path: "updated.xlsx",
       };
-    case "ocr.get_cache_status":
-      return { cached_files: [], total_cached: 0, cache_dir: "/tmp/ocr-cache" };
     case "company_query.search":
       return {
         companies: [

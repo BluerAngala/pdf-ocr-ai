@@ -5,12 +5,10 @@ paths:
     result_dirname: "non-litigation-results"
     temp_dirname: "non-litigation"
     input_dirname: "non-litigation"
-    ocr_cache_dirname: "ocr-cache"
   files:
     excel_filename: "台账及命名规则.xlsx"
     standard_output_dirname: "对应输出文件（标准版）"
     audit_log_filename: "audit-log.json"
-    ocr_cache_suffix: "_ultra_result.json"
   standard_output_subdirs:
     责催: "输出文件（责催）"
     申请书: "输出文件（申请书）"

@@ -91,12 +91,10 @@ class NonLitigationConfig:
     result_dirname: str = 'non-litigation-results'
     temp_dirname: str = 'non-litigation'
     input_dirname: str = 'non-litigation'
-    ocr_cache_dirname: str = 'ocr-cache'
     excel_filename: str = '台账及命名规则.xlsx'
     standard_output_dirname: str = '对应输出文件（标准版）'
     standard_output_subdirs: Dict[str, str] = field(default_factory=dict)
     audit_log_filename: str = 'audit-log.json'
-    ocr_cache_suffix: str = '_ultra_result.json'
 
     company_keywords: List[str] = field(default_factory=list)
     document_types: List[str] = field(default_factory=list)
@@ -213,12 +211,10 @@ def load_config() -> NonLitigationConfig:
     cfg.result_dirname = dirs.get('result_dirname', 'non-litigation-results')
     cfg.temp_dirname = dirs.get('temp_dirname', 'non-litigation')
     cfg.input_dirname = dirs.get('input_dirname', 'non-litigation')
-    cfg.ocr_cache_dirname = dirs.get('ocr_cache_dirname', 'ocr-cache')
     files = paths.get('files', {})
     cfg.excel_filename = files.get('excel_filename', '台账及命名规则.xlsx')
     cfg.standard_output_dirname = files.get('standard_output_dirname', '对应输出文件（标准版）')
     cfg.audit_log_filename = files.get('audit_log_filename', 'audit-log.json')
-    cfg.ocr_cache_suffix = files.get('ocr_cache_suffix', '_ultra_result.json')
     cfg.standard_output_subdirs = paths.get('standard_output_subdirs', {})
 
     tp = raw.get('text_processing', {})

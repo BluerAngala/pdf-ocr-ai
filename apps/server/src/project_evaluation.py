@@ -7,11 +7,10 @@ from pathlib import Path
 from typing import Dict
 
 from non_litigation_export import (
-    build_mock_ocr_cache,
+    build_mock_ocr_results,
     ensure_non_litigation_input_structure,
     export_non_litigation_standard_outputs,
     get_non_litigation_input_root,
-    get_non_litigation_ocr_cache_dir,
     get_non_litigation_result_root,
     inspect_pdf_page_count,
 )
@@ -41,15 +40,13 @@ def evaluate_non_litigation_quality(root_dir: Path, output_root: Path, sample_ro
     }
 
 
-def collect_ocr_speed_metrics(output_dir: Path) -> Dict:
-    json_paths = sorted(output_dir.glob('*_ultra_result.json'))
+def collect_ocr_speed_metrics(ocr_results: Dict[str, Dict]) -> Dict:
     items = []
     total_duration = 0.0
     total_pages = 0
     total_fallback_pages = 0
     total_region_pages = 0
-    for path in json_paths:
-        data = json.loads(path.read_text(encoding='utf-8'))
+    for source_name, data in ocr_results.items():
         duration = float(data.get('total_duration', 0) or 0)
         pages = int(data.get('total_pages', 0) or 0)
         fallback_pages = int(data.get('fallback_pages', 0) or 0)
@@ -59,7 +56,7 @@ def collect_ocr_speed_metrics(output_dir: Path) -> Dict:
         total_fallback_pages += fallback_pages
         total_region_pages += region_pages
         items.append({
-            'filename': data.get('filename', path.name),
+            'filename': data.get('filename', source_name),
             'method': data.get('method', ''),
             'optimization_strategy': data.get('optimization_strategy', data.get('method', '')),
             'pages': pages,
@@ -108,27 +105,21 @@ def build_test_health() -> Dict:
 def run_project_evaluation(root_dir: Path, sample_root: Path | None = None, input_dir: Path | None = None) -> Dict:
     sample_root = sample_root or (root_dir / '样本材料' / '非诉组自动化样本材料')
     result_root = get_non_litigation_result_root(root_dir)
-    ocr_cache_dir = get_non_litigation_ocr_cache_dir(root_dir)
     input_dir = input_dir or ensure_non_litigation_input_structure(root_dir)
 
-    if not any(ocr_cache_dir.glob('*_ultra_result.json')):
-        build_mock_ocr_cache(
-            sample_root,
-            ocr_cache_dir,
-            input_dir=input_dir,
-        )
+    ocr_results = build_mock_ocr_results(sample_root, input_dir=input_dir)
 
     start = time.perf_counter()
     export_non_litigation_standard_outputs(
         sample_root=sample_root,
         input_dir=input_dir,
         output_root=result_root,
-        ocr_cache_dir=ocr_cache_dir,
+        ocr_results=ocr_results,
     )
     export_duration = round(time.perf_counter() - start, 4)
 
-    validation = validate_ocr_results(load_non_litigation_cases(sample_root), ocr_cache_dir, input_dir=input_dir)
-    ocr_speed = collect_ocr_speed_metrics(ocr_cache_dir)
+    validation = validate_ocr_results(load_non_litigation_cases(sample_root), ocr_results, input_dir=input_dir)
+    ocr_speed = collect_ocr_speed_metrics(ocr_results)
 
     report = {
         'non_litigation': {
@@ -136,7 +127,6 @@ def run_project_evaluation(root_dir: Path, sample_root: Path | None = None, inpu
             'quality': evaluate_non_litigation_quality(root_dir, result_root, sample_root=sample_root),
             'input_root': str(input_dir),
             'result_root': str(result_root),
-            'ocr_cache_dir': str(ocr_cache_dir),
         },
         'ocr_speed': ocr_speed,
         'ocr_accuracy': validation.get('accuracy_summary', {}),

@@ -618,7 +618,7 @@ class NonLitigationValidator:
 
 
 # 便捷函数 (validate_ocr_results 已在上方定义)
-def validate_ocr_results(cases: List[Dict], ocr_cache_dir: Path,
+def validate_ocr_results(cases: List[Dict], ocr_results: Dict[str, Dict],
                          input_dir: Optional[Path] = None,
                          output_report_path: Optional[Path] = None) -> Dict:
     """
@@ -626,7 +626,7 @@ def validate_ocr_results(cases: List[Dict], ocr_cache_dir: Path,
 
     Args:
         cases: 台账案件列表
-        ocr_cache_dir: OCR 缓存目录
+        ocr_results: OCR 识别结果字典 {source_name: result_dict}
         input_dir: 输入目录（用于动态发现责催文件）
         output_report_path: 报告输出路径
 
@@ -640,25 +640,26 @@ def validate_ocr_results(cases: List[Dict], ocr_cache_dir: Path,
         notice_files = discover_notice_files(input_dir)
     else:
         notice_files = []
-        for cache_file in sorted(ocr_cache_dir.glob('*_ultra_result.json')):
-            name = cache_file.stem.replace('_ultra_result', '')
-            if name not in tuple(dt.key for dt in _cfg.doc_types if not dt.is_notice):
-                notice_files.append(f'{name}.pdf')
+        non_notice_keys = {dt.key for dt in _cfg.doc_types if not dt.is_notice}
+        for key in ocr_results:
+            name = key.replace('.pdf', '')
+            if name not in non_notice_keys:
+                notice_files.append(key)
 
     for source_name in notice_files:
-        stem = source_name.replace('.pdf', '')
-        cache_file = ocr_cache_dir / f'{stem}_ultra_result.json'
-        if cache_file.exists():
-            ocr_result = json.loads(cache_file.read_text(encoding='utf-8'))
+        ocr_result = ocr_results.get(source_name)
+        if ocr_result is None:
+            bare = source_name.replace('.pdf', '')
+            ocr_result = ocr_results.get(f'{bare}.pdf') or ocr_results.get(bare)
+        if ocr_result is not None:
             result = validator.validate_notice_ocr(source_name, ocr_result)
             validator.validation_report.append(result)
     
     for dt in _cfg.doc_types:
         if dt.is_notice:
             continue
-        cache_file = ocr_cache_dir / f'{dt.key}{_cfg.ocr_cache_suffix}'
-        if cache_file.exists():
-            ocr_result = json.loads(cache_file.read_text(encoding='utf-8'))
+        ocr_result = ocr_results.get(f'{dt.key}.pdf') or ocr_results.get(dt.key)
+        if ocr_result is not None:
             if dt.key == '申请书':
                 result = validator.validate_application_ocr(f'{dt.key}.pdf', ocr_result, len(cases))
             else:

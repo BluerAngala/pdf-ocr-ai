@@ -8,7 +8,7 @@ export const MODULE_CONFIG: Record<string, ModuleConfig> = {
 };
 
 export const PHASE_NAMES: Record<string, string> = {
-  ocr_cache: "OCR 识别",
+  ocr: "OCR 识别",
   export: "导出文件",
   validation: "验证",
   report: "生成报告",

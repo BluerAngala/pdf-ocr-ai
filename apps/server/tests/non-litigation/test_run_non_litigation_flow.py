@@ -18,7 +18,6 @@ from run_non_litigation_flow import (
     build_aggregate_summary,
     build_batch_config,
     build_run_summary,
-    classify_real_ocr_run,
     clean_rebuildable_outputs,
     format_all_batches_summary,
     format_summary,
@@ -36,7 +35,6 @@ def test_run_non_litigation_flow_should_build_summary_with_expected_paths_and_ou
         str(ROOT / '样本材料' / '非诉组自动化样本材料' / '原始文件'),
     }
     assert summary['result_root'] == str(USER_DATA_DIR / 'output' / 'non-litigation-results')
-    assert summary['ocr_cache_dir'] == str(USER_DATA_DIR / 'temp' / 'non-litigation' / 'ocr-cache')
     assert summary['html_report_path'] == str(USER_DATA_DIR / 'output' / 'ocr-validation-report.html')
     assert summary['created_count'] > 0
     assert summary['quality']['total_files'] > 0
@@ -55,7 +53,7 @@ def test_resolve_sample_root_should_support_relative_batch2_path():
 def test_build_run_summary_should_use_sample_original_dir_when_present(monkeypatch):
     batch2_root = BATCH2_SAMPLE_ROOT
 
-    monkeypatch.setattr('run_non_litigation_flow.build_mock_ocr_cache', lambda *args, **kwargs: None)
+    monkeypatch.setattr('run_non_litigation_flow.build_mock_ocr_results', lambda *args, **kwargs: {})
     monkeypatch.setattr('run_non_litigation_flow.export_non_litigation_standard_outputs', lambda **kwargs: {'created_count': 1})
     monkeypatch.setattr('run_non_litigation_flow.evaluate_non_litigation_quality', lambda *args, **kwargs: {'total_files': 1, 'page_count_matched': 1, 'page_count_match_rate': 1.0})
     monkeypatch.setattr('run_non_litigation_flow.load_non_litigation_cases', lambda sample_root: [{'sequence': '1', 'notice_number': 'X', 'company_name': 'Y'}])
@@ -65,17 +63,15 @@ def test_build_run_summary_should_use_sample_original_dir_when_present(monkeypat
     summary = build_run_summary(ROOT, sample_root=batch2_root)
     assert summary['input_root'] == str(batch2_root / '原始文件')
     assert summary['result_root'] == str(USER_DATA_DIR / 'output' / 'non-litigation-results-batch2')
-    assert summary['ocr_cache_dir'] == str(USER_DATA_DIR / 'temp' / 'non-litigation' / 'ocr-cache-batch2')
     assert summary['html_report_path'] == str(USER_DATA_DIR / 'output' / 'ocr-validation-report-batch2.html')
 
 
 def test_build_run_summary_should_allow_injected_paths(monkeypatch, tmp_path: Path):
     sample_root = ROOT / '样本材料' / '非诉组自动化样本材料'
     result_root = tmp_path / 'custom-results'
-    ocr_cache_dir = tmp_path / 'custom-cache'
     html_report_path = tmp_path / 'custom-report.html'
 
-    monkeypatch.setattr('run_non_litigation_flow.build_mock_ocr_cache', lambda *args, **kwargs: None)
+    monkeypatch.setattr('run_non_litigation_flow.build_mock_ocr_results', lambda *args, **kwargs: {})
     monkeypatch.setattr('run_non_litigation_flow.export_non_litigation_standard_outputs', lambda **kwargs: {'created_count': 3})
     monkeypatch.setattr('run_non_litigation_flow.evaluate_non_litigation_quality', lambda *args, **kwargs: {'total_files': 3, 'page_count_matched': 3, 'page_count_match_rate': 1.0})
     monkeypatch.setattr('run_non_litigation_flow.load_non_litigation_cases', lambda sample_root: [{'sequence': '1', 'notice_number': 'X', 'company_name': 'Y'}])
@@ -86,12 +82,10 @@ def test_build_run_summary_should_allow_injected_paths(monkeypatch, tmp_path: Pa
         ROOT,
         sample_root=sample_root,
         result_root=result_root,
-        ocr_cache_dir=ocr_cache_dir,
         html_report_path=html_report_path,
     )
 
     assert summary['result_root'] == str(result_root)
-    assert summary['ocr_cache_dir'] == str(ocr_cache_dir)
     assert summary['html_report_path'] == str(html_report_path)
     assert summary['export_runtime_seconds'] >= 0
 
@@ -111,7 +105,6 @@ def test_clean_rebuildable_outputs_should_only_remove_whitelisted_generated_path
         [
             tmp_path / 'output' / 'non-litigation-results',
             tmp_path / 'output' / 'non-litigation-run-summary.json',
-            tmp_path / 'temp' / 'non-litigation' / 'ocr-cache',
         ],
     )
 
@@ -123,10 +116,6 @@ def test_clean_rebuildable_outputs_should_only_remove_whitelisted_generated_path
     generated_file.parent.mkdir(parents=True, exist_ok=True)
     generated_file.write_text('{}', encoding='utf-8')
 
-    generated_cache = tmp_path / 'temp' / 'non-litigation' / 'ocr-cache'
-    generated_cache.mkdir(parents=True)
-    (generated_cache / 'cache.json').write_text('{}', encoding='utf-8')
-
     untouched = tmp_path / 'output' / 'keep-me'
     untouched.mkdir(parents=True)
     (untouched / 'manual.pdf').write_text('keep', encoding='utf-8')
@@ -135,10 +124,8 @@ def test_clean_rebuildable_outputs_should_only_remove_whitelisted_generated_path
 
     assert str(generated_dir) in removed
     assert str(generated_file) in removed
-    assert str(generated_cache) in removed
     assert not generated_dir.exists()
     assert not generated_file.exists()
-    assert not generated_cache.exists()
     assert untouched.exists()
 
 
@@ -149,7 +136,6 @@ def test_build_aggregate_summary_should_merge_batch_metrics():
             'label': '第一批',
             'sample_root': 'sample-1',
             'result_root': 'result-1',
-            'ocr_cache_dir': 'cache-1',
             'html_report_path': 'report-1.html',
             'summary_path': 'summary-1.json',
             'runtime_seconds': 12.5,
@@ -165,7 +151,6 @@ def test_build_aggregate_summary_should_merge_batch_metrics():
             'label': '第二批',
             'sample_root': 'sample-2',
             'result_root': 'result-2',
-            'ocr_cache_dir': 'cache-2',
             'html_report_path': 'report-2.html',
             'summary_path': 'summary-2.json',
             'runtime_seconds': 7.5,
@@ -205,40 +190,21 @@ def test_build_batch_config_should_return_expected_batch_paths():
     assert ALL_BATCH_SUMMARY_PATH.name == 'non-litigation-run-summary-all-batches.json'
 
 
-
-def test_classify_real_ocr_run_should_distinguish_fresh_mixed_and_cached():
-    fresh = classify_real_ocr_run({'processed_files_total': 3, 'cached_files_total': 0, 'fresh_run': True, 'mixed_run': False, 'cache_only_run': False})
-    mixed = classify_real_ocr_run({'processed_files_total': 2, 'cached_files_total': 1, 'fresh_run': False, 'mixed_run': True, 'cache_only_run': False})
-    cached = classify_real_ocr_run({'processed_files_total': 0, 'cached_files_total': 4, 'fresh_run': False, 'mixed_run': False, 'cache_only_run': True})
-
-    assert fresh['ocr_run_kind'] == 'real_fresh'
-    assert fresh['ocr_speed_measurable'] is True
-    assert mixed['ocr_run_kind'] == 'real_mixed'
-    assert mixed['ocr_speed_measurable'] is False
-    assert cached['ocr_run_kind'] == 'real_cached'
-    assert cached['ocr_reused_cache_count'] == 4
-
-
-
-def test_format_summary_should_use_ascii_labels_and_show_cache_guidance():
+def test_format_summary_should_use_ascii_labels():
     summary = {
         'mode': 'real_ocr',
-        'ocr_run_kind': 'real_cached',
-        'ocr_speed_measurable': False,
-        'ocr_newly_processed_count': 0,
-        'ocr_reused_cache_count': 5,
+        'ocr_run_kind': 'real',
+        'ocr_files_count': 5,
         'sample_root': 'sample-root',
         'input_root': 'input-root',
         'result_root': 'result-root',
-        'ocr_cache_dir': 'cache-root',
         'html_report_path': 'report.html',
         'runtime_seconds': 10.0,
         'export_runtime_seconds': 2.0,
-        'phase_timings': {'ocr_cache_seconds': 1.0, 'validation_seconds': 0.5, 'report_seconds': 0.2},
+        'phase_timings': {'ocr_seconds': 1.0, 'validation_seconds': 0.5, 'report_seconds': 0.2},
         'created_count': 5,
         'quality': {'page_count_matched': 5, 'total_files': 5, 'page_count_match_rate': 1.0},
         'output_folders': {'输出文件（申请书）': ['a.pdf']},
-        'ocr_cache_performance': {'requested_files_total': 5, 'processed_files_total': 0, 'cached_files_total': 5, 'error_files_total': 0, 'fallback_pages_total': 0, 'region_attempts_total': 3, 'slowest_files': []},
         'validation': {
             'summary': {'total': 5, 'passed': 4, 'warnings': 1, 'failed': 0, 'pass_rate': 0.8},
             'failed_items': [],
@@ -257,12 +223,8 @@ def test_format_summary_should_use_ascii_labels_and_show_cache_guidance():
 
     text = format_summary(summary)
     assert '[INFO] 处理结果汇总' in text
-    assert 'OCR 运行类型: real_cached' in text
-    assert 'OCR 速度评估有效: 否' in text
+    assert 'OCR 运行类型: real' in text
     assert 'OCR/规则真实失败: 0' in text
-    assert '🧡' not in text
-    assert '✅' not in text
-
 
 
 def test_format_all_batches_summary_should_show_run_kind_and_diagnostics():
@@ -274,16 +236,13 @@ def test_format_all_batches_summary_should_show_run_kind_and_diagnostics():
                 'batch_name': 'batch1',
                 'sample_root': 'sample-1',
                 'result_root': 'result-1',
-                'ocr_cache_dir': 'cache-1',
                 'html_report_path': 'report-1.html',
                 'summary_path': 'summary-1.json',
                 'runtime_seconds': 5.0,
                 'export_runtime_seconds': 1.0,
-                'phase_timings': {'ocr_cache_seconds': 1.0},
-                'ocr_run_kind': 'real_mixed',
-                'ocr_speed_measurable': False,
-                'ocr_newly_processed_count': 2,
-                'ocr_reused_cache_count': 3,
+                'phase_timings': {'ocr_seconds': 1.0},
+                'ocr_run_kind': 'real',
+                'ocr_files_count': 5,
                 'validation_summary': {'pass_rate': 0.9},
                 'quality': {'page_count_match_rate': 1.0},
                 'accuracy_summary': {
@@ -297,7 +256,7 @@ def test_format_all_batches_summary_should_show_run_kind_and_diagnostics():
             }
         ],
         'total_runtime_seconds': 5.0,
-        'phase_timings': {'ocr_cache_seconds': 1.0},
+        'phase_timings': {'ocr_seconds': 1.0},
         'overall_validation_pass_rate': 0.9,
         'overall_page_count_match_rate': 1.0,
         'accuracy_summary': {
@@ -312,8 +271,7 @@ def test_format_all_batches_summary_should_show_run_kind_and_diagnostics():
     }
 
     text = format_all_batches_summary(summary)
-    assert 'OCR 运行类型: real_mixed' in text
+    assert 'OCR 运行类型: real' in text
     assert '评估口径类 warning（台账/映射）: 1' in text
     assert '模糊映射 warning: 1' in text
     assert 'OCR/规则真实失败: 0' in text
-    assert '若需测速请使用 --real --force' in text

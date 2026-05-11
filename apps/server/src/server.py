@@ -145,7 +145,6 @@ class JsonRpcServer:
         # OCR 模块
         self.methods['ocr.recognize'] = self._ocr_recognize
         self.methods['ocr.recognize_batch'] = self._ocr_recognize_batch
-        self.methods['ocr.get_cache_status'] = self._ocr_get_cache_status
 
         # 非诉审查模块
         self.methods['non_litigation.process'] = self._non_litigation_process
@@ -218,18 +217,6 @@ class JsonRpcServer:
                 results.append({"error": str(e), "file_path": file_path})
         return {"results": results}
 
-    def _ocr_get_cache_status(self, params: Dict, id: Any) -> Dict:
-        """获取 OCR 缓存状态"""
-        cache_dir = ROOT / 'temp' / 'non-litigation' / 'ocr-cache'
-        cached_files = []
-        if cache_dir.exists():
-            cached_files = [f.name for f in cache_dir.glob('*_ultra_result.json')]
-        return {
-            "cached_files": cached_files,
-            "total_cached": len(cached_files),
-            "cache_dir": str(cache_dir)
-        }
-
     # ============ 非诉审查模块 ============
 
     def _non_litigation_process(self, params: Dict, id: Any) -> Dict:
@@ -248,10 +235,10 @@ class JsonRpcServer:
 
             try:
                 from non_litigation_export import (
-                    build_mock_ocr_cache, build_real_ocr_cache,
+                    build_mock_ocr_results, run_real_ocr,
                     ensure_non_litigation_input_structure,
                     export_non_litigation_standard_outputs,
-                    get_non_litigation_ocr_cache_dir, get_non_litigation_result_root,
+                    get_non_litigation_result_root,
                 )
                 from non_litigation_product import load_non_litigation_cases
                 from non_litigation_validator import validate_ocr_results
@@ -282,48 +269,38 @@ class JsonRpcServer:
                 input_root = sample_input_dir
 
             result_root = get_non_litigation_result_root(ROOT)
-            ocr_cache_dir = get_non_litigation_ocr_cache_dir(ROOT)
             result_root.mkdir(parents=True, exist_ok=True)
-            ocr_cache_dir.mkdir(parents=True, exist_ok=True)
 
             # OCR 阶段
-            emitter.progress("ocr_cache", 1, 4, "开始 OCR 识别...", 0, 0)
+            emitter.progress("ocr", 1, 4, "开始 OCR 识别...", 0, 0)
             emitter.log("info", f"OCR 模式: {mode}, input_root: {input_root}, sample_root: {sample_root_path}")
             if mode == 'real_ocr':
-                # 当切换到 real_ocr 模式时，清除可能存在的 mock 缓存
-                if ocr_cache_dir.exists():
-                    import shutil
-                    shutil.rmtree(ocr_cache_dir)
-                    ocr_cache_dir.mkdir(parents=True, exist_ok=True)
-                    emitter.log("info", "已清除旧缓存，开始真实 OCR 识别...")
-
                 def ocr_progress(current, total, filename):
-                    emitter.progress("ocr_cache", 1, 4, f"正在识别: {filename}", current, total)
+                    emitter.progress("ocr", 1, 4, f"正在识别: {filename}", current, total)
 
-                build_real_ocr_cache(input_root, ocr_cache_dir, use_mock=False, progress_callback=ocr_progress)
-                cache_files = list(ocr_cache_dir.glob('*_ultra_result.json'))
-                emitter.log("info", f"OCR 缓存文件数: {len(cache_files)}")
-                if not cache_files:
-                    emitter.log("warn", "警告：OCR 缓存为空！请检查输入目录是否有 PDF 文件")
+                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress)
+                emitter.log("info", f"OCR 识别文件数: {len(ocr_results)}")
+                if not ocr_results:
+                    emitter.log("warn", "警告：OCR 结果为空！请检查输入目录是否有 PDF 文件")
                     emitter.log("warn", f"输入目录: {input_root}")
             else:
-                emitter.log("info", "开始构建 mock OCR 缓存...")
-                build_mock_ocr_cache(sample_root_path, ocr_cache_dir, input_dir=input_root)
-                emitter.log("info", "Mock OCR 缓存构建完成")
-            emitter.progress("ocr_cache", 1, 4, "OCR 识别完成", 0, 0)
+                emitter.log("info", "开始构建 mock OCR 数据...")
+                ocr_results = build_mock_ocr_results(sample_root_path, input_dir=input_root)
+                emitter.log("info", "Mock OCR 数据构建完成")
+            emitter.progress("ocr", 1, 4, "OCR 识别完成", 0, 0)
 
             # 导出阶段
             emitter.progress("export", 2, 4, "开始导出文件...")
             export_result = export_non_litigation_standard_outputs(
                 sample_root=sample_root_path, input_dir=input_root,
-                output_root=result_root, ocr_cache_dir=ocr_cache_dir,
+                output_root=result_root, ocr_results=ocr_results,
             )
             emitter.progress("export", 3, 4, f"导出完成: {export_result['created_count']} 个文件")
 
             # 验证阶段
             emitter.progress("validation", 4, 4, "开始验证...")
             cases = load_non_litigation_cases(sample_root_path)
-            validation_result = validate_ocr_results(cases, ocr_cache_dir, input_dir=input_root)
+            validation_result = validate_ocr_results(cases, ocr_results, input_dir=input_root)
             quality = evaluate_non_litigation_quality(ROOT, result_root, sample_root=sample_root_path)
 
             # 生成报告

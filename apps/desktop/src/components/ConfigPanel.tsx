@@ -25,10 +25,13 @@ interface Props {
   onSelectExcel: () => void;
   onRun: () => void;
   onCancel: () => void;
+  onLoadCache: () => void;
   rangeStart: number;
   rangeEnd: number;
   onRangeStartChange: (v: number) => void;
   onRangeEndChange: (v: number) => void;
+  cacheTtlDays: number;
+  onCacheTtlDaysChange: (v: number) => void;
 }
 
 export default function ConfigPanel({
@@ -52,10 +55,13 @@ export default function ConfigPanel({
   onSelectExcel,
   onRun,
   onCancel,
+  onLoadCache,
   rangeStart,
   rangeEnd,
   onRangeStartChange,
   onRangeEndChange,
+  cacheTtlDays,
+  onCacheTtlDaysChange,
 }: Props) {
   switch (moduleType) {
     case "non-litigation":
@@ -102,10 +108,13 @@ export default function ConfigPanel({
           onExcelFileChange={onExcelFileChange}
           onRangeStartChange={onRangeStartChange}
           onRangeEndChange={onRangeEndChange}
+          cacheTtlDays={cacheTtlDays}
+          onCacheTtlDaysChange={onCacheTtlDaysChange}
           onPreset={onPreset}
           onSelectExcel={onSelectExcel}
           onRun={onRun}
           onCancel={onCancel}
+          onLoadCache={onLoadCache}
         />
       );
     case "print":

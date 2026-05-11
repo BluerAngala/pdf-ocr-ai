@@ -61,6 +61,35 @@ def _save_cache(cache_path: Path, results: List[dict]):
         json.dump({"results": results, "updated_at": datetime.now().isoformat()}, f, ensure_ascii=False, indent=2)
 
 
+def _is_cache_expired(cache_path: Path, ttl_days: int) -> bool:
+    if ttl_days <= 0:
+        return True
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        updated_at = data.get("updated_at", "")
+        if not updated_at:
+            return True
+        updated_time = datetime.fromisoformat(updated_at)
+        return (datetime.now() - updated_time).days >= ttl_days
+    except Exception:
+        return True
+
+
+def load_cached_results(excel_path: str, ttl_days: int = 0) -> List[dict]:
+    cache_path = _get_cache_path(Path(excel_path))
+    if not cache_path.exists():
+        return []
+    if _is_cache_expired(cache_path, ttl_days):
+        return []
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data.get("results", [])
+    except Exception:
+        return []
+
+
 def _get_coze_config() -> dict:
     raw = _load_config()
     cq = raw.get("company_query", {})
@@ -164,7 +193,8 @@ def process_single_company(company_name: str, config: dict) -> dict:
 def process_company_query(
     excel_path: Path,
     range_start: int = 1,
-    range_end: int = 0,
+    range_end: int = 99999,
+    cache_ttl_days: int = 0,
     task_id: str = "",
     emitter=None,
 ) -> dict:
@@ -181,12 +211,15 @@ def process_company_query(
     all_names = df[column_name].dropna().tolist()
 
     start_idx = max(0, range_start - 1)
-    end_idx = len(all_names) if range_end <= 0 else min(range_end, len(all_names))
+    end_idx = len(all_names) if range_end >= 99999 else min(range_end, len(all_names))
     company_names = all_names[start_idx:end_idx]
 
     total = len(company_names)
 
-    cache = _load_cache(cache_path)
+    raw_cache = _load_cache(cache_path)
+    cache: Dict[str, dict] = {}
+    if cache_ttl_days > 0 and not _is_cache_expired(cache_path, cache_ttl_days):
+        cache = raw_cache
     results: List[dict] = []
     skipped = 0
 

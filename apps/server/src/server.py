@@ -155,6 +155,7 @@ class JsonRpcServer:
 
         self.methods['company_query.process'] = self._company_query_process
         self.methods['company_query.cancel'] = self._company_query_cancel
+        self.methods['company_query.load_cache'] = self._company_query_load_cache
 
         self.methods['print.process'] = self._print_process
         self.methods['print.list_printers'] = self._print_list_printers
@@ -430,7 +431,8 @@ class JsonRpcServer:
         preset_id = params.get('preset_id')
         excel_path = params.get('excel_path')
         range_start = params.get('range_start', 1)
-        range_end = params.get('range_end', 0)
+        range_end = params.get('range_end', 99999)
+        cache_ttl_days = params.get('cache_ttl_days', 0)
         task_id = params.get('task_id', f"cq-{id}")
         emitter = ProgressEmitter(task_id)
 
@@ -449,6 +451,7 @@ class JsonRpcServer:
                 Path(excel_path),
                 range_start=range_start,
                 range_end=range_end,
+                cache_ttl_days=cache_ttl_days,
                 task_id=task_id,
                 emitter=emitter,
             )
@@ -465,6 +468,20 @@ class JsonRpcServer:
         from company_query import request_cancel
         request_cancel(task_id)
         return {"cancelled": True, "task_id": task_id}
+
+    def _company_query_load_cache(self, params: Dict, id: Any) -> Dict:
+        excel_path = params.get('excel_path', '')
+        cache_ttl_days = params.get('cache_ttl_days', 0)
+        if not excel_path:
+            return {"companies": [], "total": 0}
+        try:
+            from company_query import load_cached_results
+            results = load_cached_results(excel_path, ttl_days=cache_ttl_days)
+            return {"companies": results, "total": len(results)}
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"companies": [], "total": 0, "error": str(e)}
 
     # ============ 自动打印模块 ============
 

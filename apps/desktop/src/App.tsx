@@ -31,7 +31,8 @@ export default function App() {
   const [printCopies, setPrintCopies] = useState(1);
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [rangeStart, setRangeStart] = useState(1);
-  const [rangeEnd, setRangeEnd] = useState(0);
+  const [rangeEnd, setRangeEnd] = useState(99999);
+  const [cacheTtlDays, setCacheTtlDays] = useState(7);
   const [liveCompanies, setLiveCompanies] = useState<CompanyQueryItem[]>([]);
 
   const [previewState, setPreviewState] = useState<PreviewState>("empty");
@@ -191,6 +192,39 @@ export default function App() {
     }
   }, [addLog]);
 
+  const loadCache = useCallback(async () => {
+    if (!excelFile) return;
+    try {
+      const rawResult = await sendRequest("company_query.load_cache", {
+        excel_path: excelFile,
+        cache_ttl_days: cacheTtlDays,
+      });
+      if (rawResult.error) {
+        addLog("error", `后端错误: ${rawResult.error}`);
+        return;
+      }
+      const companies = (rawResult as any).companies || [];
+      if (companies.length === 0) {
+        addLog("info", "暂无缓存记录，请先执行一次查询");
+        return;
+      }
+      const stats = {
+        total: companies.length,
+        success_count: companies.filter((c: any) => c.status === "success").length,
+        fail_count: companies.filter((c: any) => c.status === "failed").length,
+      };
+      setResult({
+        companies,
+        company_stats: stats,
+        output_excel_path: "",
+      });
+      setPreviewState("result");
+      addLog("info", `已加载 ${companies.length} 条缓存记录`);
+    } catch (e: any) {
+      addLog("error", `加载缓存记录失败: ${e?.message || e}`);
+    }
+  }, [excelFile, cacheTtlDays, addLog]);
+
   const cancelProcessing = useCallback(async () => {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
@@ -263,6 +297,7 @@ export default function App() {
           excel_path: excelFile,
           range_start: rangeStart,
           range_end: rangeEnd,
+          cache_ttl_days: cacheTtlDays,
           task_id: taskId,
         });
         res = {
@@ -326,6 +361,7 @@ export default function App() {
     printCopies,
     rangeStart,
     rangeEnd,
+    cacheTtlDays,
     addLog,
   ]);
 
@@ -418,10 +454,13 @@ export default function App() {
           onSelectExcel={selectExcel}
           onRun={startProcessing}
           onCancel={cancelProcessing}
+          onLoadCache={loadCache}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
           onRangeStartChange={setRangeStart}
           onRangeEndChange={setRangeEnd}
+          cacheTtlDays={cacheTtlDays}
+          onCacheTtlDaysChange={setCacheTtlDays}
           running={running}
           previewState={previewState}
           phase={phase}

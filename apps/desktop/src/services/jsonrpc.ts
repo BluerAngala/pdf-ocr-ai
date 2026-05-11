@@ -113,6 +113,8 @@ function mockResponse(method: string, params: any): any {
       };
     case "company_query.cancel":
       return { cancelled: true };
+    case "company_query.load_cache":
+      return { companies: [], total: 0 };
     case "company_query.process":
       return {
         total: 3,

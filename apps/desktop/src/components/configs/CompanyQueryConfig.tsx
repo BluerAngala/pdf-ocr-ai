@@ -3,23 +3,38 @@ interface Props {
   running: boolean;
   rangeStart: number;
   rangeEnd: number;
+  cacheTtlDays: number;
+  onLoadCache: () => void;
   onExcelFileChange: (v: string) => void;
   onRangeStartChange: (v: number) => void;
   onRangeEndChange: (v: number) => void;
+  onCacheTtlDaysChange: (v: number) => void;
   onPreset: () => void;
   onSelectExcel: () => void;
   onRun: () => void;
   onCancel: () => void;
 }
 
+const CACHE_TTL_OPTIONS = [
+  { value: 0, label: "不缓存" },
+  { value: 3, label: "3 天" },
+  { value: 7, label: "7 天" },
+  { value: 30, label: "30 天" },
+  { value: 90, label: "3 个月" },
+  { value: 180, label: "6 个月" },
+];
+
 export default function CompanyQueryConfig({
   excelFile,
   running,
   rangeStart,
   rangeEnd,
+  cacheTtlDays,
+  onLoadCache,
   onExcelFileChange,
   onRangeStartChange,
   onRangeEndChange,
+  onCacheTtlDaysChange,
   onPreset,
   onSelectExcel,
   onRun,
@@ -94,17 +109,56 @@ export default function CompanyQueryConfig({
                   <div className="text-[10px] text-slate-400 mb-1">到第</div>
                   <input
                     type="number"
-                    min={0}
+                    min={1}
                     value={rangeEnd}
-                    onChange={(e) => onRangeEndChange(parseInt(e.target.value) || 0)}
+                    onChange={(e) =>
+                      onRangeEndChange(Math.max(1, parseInt(e.target.value) || 99999))
+                    }
                     disabled={running}
-                    placeholder="0=全部"
+                    placeholder="99999=全部"
                     className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   />
                 </div>
               </div>
-              <p className="text-[10px] text-slate-400">填 0 表示到末尾，支持断点续查</p>
+              <p className="text-[10px] text-slate-400">99999 视为查询全部，支持断点续查</p>
             </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-500">💾 缓存有效期</label>
+              <select
+                value={cacheTtlDays}
+                onChange={(e) => onCacheTtlDaysChange(parseInt(e.target.value))}
+                disabled={running}
+                className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-400 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {CACHE_TTL_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              <p className="text-[10px] text-slate-400">
+                {cacheTtlDays === 0
+                  ? "每次重新查询，不使用缓存"
+                  : `缓存 ${CACHE_TTL_OPTIONS.find((o) => o.value === cacheTtlDays)?.label} 内有效`}
+              </p>
+            </div>
+
+            <button
+              onClick={onLoadCache}
+              disabled={!excelFile || running}
+              className="w-full h-8 inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+                />
+              </svg>
+              查看缓存记录
+            </button>
 
             <p className="text-[10px] text-slate-400 leading-relaxed">
               Excel

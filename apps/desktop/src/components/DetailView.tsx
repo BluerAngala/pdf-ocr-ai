@@ -33,10 +33,13 @@ interface Props {
   onSelectExcel: () => void;
   onRun: () => void;
   onCancel: () => void;
+  onLoadCache: () => void;
   rangeStart: number;
   rangeEnd: number;
   onRangeStartChange: (v: number) => void;
   onRangeEndChange: (v: number) => void;
+  cacheTtlDays: number;
+  onCacheTtlDaysChange: (v: number) => void;
   running: boolean;
   previewState: PreviewState;
   phase: string;
@@ -78,10 +81,13 @@ export default function DetailView({
   onSelectExcel,
   onRun,
   onCancel,
+  onLoadCache,
   rangeStart,
   rangeEnd,
   onRangeStartChange,
   onRangeEndChange,
+  cacheTtlDays,
+  onCacheTtlDaysChange,
   running,
   previewState,
   phase,
@@ -203,10 +209,13 @@ export default function DetailView({
             onSelectExcel={onSelectExcel}
             onRun={onRun}
             onCancel={onCancel}
+            onLoadCache={onLoadCache}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             onRangeStartChange={onRangeStartChange}
             onRangeEndChange={onRangeEndChange}
+            cacheTtlDays={cacheTtlDays}
+            onCacheTtlDaysChange={onCacheTtlDaysChange}
           />
         </div>
 

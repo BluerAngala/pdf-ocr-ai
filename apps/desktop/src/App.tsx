@@ -9,6 +9,9 @@ import type {
   DependenciesCheck,
   PrinterInfo,
   CompanyQueryItem,
+  EnforcementStats,
+  EnforcementExtracted,
+  PrintFileItem,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { getPresetById, getPresets } from "./presets";
@@ -212,16 +215,15 @@ export default function App() {
   const loadCache = useCallback(async () => {
     if (!excelFile) return;
     try {
-      const rawResult = await sendRequest("company_query.load_cache", {
+      const rawResult = (await sendRequest("company_query.load_cache", {
         excel_path: excelFile,
         cache_ttl_days: cacheTtlDays,
-      });
+      })) as { error?: string; companies?: CompanyQueryItem[] };
       if (rawResult.error) {
         addLog("error", `后端错误: ${rawResult.error}`);
         return;
       }
-      const cacheResult = rawResult as { companies?: CompanyQueryItem[] };
-      const companies = cacheResult.companies || [];
+      const companies = rawResult.companies || [];
       if (companies.length === 0) {
         addLog("info", "暂无缓存记录，请先执行一次查询");
         return;
@@ -229,6 +231,7 @@ export default function App() {
       const stats = {
         total: companies.length,
         success_count: companies.filter((c) => c.status === "success").length,
+        warning_count: companies.filter((c) => c.status === "warning").length,
         fail_count: companies.filter((c) => c.status === "failed").length,
       };
       setResult({
@@ -247,9 +250,9 @@ export default function App() {
   const clearCache = useCallback(async () => {
     if (!excelFile) return;
     try {
-      const rawResult = await sendRequest("company_query.clear_cache", {
+      const rawResult = (await sendRequest("company_query.clear_cache", {
         excel_path: excelFile,
-      });
+      })) as { error?: string };
       if (rawResult.error) {
         addLog("error", `后端错误: ${rawResult.error}`);
         return;
@@ -315,7 +318,7 @@ export default function App() {
           mock_mode: mockMode,
         })) as {
           processed?: number;
-          extracted?: unknown[];
+          extracted?: EnforcementExtracted[];
           stats?: EnforcementStats;
           updated_excel_path?: string;
           output_dir?: string;
@@ -323,7 +326,7 @@ export default function App() {
         res = {
           processed: rawResult.processed || 0,
           extracted: rawResult.extracted || [],
-          enforcement_stats: rawResult.stats || {},
+          enforcement_stats: rawResult.stats,
           updated_excel_path: rawResult.updated_excel_path || "",
           html_report_path: rawResult.updated_excel_path || undefined,
           summary: {
@@ -348,6 +351,7 @@ export default function App() {
           companies?: CompanyQueryItem[];
           total?: number;
           success_count?: number;
+          warning_count?: number;
           fail_count?: number;
           output_excel_path?: string;
         };
@@ -358,6 +362,7 @@ export default function App() {
               ? {
                   total: rawResult.total,
                   success_count: rawResult.success_count || 0,
+                  warning_count: rawResult.warning_count || 0,
                   fail_count: rawResult.fail_count || 0,
                 }
               : undefined,

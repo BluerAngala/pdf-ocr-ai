@@ -91,6 +91,7 @@ export default function PreviewPanel({
     ? {
         total: progressTotal,
         success_count: liveCompanies.filter((c) => c.status === "success").length,
+        warning_count: liveCompanies.filter((c) => c.status === "warning").length,
         fail_count: liveCompanies.filter((c) => c.status === "failed").length,
       }
     : null;

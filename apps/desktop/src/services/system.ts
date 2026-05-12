@@ -9,13 +9,13 @@ export async function fetchSystemStatus(): Promise<{
   let deps: DependenciesCheck | null = null;
 
   try {
-    status = await sendRequest("system.get_status", {});
+    status = (await sendRequest("system.get_status", {})) as SystemStatus;
   } catch (e) {
     console.error("[fetchSystemStatus] get_status failed:", e);
   }
 
   try {
-    deps = await sendRequest("system.check_dependencies", {});
+    deps = (await sendRequest("system.check_dependencies", {})) as DependenciesCheck;
   } catch (e) {
     console.error("[fetchSystemStatus] check_dependencies failed:", e);
   }

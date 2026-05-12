@@ -12,7 +12,8 @@ function DetailItem({ item }: { item: ValidationDetail }) {
   const d = item.details || {};
   if (d.total_pages) parts.push(`${d.total_pages}页`);
   if (d.detected_cases) parts.push(`${d.detected_cases}案件`);
-  if (d.detected_notices?.length) parts.push(d.detected_notices.slice(0, 2).join(", "));
+  const detectedNotices = d.detected_notices as string[] | undefined;
+  if (detectedNotices?.length) parts.push(detectedNotices.slice(0, 2).join(", "));
   if (item.timing?.total_duration) {
     const methodMap: Record<string, string> = { pdfplumber: "PDF提取", rapidocr: "OCR识别" };
     const method = item.timing.method || "";

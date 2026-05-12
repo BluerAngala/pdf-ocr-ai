@@ -158,6 +158,7 @@ class JsonRpcServer:
         self.methods['company_query.process'] = self._company_query_process
         self.methods['company_query.cancel'] = self._company_query_cancel
         self.methods['company_query.load_cache'] = self._company_query_load_cache
+        self.methods['company_query.clear_cache'] = self._company_query_clear_cache
 
         self.methods['print.process'] = self._print_process
         self.methods['print.list_printers'] = self._print_list_printers
@@ -469,6 +470,19 @@ class JsonRpcServer:
             import traceback
             traceback.print_exc()
             return {"companies": [], "total": 0, "error": str(e)}
+
+    def _company_query_clear_cache(self, params: Dict, id: Any) -> Dict:
+        excel_path = params.get('excel_path', '')
+        if not excel_path:
+            return {"cleared": False, "error": "未提供 Excel 文件路径"}
+        try:
+            from company_query import clear_cache
+            clear_cache(excel_path)
+            return {"cleared": True}
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"cleared": False, "error": str(e)}
 
     # ============ 自动打印模块 ============
 

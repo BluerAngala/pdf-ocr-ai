@@ -326,6 +326,33 @@ async fn open_path(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// Tauri 命令：用系统浏览器打开 URL
+#[tauri::command]
+async fn open_url(url: String) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .spawn()
+            .map_err(|e| format!("无法打开链接: {}", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("无法打开链接: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| format!("无法打开链接: {}", e))?;
+    }
+    Ok(())
+}
+
 // Tauri 命令：选择文件
 #[tauri::command]
 async fn select_files(
@@ -394,6 +421,7 @@ fn main() {
             select_folder,
             select_files,
             open_path,
+            open_url,
             get_project_root_cmd,
         ])
         .run(tauri::generate_context!())

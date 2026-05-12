@@ -14,9 +14,10 @@ from config_loader import _load_config
 
 
 class CompanyQueryError(Exception):
-    def __init__(self, message: str, raw_response: dict = None):
+    def __init__(self, message: str, raw_response: dict = None, recharge_url: str = None):
         self.message = message
         self.raw_response = raw_response
+        self.recharge_url = recharge_url
         super().__init__(self.message)
 
 
@@ -90,13 +91,25 @@ def load_cached_results(excel_path: str, ttl_days: int = 0) -> List[dict]:
         return []
 
 
-def _get_coze_config() -> dict:
+def clear_cache(excel_path: str) -> bool:
+    """清除指定 Excel 文件的缓存"""
+    cache_path = _get_cache_path(Path(excel_path))
+    if cache_path.exists():
+        try:
+            cache_path.unlink()
+            return True
+        except Exception:
+            return False
+    return True  # 缓存文件不存在，视为清除成功
+
+
+def _get_api_config() -> dict:
     raw = _load_config()
     cq = raw.get("company_query", {})
     return {
-        "api_url": cq.get("coze_api_url", "https://api.coze.cn/v1/workflow/run"),
-        "api_token": cq.get("coze_api_token", ""),
-        "workflow_id": cq.get("coze_workflow_id", ""),
+        "api_url": cq.get("api_url", ""),
+        "userid": cq.get("userid", ""),
+        "userkey": cq.get("userkey", ""),
         "request_delay": cq.get("request_delay", 0.5),
         "excel_column_name": cq.get("excel_column_name", "被执行人"),
     }
@@ -104,13 +117,12 @@ def _get_coze_config() -> dict:
 
 def query_company_info(company_name: str, config: dict) -> dict:
     headers = {
-        "Authorization": f"Bearer {config['api_token']}",
         "Content-Type": "application/json",
     }
     payload = {
-        "workflow_id": config["workflow_id"],
-        "parameters": {"companyName": company_name},
-        "is_async": False,
+        "userid": config["userid"],
+        "userkey": config["userkey"],
+        "companyName": company_name,
     }
     response = requests.post(
         config["api_url"],
@@ -119,24 +131,21 @@ def query_company_info(company_name: str, config: dict) -> dict:
         timeout=60,
     )
     response.raise_for_status()
-    result = response.json()
-    if result.get("code") == 0 and "data" in result and isinstance(result["data"], str):
-        try:
-            result["data"] = json.loads(result["data"])
-        except json.JSONDecodeError:
-            pass
-    return result
+    return response.json()
 
 
 def get_company_data(company_name: str, config: dict) -> dict:
     result = query_company_info(company_name, config)
-    if result.get("code") != 0:
+    if result.get("code") != 200:
+        # 提取充值链接（如果 API 返回了）
+        recharge_url = result.get("data", {}).get("rechargeUrl") or result.get("recharge_url")
         raise CompanyQueryError(
             f"API 返回错误: {result.get('msg', '未知错误')}",
             raw_response=result,
+            recharge_url=recharge_url,
         )
     data = result.get("data", {})
-    company_data = data.get("data") if isinstance(data, dict) else None
+    company_data = data.get("companyInfo")
     if not company_data:
         raise CompanyQueryError("未查询到企业数据", raw_response=result)
     return company_data
@@ -157,19 +166,56 @@ def extract_location(company_data: dict) -> str:
     return "".join(p for p in [province, city, district] if p)
 
 
+def _validate_company_result(result: dict) -> tuple[str, str]:
+    """
+    验证企业查询结果
+    返回: (status, error_message)
+    - 所有字段都为空 -> failed
+    - 部分字段为空 -> warning
+    - 所有字段都有值 -> success
+    """
+    fields = ["current_name", "legal_person", "location", "credit_code"]
+    empty_fields = []
+    
+    for field in fields:
+        if not result.get(field):
+            empty_fields.append(field)
+    
+    if len(empty_fields) == len(fields):
+        return "failed", "查询结果所有字段均为空"
+    elif empty_fields:
+        field_names = {
+            "current_name": "现用名",
+            "legal_person": "法定代表人", 
+            "location": "所在地",
+            "credit_code": "信用代码"
+        }
+        missing = "、".join([field_names.get(f, f) for f in empty_fields])
+        return "warning", f"缺少字段: {missing}"
+    else:
+        return "success", ""
+
+
 def process_single_company(company_name: str, config: dict) -> dict:
     try:
         company_data = get_company_data(company_name, config)
-        return {
+        result = {
             "original_name": company_name,
             "current_name": format_current_name(company_data),
             "legal_person": company_data.get("LegalPerson", ""),
             "location": extract_location(company_data),
             "credit_code": company_data.get("CreditNo", ""),
-            "status": "success",
         }
+        
+        status, error_msg = _validate_company_result(result)
+        result["status"] = status
+        if error_msg:
+            result["error"] = error_msg
+            
+        return result
+        
     except CompanyQueryError as e:
-        return {
+        result = {
             "original_name": company_name,
             "current_name": "",
             "legal_person": "",
@@ -178,6 +224,9 @@ def process_single_company(company_name: str, config: dict) -> dict:
             "status": "failed",
             "error": e.message,
         }
+        if e.recharge_url:
+            result["recharge_url"] = e.recharge_url
+        return result
     except Exception as e:
         return {
             "original_name": company_name,
@@ -198,7 +247,7 @@ def process_company_query(
     task_id: str = "",
     emitter=None,
 ) -> dict:
-    config = _get_coze_config()
+    config = _get_api_config()
     column_name = config["excel_column_name"]
     cache_path = _get_cache_path(excel_path)
 
@@ -241,9 +290,11 @@ def process_company_query(
                 emitter.progress("company_query", i + 1, total, f"查询: {name}")
             result = process_single_company(name, config)
             results.append(result)
-            cache[name] = result
-            if i % 5 == 0 or i == total - 1:
-                _save_cache(cache_path, list(cache.values()))
+            # 只有查询成功才缓存
+            if result["status"] == "success":
+                cache[name] = result
+                if i % 5 == 0 or i == total - 1:
+                    _save_cache(cache_path, list(cache.values()))
             if emitter:
                 emitter.progress("company_query", i + 1, total, f"完成: {name}", detail={"item": result, "row": row_num, "cached": False})
 
@@ -253,7 +304,8 @@ def process_company_query(
     _save_cache(cache_path, list(cache.values()))
 
     success_count = sum(1 for r in results if r["status"] == "success")
-    fail_count = total - success_count
+    warning_count = sum(1 for r in results if r["status"] == "warning")
+    fail_count = sum(1 for r in results if r["status"] == "failed")
     cancelled = is_cancelled(task_id)
 
     output_dir = Path("output")
@@ -276,6 +328,7 @@ def process_company_query(
     return {
         "total": total,
         "success_count": success_count,
+        "warning_count": warning_count,
         "fail_count": fail_count,
         "skipped_cached": skipped,
         "cancelled": cancelled,

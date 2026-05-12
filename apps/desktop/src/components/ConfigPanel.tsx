@@ -26,6 +26,7 @@ interface Props {
   onRun: () => void;
   onCancel: () => void;
   onLoadCache: () => void;
+  onClearCache: () => void;
   rangeStart: number;
   rangeEnd: number;
   onRangeStartChange: (v: number) => void;
@@ -67,6 +68,7 @@ export default function ConfigPanel({
   onRun,
   onCancel,
   onLoadCache,
+  onClearCache,
   rangeStart,
   rangeEnd,
   onRangeStartChange,
@@ -131,6 +133,7 @@ export default function ConfigPanel({
           onRun={onRun}
           onCancel={onCancel}
           onLoadCache={onLoadCache}
+          onClearCache={onClearCache}
         />
       );
     case "print":

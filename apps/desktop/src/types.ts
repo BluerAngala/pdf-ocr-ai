@@ -74,13 +74,15 @@ export interface CompanyQueryItem {
   legal_person: string;
   location: string;
   credit_code: string;
-  status: "success" | "failed";
+  status: "success" | "warning" | "failed";
   error?: string;
+  recharge_url?: string;
 }
 
 export interface CompanyQueryStats {
   total: number;
   success_count: number;
+  warning_count: number;
   fail_count: number;
 }
 

@@ -34,6 +34,7 @@ interface Props {
   onRun: () => void;
   onCancel: () => void;
   onLoadCache: () => void;
+  onClearCache: () => void;
   rangeStart: number;
   rangeEnd: number;
   onRangeStartChange: (v: number) => void;
@@ -93,6 +94,7 @@ export default function DetailView({
   onRun,
   onCancel,
   onLoadCache,
+  onClearCache,
   rangeStart,
   rangeEnd,
   onRangeStartChange,
@@ -232,6 +234,7 @@ export default function DetailView({
             onRun={onRun}
             onCancel={onCancel}
             onLoadCache={onLoadCache}
+            onClearCache={onClearCache}
             rangeStart={rangeStart}
             rangeEnd={rangeEnd}
             onRangeStartChange={onRangeStartChange}

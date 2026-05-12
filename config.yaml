@@ -323,11 +323,16 @@ enforcement:
       correct: "二〇二"
 
 company_query:
-  coze_api_url: "https://api.coze.cn/v1/workflow/run"
-  coze_api_token: "sat_xo6jKTKmaerCALRXHE7ZrRowHOvHARoplcU0HiYQtARY3QMr4C1MXqUO3FAJFuHA"
-  coze_workflow_id: "7637504045536428084"
+  # 新接口配置（unicloud）
+  api_url: "https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/search_company_info"
+  userid: "test_user_001"
+  userkey: "7e5465a15b21fd751aea7774b58aafd2"
   request_delay: 0.5
   excel_column_name: "被执行人"
+  # 旧 Coze 接口配置（已弃用）
+  coze_api_url: "https://api.coze.cn/v1/workflow/run"
+  coze_api_token: ""
+  coze_workflow_id: ""
 
 print:
   default_copies: 1

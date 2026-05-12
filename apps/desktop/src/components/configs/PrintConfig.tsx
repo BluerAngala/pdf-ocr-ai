@@ -51,7 +51,7 @@ function AccordionSection({
 }: AccordionSectionProps) {
   return (
     <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-      <button
+      <div
         onClick={onToggle}
         className="w-full px-4 py-3 flex items-center justify-between bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer"
       >
@@ -70,7 +70,7 @@ function AccordionSection({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </div>
-      </button>
+      </div>
       <div
         className={`transition-all duration-200 ease-in-out overflow-hidden ${
           isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"

@@ -5,6 +5,7 @@ interface Props {
   rangeEnd: number;
   cacheTtlDays: number;
   onLoadCache: () => void;
+  onClearCache: () => void;
   onExcelFileChange: (v: string) => void;
   onRangeStartChange: (v: number) => void;
   onRangeEndChange: (v: number) => void;
@@ -14,6 +15,8 @@ interface Props {
   onRun: () => void;
   onCancel: () => void;
 }
+
+const QUICK_RANGE_OPTIONS = [5, 10, 30, 50, 100];
 
 const CACHE_TTL_OPTIONS = [
   { value: 0, label: "不缓存" },
@@ -31,6 +34,7 @@ export default function CompanyQueryConfig({
   rangeEnd,
   cacheTtlDays,
   onLoadCache,
+  onClearCache,
   onExcelFileChange,
   onRangeStartChange,
   onRangeEndChange,
@@ -120,6 +124,32 @@ export default function CompanyQueryConfig({
                   />
                 </div>
               </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[10px] text-slate-400">快捷选择:</span>
+                {QUICK_RANGE_OPTIONS.map((count) => (
+                  <button
+                    key={count}
+                    onClick={() => {
+                      onRangeStartChange(1);
+                      onRangeEndChange(count);
+                    }}
+                    disabled={running}
+                    className="px-2 py-0.5 text-[10px] font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded hover:bg-emerald-100 hover:border-emerald-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  >
+                    {count}条
+                  </button>
+                ))}
+                <button
+                  onClick={() => {
+                    onRangeStartChange(1);
+                    onRangeEndChange(99999);
+                  }}
+                  disabled={running}
+                  className="px-2 py-0.5 text-[10px] font-medium text-slate-600 bg-slate-50 border border-slate-200 rounded hover:bg-slate-100 hover:border-slate-300 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  全部
+                </button>
+              </div>
               <p className="text-[10px] text-slate-400">99999 视为查询全部，支持断点续查</p>
             </div>
 
@@ -144,21 +174,38 @@ export default function CompanyQueryConfig({
               </p>
             </div>
 
-            <button
-              onClick={onLoadCache}
-              disabled={!excelFile || running}
-              className="w-full h-8 inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
-                />
-              </svg>
-              查看缓存记录
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={onLoadCache}
+                disabled={!excelFile || running}
+                className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"
+                  />
+                </svg>
+                查看缓存
+              </button>
+              <button
+                onClick={onClearCache}
+                disabled={!excelFile || running}
+                className="flex-1 h-8 inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-red-700 bg-red-50 border border-red-200 hover:bg-red-100 hover:border-red-300 transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
+                </svg>
+                清除缓存
+              </button>
+            </div>
 
             <p className="text-[10px] text-slate-400 leading-relaxed">
               Excel

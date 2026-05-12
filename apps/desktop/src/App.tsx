@@ -236,6 +236,24 @@ export default function App() {
     }
   }, [excelFile, cacheTtlDays, addLog]);
 
+  const clearCache = useCallback(async () => {
+    if (!excelFile) return;
+    try {
+      const rawResult = await sendRequest("company_query.clear_cache", {
+        excel_path: excelFile,
+      });
+      if (rawResult.error) {
+        addLog("error", `后端错误: ${rawResult.error}`);
+        return;
+      }
+      addLog("info", "缓存已清除");
+      setResult(null);
+      setPreviewState("empty");
+    } catch (e: any) {
+      addLog("error", `清除缓存失败: ${e?.message || e}`);
+    }
+  }, [excelFile, addLog]);
+
   const cancelProcessing = useCallback(async () => {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
@@ -472,6 +490,7 @@ export default function App() {
           onRun={startProcessing}
           onCancel={cancelProcessing}
           onLoadCache={loadCache}
+          onClearCache={clearCache}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
           onRangeStartChange={setRangeStart}

@@ -3,6 +3,8 @@
 import json
 import threading
 import time
+from collections import OrderedDict
+from concurrent.futures import ThreadPoolExecutor, wait, FIRST_COMPLETED
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -38,6 +40,14 @@ def is_cancelled(task_id: str) -> bool:
 def clear_cancel(task_id: str):
     with _cancel_lock:
         _cancel_flags.pop(task_id, None)
+
+
+def _wait_with_timeout(futures, timeout=0.5):
+    fs = set(futures.keys()) if isinstance(futures, dict) else futures
+    if not fs:
+        return set(), set()
+    done, not_done = wait(fs, timeout=timeout, return_when=FIRST_COMPLETED)
+    return done, not_done
 
 
 def _get_cache_path(excel_path: Path) -> Path:
@@ -111,6 +121,7 @@ def _get_api_config() -> dict:
         "userid": cq.get("userid", ""),
         "userkey": cq.get("userkey", ""),
         "request_delay": cq.get("request_delay", 0.5),
+        "max_concurrent": cq.get("max_concurrent", 3),
         "excel_column_name": cq.get("excel_column_name", "被执行人"),
     }
 
@@ -137,7 +148,6 @@ def query_company_info(company_name: str, config: dict) -> dict:
 def get_company_data(company_name: str, config: dict) -> dict:
     result = query_company_info(company_name, config)
     if result.get("code") != 200:
-        # 提取充值链接（如果 API 返回了）
         recharge_url = result.get("data", {}).get("rechargeUrl") or result.get("recharge_url")
         raise CompanyQueryError(
             f"API 返回错误: {result.get('msg', '未知错误')}",
@@ -145,7 +155,22 @@ def get_company_data(company_name: str, config: dict) -> dict:
             recharge_url=recharge_url,
         )
     data = result.get("data", {})
-    company_data = data.get("companyInfo")
+    company_info = data.get("companyInfo")
+    if not company_info:
+        raise CompanyQueryError("未查询到企业数据", raw_response=result)
+
+    inner_data = company_info.get("data")
+    if isinstance(inner_data, str):
+        try:
+            inner_data = json.loads(inner_data)
+        except (json.JSONDecodeError, TypeError):
+            raise CompanyQueryError("企业数据解析失败", raw_response=result)
+        company_data = inner_data.get("data", {})
+    elif isinstance(inner_data, dict):
+        company_data = inner_data.get("data", {})
+    else:
+        company_data = company_info
+
     if not company_data:
         raise CompanyQueryError("未查询到企业数据", raw_response=result)
     return company_data
@@ -269,43 +294,111 @@ def process_company_query(
     cache: Dict[str, dict] = {}
     if cache_ttl_days > 0 and not _is_cache_expired(cache_path, cache_ttl_days):
         cache = raw_cache
-    results: List[dict] = []
-    skipped = 0
 
-    for i, name in enumerate(company_names):
+    results: OrderedDict[str, dict] = OrderedDict()
+    skipped = 0
+    completed_count = 0
+
+    cached_names = []
+    uncached_names = []
+
+    for name in company_names:
+        if name in cache:
+            cached_names.append(name)
+        else:
+            uncached_names.append(name)
+
+    for name in cached_names:
         if is_cancelled(task_id):
             if emitter:
                 emitter.log("warn", f"任务已取消，已完成 {len(results)} 条查询")
             break
+        result = cache[name]
+        results[name] = result
+        skipped += 1
+        completed_count += 1
+        row_num = start_idx + company_names.index(name) + 1
+        if emitter:
+            emitter.progress("company_query", completed_count, total, f"[缓存] {name}", detail={"item": result, "row": row_num, "cached": True})
 
-        row_num = start_idx + i + 1
-        if name in cache:
-            result = cache[name]
-            results.append(result)
-            skipped += 1
+    if uncached_names and not is_cancelled(task_id):
+        max_workers = max(1, config.get("max_concurrent", 3))
+        _cancel_event = threading.Event()
+
+        def _query_one(name: str) -> tuple[str, dict, int]:
+            if _cancel_event.is_set():
+                idx_in_list = company_names.index(name)
+                row_num = start_idx + idx_in_list + 1
+                return name, {"original_name": name, "current_name": "", "legal_person": "", "location": "", "credit_code": "", "status": "failed", "error": "任务已取消"}, row_num
+            idx_in_list = company_names.index(name)
+            row_num = start_idx + idx_in_list + 1
             if emitter:
-                emitter.progress("company_query", i + 1, total, f"[缓存] {name}", detail={"item": result, "row": row_num, "cached": True})
-        else:
-            if emitter:
-                emitter.progress("company_query", i + 1, total, f"查询: {name}")
+                emitter.progress("company_query", completed_count + 1, total, f"查询: {name}")
             result = process_single_company(name, config)
-            results.append(result)
-            # 只有查询成功才缓存
-            if result["status"] == "success":
-                cache[name] = result
-                if i % 5 == 0 or i == total - 1:
-                    _save_cache(cache_path, list(cache.values()))
-            if emitter:
-                emitter.progress("company_query", i + 1, total, f"完成: {name}", detail={"item": result, "row": row_num, "cached": False})
+            return name, result, row_num
 
-        if config["request_delay"] > 0 and name not in cache:
-            time.sleep(config["request_delay"])
+        pending_futures = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            name_iter = iter(uncached_names)
+            for name in name_iter:
+                if is_cancelled(task_id):
+                    _cancel_event.set()
+                    break
+                future = executor.submit(_query_one, name)
+                pending_futures[future] = name
+                if len(pending_futures) >= max_workers:
+                    break
+
+            remaining_names = list(name_iter)
+
+            while pending_futures:
+                if is_cancelled(task_id):
+                    _cancel_event.set()
+                    for f in pending_futures:
+                        f.cancel()
+                    if emitter:
+                        emitter.log("warn", f"任务已取消，已完成 {len(results)} 条查询")
+                    for f in pending_futures:
+                        try:
+                            f.result(timeout=1)
+                        except Exception:
+                            pass
+                    break
+
+                done, _ = _wait_with_timeout(pending_futures, timeout=0.5)
+
+                for future in done:
+                    pending_futures.pop(future, None)
+                    try:
+                        name, result, row_num = future.result()
+                    except Exception as e:
+                        name = pending_futures.get(future, "")
+                        result = {"original_name": name, "current_name": "", "legal_person": "", "location": "", "credit_code": "", "status": "failed", "error": str(e)}
+                        row_num = 0
+
+                    results[name] = result
+                    completed_count += 1
+
+                    if result["status"] == "success":
+                        cache[name] = result
+                        if completed_count % 5 == 0 or completed_count == total:
+                            _save_cache(cache_path, list(cache.values()))
+
+                    if emitter:
+                        emitter.progress("company_query", completed_count, total, f"完成: {name}", detail={"item": result, "row": row_num, "cached": False})
+
+                    if remaining_names and not is_cancelled(task_id):
+                        next_name = remaining_names.pop(0)
+                        new_future = executor.submit(_query_one, next_name)
+                        pending_futures[new_future] = next_name
+
+    ordered_results = [results[name] for name in company_names if name in results]
 
     _save_cache(cache_path, list(cache.values()))
 
-    success_count = sum(1 for r in results if r["status"] == "success")
-    warning_count = sum(1 for r in results if r["status"] == "warning")
-    fail_count = sum(1 for r in results if r["status"] == "failed")
+    success_count = sum(1 for r in ordered_results if r["status"] == "success")
+    warning_count = sum(1 for r in ordered_results if r["status"] == "warning")
+    fail_count = sum(1 for r in ordered_results if r["status"] == "failed")
     cancelled = is_cancelled(task_id)
 
     output_dir = Path("output")
@@ -313,11 +406,11 @@ def process_company_query(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_excel_path = output_dir / f"企业查询结果_{timestamp}.xlsx"
 
-    result_df = df.iloc[start_idx:start_idx + len(results)].copy()
+    result_df = df.iloc[start_idx:start_idx + len(ordered_results)].copy()
     for col, key in [("现用名", "current_name"), ("法代", "legal_person"), ("所在地", "location"), ("社会信用代码", "credit_code")]:
         if col not in result_df.columns:
             result_df[col] = ""
-        values = [r.get(key, "") for r in results]
+        values = [r.get(key, "") for r in ordered_results]
         if len(values) < len(result_df):
             values += [""] * (len(result_df) - len(values))
         result_df[col] = values[:len(result_df)]
@@ -332,6 +425,6 @@ def process_company_query(
         "fail_count": fail_count,
         "skipped_cached": skipped,
         "cancelled": cancelled,
-        "companies": results,
+        "companies": ordered_results,
         "output_excel_path": str(output_excel_path),
     }

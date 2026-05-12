@@ -86,15 +86,15 @@ export default function CompanyQueryResult({ result }: { result: ProcessingResul
           <p className="text-[10px] text-slate-500 mt-0.5">企业总数</p>
         </div>
         <div className="rounded-lg bg-emerald-50 p-3 text-center border border-emerald-200">
-          <p className="text-lg font-bold text-emerald-700">{stats?.success_count ?? "-"}</p>
+          <p className="text-lg font-bold text-emerald-700">{stats?.success_count ?? 0}</p>
           <p className="text-[10px] text-emerald-600 mt-0.5">✓ 查询成功</p>
         </div>
         <div className="rounded-lg bg-amber-50 p-3 text-center border border-amber-200">
-          <p className="text-lg font-bold text-amber-700">{stats?.warning_count ?? "-"}</p>
+          <p className="text-lg font-bold text-amber-700">{stats?.warning_count ?? 0}</p>
           <p className="text-[10px] text-amber-600 mt-0.5">⚠ 警告</p>
         </div>
         <div className="rounded-lg bg-red-50 p-3 text-center border border-red-200">
-          <p className="text-lg font-bold text-red-700">{stats?.fail_count ?? "-"}</p>
+          <p className="text-lg font-bold text-red-700">{stats?.fail_count ?? 0}</p>
           <p className="text-[10px] text-red-600 mt-0.5">✗ 查询失败</p>
         </div>
         <div className="rounded-lg bg-blue-50 p-3 text-center border border-blue-200">

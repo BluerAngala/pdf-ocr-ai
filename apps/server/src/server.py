@@ -161,6 +161,7 @@ class JsonRpcServer:
 
         self.methods['print.process'] = self._print_process
         self.methods['print.list_printers'] = self._print_list_printers
+        self.methods['print.check_printer'] = self._print_check_printer
 
         # 配置模块
         self.methods['config.get'] = self._config_get
@@ -479,24 +480,45 @@ class JsonRpcServer:
         emitter = ProgressEmitter(task_id)
 
         try:
-            from print_service import process_print, list_printers
+            from print_service import process_print, list_printers, check_printer_status
             folder = Path(folder_path) if folder_path else Path('.')
             if not folder.exists():
                 raise FileNotFoundError(f"文件夹不存在: {folder}")
 
+            # 检查打印机列表
+            printers = list_printers()
+            if not printers:
+                raise Exception("系统中未找到任何可用打印机，请检查打印机连接")
+
             if not printer_name:
-                printers = list_printers()
                 default = next((p for p in printers if p["is_default"]), None)
                 if default:
                     printer_name = default["name"]
-                elif printers:
-                    printer_name = printers[0]["name"]
                 else:
-                    raise Exception("未找到可用打印机")
+                    printer_name = printers[0]["name"]
 
-            emitter.log("info", f"开始打印: {folder} → {printer_name}")
+            # 验证打印机状态
+            printer_status = check_printer_status(printer_name)
+            if not printer_status.get("available"):
+                raise Exception(f"打印机 '{printer_name}' 不可用: {printer_status.get('error', '未知错误')}")
+            
+            if not printer_status.get("is_ready"):
+                status_msg = printer_status.get("status", "状态异常")
+                emitter.log("warn", f"打印机状态: {status_msg}")
+
+            emitter.log("info", f"开始提交打印任务: {folder} → {printer_name}")
             result = process_print(folder, printer_name, copies, emitter=emitter)
-            emitter.log("info", f"打印完成: {result['printed']}/{result['total_files']}")
+            
+            # 更新日志信息以反映新的状态字段
+            submitted = result.get('submitted', 0)
+            failed = result.get('failed', 0)
+            total = result.get('total_files', 0)
+            
+            if failed > 0:
+                emitter.log("warn", f"打印任务提交完成: {submitted}/{total} 成功, {failed} 失败")
+            else:
+                emitter.log("info", f"打印任务提交完成: {submitted}/{total} 成功")
+                
             return result
         except Exception as e:
             raise Exception(f"打印失败: {str(e)}")
@@ -504,9 +526,25 @@ class JsonRpcServer:
     def _print_list_printers(self, params: Dict, id: Any) -> Dict:
         try:
             from print_service import list_printers
-            return {"printers": list_printers()}
+            printers = list_printers()
+            return {
+                "printers": printers,
+                "count": len(printers),
+                "has_printer": len(printers) > 0
+            }
         except Exception as e:
             raise Exception(f"获取打印机列表失败: {str(e)}")
+
+    def _print_check_printer(self, params: Dict, id: Any) -> Dict:
+        """检查指定打印机的状态"""
+        try:
+            from print_service import check_printer_status
+            printer_name = params.get('printer_name', '')
+            if not printer_name:
+                raise Exception("请指定打印机名称")
+            return check_printer_status(printer_name)
+        except Exception as e:
+            raise Exception(f"检查打印机状态失败: {str(e)}")
 
     # ============ 配置模块 ============
 

@@ -114,7 +114,7 @@ export default function PrintConfig({
 }: Props) {
   const [openSections, setOpenSections] = useState({
     excel: true,
-    print: false,
+    print: true,
   });
 
   const toggleSection = (section: keyof typeof openSections) => {

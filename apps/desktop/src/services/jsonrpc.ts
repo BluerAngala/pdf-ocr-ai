@@ -1,21 +1,33 @@
 import { invoke } from "@tauri-apps/api/tauri";
 import { listen } from "@tauri-apps/api/event";
-import type { JsonRpcResponse, JsonRpcNotification } from "../types";
+import type { JsonRpcResponse, JsonRpcNotification, ProgressParams } from "../types";
 
-let requestId = 0;
-const pendingRequests = new Map<number, { resolve: Function; reject: Function }>();
-
-export function isTauri(): boolean {
-  return typeof window !== "undefined" && !!(window as any).__TAURI_IPC__;
+interface PendingRequest {
+  resolve: (value: unknown) => void;
+  reject: (reason: Error) => void;
 }
 
-export async function sendRequest(method: string, params: any): Promise<any> {
+interface TauriEvent {
+  payload: JsonRpcResponse | JsonRpcNotification;
+}
+
+let requestId = 0;
+const pendingRequests = new Map<number, PendingRequest>();
+
+export function isTauri(): boolean {
+  return typeof window !== "undefined" && !!(window as { __TAURI_IPC__?: unknown }).__TAURI_IPC__;
+}
+
+export async function sendRequest(
+  method: string,
+  params: Record<string, unknown>,
+): Promise<unknown> {
   if (!isTauri()) {
     return mockResponse(method, params);
   }
   const id = ++requestId;
   return new Promise((resolve, reject) => {
-    pendingRequests.set(id, { resolve, reject });
+    pendingRequests.set(id, { resolve: resolve as (value: unknown) => void, reject });
     invoke("send_jsonrpc_request", { method, params, id }).catch((err) => {
       pendingRequests.delete(id);
       reject(err);
@@ -24,14 +36,14 @@ export async function sendRequest(method: string, params: any): Promise<any> {
 }
 
 export function setupJsonRpcListeners(
-  onProgress: (params: any) => void,
-  onLog: (params: any) => void,
-  onTaskComplete: (params: any) => void,
+  onProgress: (params: ProgressParams) => void,
+  onLog: (params: { level: string; message: string }) => void,
+  onTaskComplete: (params: { success: boolean; result?: unknown }) => void,
 ) {
   if (!isTauri()) return;
 
-  listen("jsonrpc-response", (event: any) => {
-    const response: JsonRpcResponse = event.payload;
+  listen("jsonrpc-response", (event: TauriEvent) => {
+    const response = event.payload as JsonRpcResponse;
     const id = response.id;
     if (pendingRequests.has(id)) {
       const { resolve, reject } = pendingRequests.get(id)!;
@@ -46,15 +58,18 @@ export function setupJsonRpcListeners(
     }
   });
 
-  listen("jsonrpc-notification", (event: any) => {
-    const notification: JsonRpcNotification = event.payload;
-    if (notification.method === "notify.progress") onProgress(notification.params);
-    else if (notification.method === "notify.log") onLog(notification.params);
-    else if (notification.method === "notify.task_complete") onTaskComplete(notification.params);
+  listen("jsonrpc-notification", (event: TauriEvent) => {
+    const notification = event.payload as JsonRpcNotification;
+    if (notification.method === "notify.progress")
+      onProgress(notification.params as ProgressParams);
+    else if (notification.method === "notify.log")
+      onLog(notification.params as { level: string; message: string });
+    else if (notification.method === "notify.task_complete")
+      onTaskComplete(notification.params as { success: boolean; result?: unknown });
   });
 }
 
-function mockResponse(method: string, params: any): any {
+function mockResponse(method: string, params: Record<string, unknown>): unknown {
   switch (method) {
     case "system.get_status":
       return {

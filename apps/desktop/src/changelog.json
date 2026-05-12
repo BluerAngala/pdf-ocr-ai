@@ -1,0 +1,63 @@
+{
+  "version": "1.2.0",
+  "releases": [
+    {
+      "version": "1.2.0",
+      "date": "2025-05-12",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "新增更新日志功能，支持配置驱动"
+        },
+        {
+          "type": "improvement",
+          "description": "优化主页布局，右上角新增功能入口"
+        }
+      ]
+    },
+    {
+      "version": "1.1.0",
+      "date": "2025-05-01",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "新增企业信息查询模块"
+        },
+        {
+          "type": "feature",
+          "description": "支持批量查询企业工商信息"
+        },
+        {
+          "type": "improvement",
+          "description": "OCR 识别速度提升 30%"
+        },
+        {
+          "type": "fix",
+          "description": "修复非诉审查模块 PDF 切分异常问题"
+        }
+      ]
+    },
+    {
+      "version": "1.0.0",
+      "date": "2025-04-15",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "首次发布"
+        },
+        {
+          "type": "feature",
+          "description": "非诉审查模块：PDF 自动识别、切分与重命名"
+        },
+        {
+          "type": "feature",
+          "description": "强制执行模块：裁定书信息提取与台账更新"
+        },
+        {
+          "type": "feature",
+          "description": "自动打印模块：批量打印企业材料"
+        }
+      ]
+    }
+  ]
+}

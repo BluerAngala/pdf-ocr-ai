@@ -70,11 +70,28 @@ const ICON_COLORS: Record<string, string> = {
 
 interface Props {
   onNavigate: (module: ModuleType) => void;
+  onOpenChangelog: () => void;
 }
 
-export default function HomeView({ onNavigate }: Props) {
+export default function HomeView({ onNavigate, onOpenChangelog }: Props) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      <div className="absolute top-4 right-4 z-10">
+        <button
+          onClick={onOpenChangelog}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 bg-white/80 hover:bg-white border border-slate-200 rounded-md shadow-sm transition-all cursor-pointer"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+            />
+          </svg>
+          <span>更新日志</span>
+        </button>
+      </div>
       <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
         <div className="text-center space-y-3 -mt-16">
           <h1 className="text-4xl font-bold text-[#0F172A] tracking-tight">公积金 OCR 工具</h1>

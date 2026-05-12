@@ -49,7 +49,7 @@ function CompanyRow({ item, index }: { item: CompanyQueryItem; index: number }) 
 }
 
 function isTauri() {
-  return typeof window !== "undefined" && !!(window as any).__TAURI__;
+  return typeof window !== "undefined" && !!(window as { __TAURI_IPC__?: unknown }).__TAURI_IPC__;
 }
 
 async function handleOpenUrl(url: string) {

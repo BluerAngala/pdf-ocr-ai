@@ -57,7 +57,7 @@ function buildRows(status: SystemStatus | null, deps: DependenciesCheck | null):
 }
 
 function openUrl(url: string) {
-  if ((window as any).__TAURI_IPC__) {
+  if ((window as { __TAURI_IPC__?: unknown }).__TAURI_IPC__) {
     import("@tauri-apps/api/tauri").then(({ invoke }) => {
       invoke("open_path", { path: url });
     });

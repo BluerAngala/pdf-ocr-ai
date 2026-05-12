@@ -13,7 +13,7 @@ export interface ProgressParams {
   file_current: number;
   file_total: number;
   message: string;
-  detail?: Record<string, any>;
+  detail?: Record<string, unknown>;
 }
 
 export interface LogEntry {
@@ -28,7 +28,7 @@ export interface ValidationDetail {
   file_type: string;
   status: "pass" | "warning" | "fail";
   message: string;
-  details?: Record<string, any>;
+  details?: Record<string, unknown>;
   suggestions?: string[];
   timing?: {
     total_duration?: number;
@@ -159,13 +159,13 @@ export interface DependenciesCheck {
 
 export interface JsonRpcResponse {
   id: number;
-  result?: any;
+  result?: unknown;
   error?: { message: string };
 }
 
 export interface JsonRpcNotification {
   method: string;
-  params: any;
+  params: unknown;
 }
 
 export type PreviewState = "empty" | "progress" | "result";

@@ -19,6 +19,7 @@ import HomeView from "./components/HomeView";
 import DetailView from "./components/DetailView";
 import StatusBar from "./components/StatusBar";
 import SystemStatusModal from "./components/SystemStatusModal";
+import ChangelogModal from "./components/ChangelogModal";
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "detail">("home");
@@ -61,6 +62,7 @@ export default function App() {
     deps: DependenciesCheck | null;
   }>({ status: null, deps: null });
   const [showStatusModal, setShowStatusModal] = useState(false);
+  const [showChangelogModal, setShowChangelogModal] = useState(false);
 
   const logIdRef = useRef(0);
   const currentTaskIdRef = useRef<string | null>(null);
@@ -114,8 +116,11 @@ export default function App() {
       setProgressFileTotal(params.file_total || 0);
       setProgressMessage(params.message);
       addLog("info", `[${params.phase}] ${params.message}`);
-      if (currentModule === "company-query" && (params as any).detail?.item) {
-        setLiveCompanies((prev) => [...prev, (params as any).detail.item as CompanyQueryItem]);
+      if (currentModule === "company-query" && params.detail) {
+        const detail = params.detail as { item?: CompanyQueryItem };
+        if (detail.item) {
+          setLiveCompanies((prev) => [...prev, detail.item!]);
+        }
       }
     },
     [addLog, currentModule],
@@ -124,16 +129,16 @@ export default function App() {
   useEffect(() => {
     setupJsonRpcListeners(
       handleProgress,
-      (params: any) => addLog(params.level, params.message),
-      (params: any) => {
+      (params) => addLog(params.level, params.message),
+      (params) => {
         if (params.success && params.result) {
           setPreviewState("result");
-          setResult(params.result);
+          setResult(params.result as ProcessingResult);
         }
       },
     );
     getPresets().then(() => addLog("info", "应用已启动"));
-  }, []);
+  }, [handleProgress, addLog]);
 
   const navigateToModule = useCallback(
     (module: ModuleType) => {
@@ -151,8 +156,9 @@ export default function App() {
       }
       if (module === "print") {
         sendRequest("print.list_printers", {})
-          .then((res: any) => {
-            const list: PrinterInfo[] = res.printers || [];
+          .then((res) => {
+            const result = res as { printers?: PrinterInfo[] };
+            const list: PrinterInfo[] = result.printers || [];
             setPrinters(list);
             const defaultPrinter = list.find((p) => p.is_default);
             if (defaultPrinter) setPrinterName(defaultPrinter.name);
@@ -214,15 +220,16 @@ export default function App() {
         addLog("error", `后端错误: ${rawResult.error}`);
         return;
       }
-      const companies = (rawResult as any).companies || [];
+      const cacheResult = rawResult as { companies?: CompanyQueryItem[] };
+      const companies = cacheResult.companies || [];
       if (companies.length === 0) {
         addLog("info", "暂无缓存记录，请先执行一次查询");
         return;
       }
       const stats = {
         total: companies.length,
-        success_count: companies.filter((c: any) => c.status === "success").length,
-        fail_count: companies.filter((c: any) => c.status === "failed").length,
+        success_count: companies.filter((c) => c.status === "success").length,
+        fail_count: companies.filter((c) => c.status === "failed").length,
       };
       setResult({
         companies,
@@ -231,8 +238,9 @@ export default function App() {
       });
       setPreviewState("result");
       addLog("info", `已加载 ${companies.length} 条缓存记录`);
-    } catch (e: any) {
-      addLog("error", `加载缓存记录失败: ${e?.message || e}`);
+    } catch (e) {
+      const err = e as Error;
+      addLog("error", `加载缓存记录失败: ${err?.message || e}`);
     }
   }, [excelFile, cacheTtlDays, addLog]);
 
@@ -249,8 +257,9 @@ export default function App() {
       addLog("info", "缓存已清除");
       setResult(null);
       setPreviewState("empty");
-    } catch (e: any) {
-      addLog("error", `清除缓存失败: ${e?.message || e}`);
+    } catch (e) {
+      const err = e as Error;
+      addLog("error", `清除缓存失败: ${err?.message || e}`);
     }
   }, [excelFile, addLog]);
 
@@ -291,19 +300,26 @@ export default function App() {
       let res: ProcessingResult = {} as ProcessingResult;
       if (currentModule === "non-litigation") {
         const config = MODULE_CONFIG[currentModule];
-        res = await sendRequest("non_litigation.process", {
+        const rawResult = await sendRequest("non_litigation.process", {
           preset_id: config.presetId,
           mode: "real_ocr",
           force: false,
           task_id: taskId,
         });
+        res = rawResult as ProcessingResult;
       } else if (currentModule === "enforcement") {
         const config = MODULE_CONFIG[currentModule];
-        const rawResult = await sendRequest("enforcement.extract", {
+        const rawResult = (await sendRequest("enforcement.extract", {
           preset_id: config.presetId,
           force_ocr: forceOcr,
           mock_mode: mockMode,
-        });
+        })) as {
+          processed?: number;
+          extracted?: unknown[];
+          stats?: EnforcementStats;
+          updated_excel_path?: string;
+          output_dir?: string;
+        };
         res = {
           processed: rawResult.processed || 0,
           extracted: rawResult.extracted || [],
@@ -322,21 +338,27 @@ export default function App() {
           setPreviewState("empty");
           return;
         }
-        const rawResult = await sendRequest("company_query.process", {
+        const rawResult = (await sendRequest("company_query.process", {
           excel_path: excelFile,
           range_start: rangeStart,
           range_end: rangeEnd,
           cache_ttl_days: cacheTtlDays,
           task_id: taskId,
-        });
+        })) as {
+          companies?: CompanyQueryItem[];
+          total?: number;
+          success_count?: number;
+          fail_count?: number;
+          output_excel_path?: string;
+        };
         res = {
           companies: rawResult.companies || [],
           company_stats:
             rawResult.total !== undefined
               ? {
                   total: rawResult.total,
-                  success_count: rawResult.success_count,
-                  fail_count: rawResult.fail_count,
+                  success_count: rawResult.success_count || 0,
+                  fail_count: rawResult.fail_count || 0,
                 }
               : undefined,
           output_excel_path: rawResult.output_excel_path || "",
@@ -349,7 +371,7 @@ export default function App() {
           setPreviewState("empty");
           return;
         }
-        const rawResult = await sendRequest("print.process", {
+        const rawResult = (await sendRequest("print.process", {
           folder_path: sampleRoot,
           excel_path: excelFile || undefined,
           range_start: excelFile ? rangeStart : undefined,
@@ -362,15 +384,21 @@ export default function App() {
           custom_start_page: printPageRange === "custom" ? printCustomStartPage : undefined,
           custom_end_page: printPageRange === "custom" ? printCustomEndPage : undefined,
           task_id: taskId,
-        });
+        })) as {
+          files?: PrintFileItem[];
+          total_files?: number;
+          printed?: number;
+          failed?: number;
+          printer_used?: string;
+        };
         res = {
           print_files: rawResult.files || [],
           print_stats:
             rawResult.total_files !== undefined
               ? {
                   total_files: rawResult.total_files,
-                  printed: rawResult.printed,
-                  failed: rawResult.failed,
+                  printed: rawResult.printed || 0,
+                  failed: rawResult.failed || 0,
                 }
               : undefined,
           printer_used: rawResult.printer_used || "",
@@ -380,8 +408,9 @@ export default function App() {
       setPreviewState("result");
       setResult(res);
       addLog("info", "处理完成！");
-    } catch (err: any) {
-      const msg = typeof err === "string" ? err : err?.message || err?.toString() || "未知错误";
+    } catch (err) {
+      const error = err as Error | string;
+      const msg = typeof error === "string" ? error : (error as Error)?.message || String(error);
       addLog("error", `处理失败: ${msg}`);
       alert(`处理失败: ${msg}`);
       setPreviewState("empty");
@@ -400,6 +429,12 @@ export default function App() {
     rangeEnd,
     cacheTtlDays,
     addLog,
+    flushLogs,
+    printCompanyNameColumn,
+    printMode,
+    printPageRange,
+    printCustomStartPage,
+    printCustomEndPage,
   ]);
 
   const openReport = useCallback(async () => {
@@ -411,7 +446,7 @@ export default function App() {
     try {
       if (isTauri()) await invoke("open_path", { path });
       else alert(`报告路径: ${path}`);
-    } catch (err: any) {
+    } catch (err) {
       addLog("error", `打开报告失败: ${err}`);
     }
   }, [result, addLog]);
@@ -425,7 +460,7 @@ export default function App() {
     try {
       if (isTauri()) await invoke("open_path", { path });
       else alert(`输出路径: ${path}`);
-    } catch (err: any) {
+    } catch (err) {
       addLog("error", `打开输出文件夹失败: ${err}`);
     }
   }, [result, addLog]);
@@ -467,7 +502,10 @@ export default function App() {
   return (
     <>
       {currentView === "home" ? (
-        <HomeView onNavigate={navigateToModule} />
+        <HomeView
+          onNavigate={navigateToModule}
+          onOpenChangelog={() => setShowChangelogModal(true)}
+        />
       ) : (
         <DetailView
           moduleType={currentModule}
@@ -532,6 +570,7 @@ export default function App() {
       {showStatusModal && (
         <SystemStatusModal statusInfo={statusInfo} onClose={() => setShowStatusModal(false)} />
       )}
+      {showChangelogModal && <ChangelogModal onClose={() => setShowChangelogModal(false)} />}
     </>
   );
 }

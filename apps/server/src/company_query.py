@@ -426,5 +426,5 @@ def process_company_query(
         "skipped_cached": skipped,
         "cancelled": cancelled,
         "companies": ordered_results,
-        "output_excel_path": str(output_excel_path),
+        "output_excel_path": str(output_excel_path.resolve()),
     }

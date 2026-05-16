@@ -1352,6 +1352,88 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 
 
+def _extract_company_name_from_target(target_name: str) -> str:
+    stem = Path(target_name).stem
+    return normalize_company_name_for_matching(stem)
+
+
+def _fuzzy_match_company_name(detected: str, target_names: List[str], used_indices: set,
+                               threshold: float = 0.6) -> Optional[Tuple[int, str]]:
+    best_idx = None
+    best_target = None
+    best_ratio = 0
+
+    for i, target in enumerate(target_names):
+        if i in used_indices:
+            continue
+        target_company = _extract_company_name_from_target(target)
+        ratio = SequenceMatcher(None, detected, target_company).ratio()
+        if ratio > best_ratio and ratio >= threshold:
+            best_ratio = ratio
+            best_idx = i
+            best_target = target
+
+    if best_idx is not None:
+        return (best_idx, best_target)
+    return None
+
+
+def detect_company_page_mapping_from_ocr(ocr_results: Dict[str, Dict], doc_type: str,
+                                          target_names: List[str]) -> Optional[List[str]]:
+    data = _get_ocr_result(ocr_results, doc_type)
+    if not data or not data.get('pages'):
+        return None
+
+    post_processor = TextPostProcessor()
+    pages = data['pages']
+    if len(pages) < len(target_names):
+        return None
+
+    matched_targets: List[Optional[str]] = [None] * len(pages)
+    used_indices: set = set()
+
+    for page_idx, page_data in enumerate(pages):
+        text = page_data.get('text', '')
+        detected_company = post_processor.extract_company_name_from_text(text)
+        if detected_company:
+            normalized = normalize_company_name_for_matching(detected_company)
+            result = _fuzzy_match_company_name(normalized, target_names, used_indices)
+            if result:
+                idx, target = result
+                matched_targets[page_idx] = target
+                used_indices.add(idx)
+
+                ratio = SequenceMatcher(None, normalized, _extract_company_name_from_target(target)).ratio()
+                _log_audit('company_name_match', {
+                    'doc_type': doc_type,
+                    'page': page_idx + 1,
+                    'detected': detected_company,
+                    'matched_target': target,
+                    'similarity': round(ratio, 3),
+                })
+
+    unmatched_pages = [i for i, t in enumerate(matched_targets) if t is None]
+    if unmatched_pages:
+        remaining_targets = [(i, t) for i, t in enumerate(target_names) if i not in used_indices]
+        for page_idx in unmatched_pages:
+            if remaining_targets:
+                fallback_idx, fallback_target = remaining_targets.pop(0)
+                matched_targets[page_idx] = fallback_target
+                used_indices.add(fallback_idx)
+                print(f"  [WARN] {doc_type} 第{page_idx + 1}页未识别到公司名，按顺序分配: {fallback_target}")
+            else:
+                page_data = pages[page_idx]
+                matched_targets[page_idx] = f"未匹配_第{page_idx + 1}页.pdf"
+                print(f"  [WARN] {doc_type} 第{page_idx + 1}页无法匹配公司名")
+
+    matched_count = sum(1 for t in matched_targets if t is not None and not t.startswith('未匹配'))
+    if matched_count == 0:
+        return None
+
+    print(f"  [OK] {doc_type} OCR 匹配: {matched_count}/{len(pages)} 页成功匹配公司名")
+    return matched_targets
+
+
 def export_company_named_files(input_dir: Path, output_dir: Path, target_names: List[str],
                                ocr_results: Dict[str, Dict], source_name: Optional[str], marker: str) -> int:
     if not source_name:
@@ -1372,6 +1454,16 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
 
     ranges = detect_page_ranges(total_pages, expected_count, doc_type)
 
+    ordered_targets = detect_company_page_mapping_from_ocr(ocr_results, doc_type, target_names)
+    if ordered_targets is not None:
+        actual_targets = ordered_targets[:len(ranges)]
+        shortage = len(ranges) - len(actual_targets)
+        if shortage > 0:
+            actual_targets.extend(['未匹配.pdf'] * shortage)
+        print(f"  [INFO] {doc_type} 使用 OCR 匹配结果导出")
+        return export_pdf_ranges(source_pdf, ranges, output_dir, actual_targets)
+
+    print(f"  [INFO] {doc_type} 无 OCR 匹配结果，按顺序分配")
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 
 

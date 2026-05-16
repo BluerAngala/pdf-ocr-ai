@@ -443,7 +443,10 @@ export default function App() {
   ]);
 
   const openReport = useCallback(async () => {
-    const path = result?.html_report_path || result?.summary?.result_root;
+    const path =
+      currentModule === "company-query"
+        ? result?.output_excel_path
+        : result?.html_report_path || result?.summary?.result_root;
     if (!path) {
       alert("报告尚未生成");
       return;
@@ -454,21 +457,22 @@ export default function App() {
     } catch (err) {
       addLog("error", `打开报告失败: ${err}`);
     }
-  }, [result, addLog]);
+  }, [result, currentModule, addLog]);
 
   const openOutput = useCallback(async () => {
-    const path = result?.summary?.result_root;
+    const path =
+      currentModule === "company-query" ? result?.output_excel_path : result?.summary?.result_root;
     if (!path) {
-      alert("输出文件夹尚未创建");
+      alert("输出尚未生成");
       return;
     }
     try {
       if (isTauri()) await invoke("open_path", { path });
       else alert(`输出路径: ${path}`);
     } catch (err) {
-      addLog("error", `打开输出文件夹失败: ${err}`);
+      addLog("error", `打开输出失败: ${err}`);
     }
-  }, [result, addLog]);
+  }, [result, currentModule, addLog]);
 
   const copyLogs = useCallback(() => {
     if (logs.length === 0) {

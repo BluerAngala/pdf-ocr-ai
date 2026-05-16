@@ -667,7 +667,7 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
             excel_output = output_dir / "执行组识别结果.xlsx"
             try:
                 build_output_excel(registry, pdf_results, excel_output)
-                updated_excel_path = str(excel_output)
+                updated_excel_path = str(excel_output.resolve())
             except Exception:
                 pass
         except Exception as e:
@@ -677,7 +677,7 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
         "processed": processed,
         "extracted": extracted,
         "updated_excel_path": updated_excel_path,
-        "output_dir": str(output_dir),
+        "output_dir": str(output_dir.resolve()),
         "stats": stats,
     }
 

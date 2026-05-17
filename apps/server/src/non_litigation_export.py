@@ -22,6 +22,12 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Iterable
 
+try:
+    from openpyxl import Workbook
+    HAS_OPENPYXL = True
+except ImportError:
+    HAS_OPENPYXL = False
+
 from region_extractor import RegionExtractor, REGIONS
 from contextlib import contextmanager
 
@@ -669,7 +675,8 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                         region_extractor: Optional[RegionExtractor] = None,
                         post_processor: Optional[TextPostProcessor] = None,
                         quiet: bool = False,
-                        page_progress: Optional[callable] = None) -> Dict:
+                        page_progress: Optional[callable] = None,
+                        cancel_check: Optional[callable] = None) -> Dict:
     if use_mock or not HAS_OCR:
         return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'mock'}
 
@@ -697,6 +704,8 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                 scan_window_pages = max(0, _cfg.notice_scan_window_pages)
 
                 while page_num <= max_scan_pages:
+                    if cancel_check and cancel_check():
+                        break
                     try:
                         full_image = region_extractor.extract_full_page(pdf_path, page_num)
                     except Exception:
@@ -852,6 +861,9 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                 _log(f"  [申请书] {total_pages} pages, {pages_per} pages/case, {expected_cases} cases expected")
 
                 for case_idx in range(expected_cases):
+                    if cancel_check and cancel_check():
+                        _log(f"  [申请书] 已取消，已完成 {case_idx}/{expected_cases}")
+                        break
                     start_page = 1 + case_idx * pages_per
                     if page_progress and case_idx % 10 == 0:
                         page_progress(start_page, total_pages)
@@ -940,9 +952,11 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
             else:
                 doc_cfg = _cfg.doc_type_map[doc_type]
                 default_regions = _cfg.ocr_doc_regions.get(doc_type, [])
-                primary_regions = default_regions[:1]
 
                 for page_num in range(1, total_pages + 1):
+                    if cancel_check and cancel_check():
+                        _log(f"    [{doc_type}] 已取消，已完成 {page_num-1}/{total_pages}")
+                        break
                     if page_num % 50 == 1 or page_num == total_pages:
                         _log(f"    [{doc_type}] {page_num}/{total_pages}...")
                     if page_progress and (page_num % 20 == 0 or page_num == total_pages):
@@ -955,7 +969,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                         page_num,
                         doc_type,
                         full_image=full_image,
-                        region_names=primary_regions,
+                        region_names=default_regions,
                     )
                     page_logs = list(primary_logs)
                     combined_text = apply_ocr_corrections(primary_text)
@@ -1076,9 +1090,11 @@ def _run_ocr_with_timeout(pdf_path: Path, **kwargs) -> Dict:
 def run_real_ocr(input_dir: Path, use_mock: bool = False,
                  progress_callback: Optional[callable] = None,
                  cancel_check: Optional[callable] = None,
-                 log_callback: Optional[callable] = None) -> Dict[str, Dict]:
+                 log_callback: Optional[callable] = None,
+                 cached_results: Optional[Dict[str, Dict]] = None) -> Dict[str, Dict]:
     ocr_start = time.perf_counter()
-    ocr_results: Dict[str, Dict] = {}
+    ocr_results: Dict[str, Dict] = dict(cached_results) if cached_results else {}
+    skipped_count = 0
 
     def _report(msg: str):
         _log(msg)
@@ -1117,9 +1133,15 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
 
         shared_ocr, shared_region_extractor = _build_ocr_processors()
         shared_post_processor = TextPostProcessor()
+        notice_start = time.perf_counter()
         for idx, (source_name, pdf_path) in enumerate(notice_items, 1):
             if cancel_check and cancel_check():
+                _report(f"责催已取消，已完成 {idx-1}/{notice_count}")
                 break
+            if source_name in ocr_results:
+                skipped_count += 1
+                continue
+            t0 = time.perf_counter()
             result = _run_ocr_with_timeout(
                 pdf_path,
                 use_mock=use_mock,
@@ -1129,10 +1151,15 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 ocr=shared_ocr,
                 region_extractor=shared_region_extractor,
                 post_processor=shared_post_processor,
+                cancel_check=cancel_check,
             )
+            file_dur = time.perf_counter() - t0
             ocr_results[source_name] = result
+            _report(f"[{idx}/{notice_count}] {source_name} ({file_dur:.1f}s)")
             if progress_callback:
-                progress_callback(idx, len(notice_items), source_name)
+                progress_callback(idx, notice_count, source_name)
+        notice_dur = time.perf_counter() - notice_start
+        _report(f"责催完成: {notice_count} 个文件, 耗时 {notice_dur:.1f}s")
 
     other_files = [
         (pdf_name, pdf_name.replace('.pdf', ''))
@@ -1145,12 +1172,19 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
         shared_post_processor = TextPostProcessor()
     other_idx = 0
     other_total = len(other_files)
+    type_durations = {}
     for filename, stem in other_files:
         if cancel_check and cancel_check():
+            _report(f"其他文件已取消，已完成 {other_idx}/{other_total}")
             break
         pdf_path = input_dir / filename
 
         if pdf_path.exists():
+            if filename in ocr_results:
+                skipped_count += 1
+                other_idx += 1
+                _report(f"[SKIP] {filename} (已有缓存)")
+                continue
             other_idx += 1
             doc_type = stem if stem in {'申请书', '授权书', '所函'} else None
             total_pages = inspect_pdf_page_count(pdf_path)
@@ -1170,16 +1204,24 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 region_extractor=shared_region_extractor,
                 post_processor=shared_post_processor,
                 page_progress=_make_page_progress(filename, total_pages),
+                cancel_check=cancel_check,
             )
             file_dur = time.perf_counter() - t_file
             ocr_results[filename] = result
             _report(f"[{other_idx}/{other_total}] {filename} 完成 ({file_dur:.1f}s)")
+            if doc_type:
+                type_durations[doc_type] = type_durations.get(doc_type, 0) + file_dur
             if progress_callback:
                 progress_callback(other_idx, other_total, filename)
         else:
             _report(f"[WARN] 文件不存在: {pdf_path}")
 
+    for dt, dur in type_durations.items():
+        _report(f"{dt}完成: {dur:.1f}s")
+
     total_duration = round(time.perf_counter() - ocr_start, 4)
+    if skipped_count:
+        _report(f"跳过缓存: {skipped_count} 个文件")
     _report(f"OCR 阶段完成: {total_duration:.2f}s, 共处理 {len(ocr_results)} 个文件")
 
     return ocr_results
@@ -1348,25 +1390,123 @@ def _extract_company_name_from_target(target_name: str) -> str:
     return normalize_company_name_for_matching(stem)
 
 
+_COMPANY_SUFFIXES = '有限公司|股份有限公司|有限责任公司|集团公司|合伙企业|分公司|幼儿园|事务所|研究院|服务中心|合作社|医院|大学|学院|幼儿园'
+_EXECUTION_PATTERN = re.compile(r'与(.+?)(?:关于|强制执行)')
+_AGENCY_PATTERN = re.compile(r'与(.+?)关于.*?(?:执行|审查|一案)')
+
+_COMPANY_STRIP_PREFIXES = re.compile(r'^(委托人|申请人|被执行人|申请执行人)[:：]?')
+_COMPANY_STRIP_SUFFIXES = re.compile(r'(?:关于|强制执行|行政非诉审查|补缴).*$')
+
+# 公司类型后缀，用于区分总公司/分公司/有限公司/股份有限公司等
+_COMPANY_TYPE_SUFFIXES = [
+    '股份有限公司', '有限责任公司', '有限公司', '集团公司', '股份公司',
+    '合伙企业', '分公司', '事务所', '研究院', '服务中心', '合作社',
+    '医院', '大学', '学院', '幼儿园', '管理中心', '协会', '中心',
+]
+
+
+def _extract_company_core_name(name: str) -> str:
+    """提取公司核心名称（去掉通用后缀）"""
+    name = name.strip()
+    for suffix in _COMPANY_TYPE_SUFFIXES:
+        if name.endswith(suffix):
+            return name[:-len(suffix)].strip()
+    return name
+
+
+def _get_company_suffixes(name: str) -> List[str]:
+    """提取公司名称中的所有类型后缀"""
+    result = []
+    name = name.strip()
+    for suffix in _COMPANY_TYPE_SUFFIXES:
+        if suffix in name:
+            result.append(suffix)
+    return result
+
+
+def _extract_target_company(text: str, fallback_fn=None) -> Optional[str]:
+    collapsed = re.sub(r'\n', '', text)
+    m = _EXECUTION_PATTERN.search(collapsed)
+    if not m:
+        m = _AGENCY_PATTERN.search(collapsed)
+    if m:
+        name = m.group(1)
+        name = _COMPANY_STRIP_PREFIXES.sub('', name).strip()
+        if len(name) >= 4:
+            return name
+    if fallback_fn:
+        return fallback_fn(text)
+    return None
+
+
+def _is_suffix_compatible(detected: str, target: str) -> bool:
+    """
+    检查两个公司名的后缀是否兼容，避免总公司匹配到分公司。
+    核心规则：如果一方明确包含'分公司'，另一方不能是不含'分公司'的总公司。
+    """
+    detected_suffixes = set(_get_company_suffixes(detected))
+    target_suffixes = set(_get_company_suffixes(target))
+
+    # 如果一方有"分公司"另一方没有，不兼容
+    has_branch_d = '分公司' in detected_suffixes
+    has_branch_t = '分公司' in target_suffixes
+    if has_branch_d != has_branch_t:
+        return False
+
+    return True
+
+
 def _fuzzy_match_company_name(detected: str, target_names: List[str], used_indices: set,
-                               threshold: float = 0.6) -> Optional[Tuple[int, str]]:
+                               threshold: float = 0.85) -> Optional[Tuple[int, str]]:
+    """
+    公司名称模糊匹配，策略：
+    1. 精确匹配（规范化后完全一致）
+    2. 核心名称匹配（去掉通用后缀后一致，且后缀兼容）
+    3. SequenceMatcher 模糊匹配（≥阈值，且后缀兼容）
+    """
     best_idx = None
     best_target = None
-    best_ratio = 0
+    best_score = -1
 
+    detected_norm = normalize_company_name_for_matching(detected)
+    detected_core = _extract_company_core_name(detected_norm)
+
+    candidates = []
     for i, target in enumerate(target_names):
         if i in used_indices:
             continue
         target_company = _extract_company_name_from_target(target)
-        ratio = SequenceMatcher(None, detected, target_company).ratio()
-        if ratio > best_ratio and ratio >= threshold:
-            best_ratio = ratio
-            best_idx = i
-            best_target = target
+        target_norm = normalize_company_name_for_matching(target_company)
 
-    if best_idx is not None:
-        return (best_idx, best_target)
-    return None
+        # 1. 精确匹配
+        if detected_norm == target_norm:
+            candidates.append((i, target, 100.0, 'exact'))
+            continue
+
+        # 2. 核心名称匹配（去掉有限公司/分公司等后缀）
+        target_core = _extract_company_core_name(target_norm)
+        if detected_core and target_core and detected_core == target_core:
+            if _is_suffix_compatible(detected_norm, target_norm):
+                candidates.append((i, target, 95.0, 'core'))
+                continue
+
+        # 3. 模糊匹配
+        ratio = SequenceMatcher(None, detected_norm, target_norm).ratio()
+        if ratio >= threshold and _is_suffix_compatible(detected_norm, target_norm):
+            candidates.append((i, target, ratio, 'fuzzy'))
+
+    if not candidates:
+        return None
+
+    # 排序：精确 > 核心 > 模糊；同类型选更长的（更具体）
+    def sort_key(item):
+        score, match_type, name = item[2], item[3], item[1]
+        type_order = {'exact': 3, 'core': 2, 'fuzzy': 1}
+        return (type_order.get(match_type, 0), score, len(name))
+
+    candidates.sort(key=sort_key, reverse=True)
+    best = candidates[0]
+    return (best[0], best[1])
 
 
 def detect_company_page_mapping_from_ocr(ocr_results: Dict[str, Dict], doc_type: str,
@@ -1385,7 +1525,7 @@ def detect_company_page_mapping_from_ocr(ocr_results: Dict[str, Dict], doc_type:
 
     for page_idx, page_data in enumerate(pages):
         text = page_data.get('text', '')
-        detected_company = post_processor.extract_company_name_from_text(text)
+        detected_company = _extract_target_company(text, fallback_fn=post_processor.extract_company_name_from_text)
         if detected_company:
             normalized = normalize_company_name_for_matching(detected_company)
             result = _fuzzy_match_company_name(normalized, target_names, used_indices)
@@ -1438,23 +1578,76 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
         return 0
 
     total_pages = inspect_pdf_page_count(source_pdf)
-    expected_count = len(target_names)
     doc_type = '授权书' if '授权' in marker else '所函'
 
-    _log(f"  [INFO] {source_name}: {total_pages} 页，期望 {expected_count} 个公司")
+    _log(f"  [INFO] {source_name}: {total_pages} 页")
 
-    ranges = detect_page_ranges(total_pages, expected_count, doc_type)
+    data = _get_ocr_result(ocr_results, doc_type)
+    if data and data.get('pages'):
+        pages = data['pages']
+        post_processor = TextPostProcessor()
 
-    ordered_targets = detect_company_page_mapping_from_ocr(ocr_results, doc_type, target_names)
-    if ordered_targets is not None:
-        actual_targets = ordered_targets[:len(ranges)]
-        shortage = len(ranges) - len(actual_targets)
+        matched_names: List[str] = []
+        used_indices: set = set()
+
+        for page_idx, page_data in enumerate(pages):
+            text = page_data.get('text', '')
+            detected = _extract_target_company(text, fallback_fn=post_processor.extract_company_name_from_text)
+            if detected:
+                normalized = normalize_company_name_for_matching(detected)
+                match = _fuzzy_match_company_name(normalized, target_names, used_indices)
+                if match:
+                    idx, target_name = match
+                    matched_names.append(target_name)
+                    used_indices.add(idx)
+                    _log(f"    [MATCH] 第{page_idx + 1}页 '{detected}' -> 台账 '{target_name}'")
+                    _log_audit('company_name_match', {
+                        'doc_type': doc_type,
+                        'page': page_idx + 1,
+                        'detected': detected,
+                        'matched_target': target_name,
+                    })
+                else:
+                    matched_names.append(f"{detected}.pdf")
+                    _log(f"    [WARN] 第{page_idx + 1}页 '{detected}' 未匹配台账，使用识别结果")
+                    _log_audit('company_name_unmatched', {
+                        'doc_type': doc_type,
+                        'page': page_idx + 1,
+                        'detected': detected,
+                    })
+                    _log_audit('company_name_unmatched', {
+                        'doc_type': doc_type,
+                        'page': page_idx + 1,
+                        'detected': detected,
+                    })
+                    _log_audit('company_name_unmatched', {
+                        'doc_type': doc_type,
+                        'page': page_idx + 1,
+                        'detected': detected,
+                    })
+            else:
+                matched_names.append(f"未匹配_第{page_idx + 1}页.pdf")
+                _log(f"    [WARN] 第{page_idx + 1}页未识别到公司名")
+
+        ranges = detect_page_ranges(total_pages, len(matched_names), doc_type)
+        actual_names = matched_names[:len(ranges)]
+        shortage = len(ranges) - len(actual_names)
         if shortage > 0:
-            actual_targets.extend(['未匹配.pdf'] * shortage)
-        _log(f"  [INFO] {doc_type} 使用 OCR 匹配结果导出")
-        return export_pdf_ranges(source_pdf, ranges, output_dir, actual_targets)
+            remaining = [(i, t) for i, t in enumerate(target_names) if i not in used_indices]
+            for i in range(len(actual_names), len(ranges)):
+                if remaining:
+                    idx, target = remaining.pop(0)
+                    actual_names.append(target)
+                    used_indices.add(idx)
+                    _log(f"    [FALLBACK] 第{i + 1}页按顺序分配: {target}")
+                else:
+                    actual_names.append(f"未匹配_第{i + 1}页.pdf")
+        _log(f"  [OK] {doc_type} OCR匹配: {sum(1 for n in actual_names if not n.startswith('未匹配'))}/{len(pages)} 页成功匹配台账")
+        return export_pdf_ranges(source_pdf, ranges, output_dir, actual_names)
 
-    _log(f"  [INFO] {doc_type} 无 OCR 匹配结果，按顺序分配")
+    _log(f"  [INFO] {doc_type} 无 OCR 结果，按Excel顺序分配")
+    expected_count = len(target_names)
+    ranges = detect_page_ranges(total_pages, expected_count, doc_type)
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 
 
@@ -1505,10 +1698,32 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
         _log(f"  3. 台账 Excel 中没有匹配的案件数据")
         _log(f"  请检查以上路径和文件是否正确")
 
-    audit_path = output_root / 'audit-log.json'
-    audit_path.write_text(json.dumps(_audit_log, ensure_ascii=False, indent=2), encoding='utf-8')
+    # 写入审计日志（仅当有问题时输出，格式为易读文本）
     if _audit_log:
+        audit_path = output_root / 'audit-log.txt'
+        audit_lines = [f"OCR 识别审计报告（共 {len(_audit_log)} 条）", "=" * 60, ""]
+        for i, entry in enumerate(_audit_log, 1):
+            event = entry.get('event', 'unknown')
+            detail = {k: v for k, v in entry.items() if k != 'event'}
+            audit_lines.append(f"【{i}】事件: {event}")
+            for k, v in detail.items():
+                audit_lines.append(f"    {k}: {v}")
+            audit_lines.append("")
+        audit_path.write_text("\n".join(audit_lines), encoding='utf-8')
         _log(f"\n[INFO] 审计日志已保存: {audit_path} ({len(_audit_log)} 条)")
+    # 清理旧版 json 审计日志（如存在）
+    old_audit_json = output_root / 'audit-log.json'
+    if old_audit_json.exists():
+        old_audit_json.unlink()
+
+    # 生成页码映射表（按 OCR 实际识别顺序）
+    try:
+        cases = load_non_litigation_cases(sample_root, excel_path=excel_path)
+        mappings = build_company_page_mapping(cases, ocr_results)
+        mapping_path = output_root / '页码映射表.xlsx'
+        write_mapping_excel(cases, mappings, mapping_path)
+    except Exception as e:
+        _log(f"  [WARN] 生成页码映射表失败: {e}")
 
     _log("\n" + "=" * 60)
     _log(f"[OK] 导出完成: {created_count} 个文件")
@@ -1518,3 +1733,96 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
         'output_root': str(output_root),
         'tree': tree,
     }
+
+
+def get_actual_page_companies(ocr_results: Dict[str, Dict], doc_type: str) -> List[Optional[str]]:
+    """从 OCR 结果中提取每页实际识别到的公司名（不强制匹配台账）"""
+    data = _get_ocr_result(ocr_results, doc_type)
+    if not data or not data.get('pages'):
+        return []
+
+    post_processor = TextPostProcessor()
+    companies = []
+    for page_data in data['pages']:
+        text = page_data.get('text', '')
+        detected = _extract_target_company(text, fallback_fn=post_processor.extract_company_name_from_text)
+        companies.append(detected)
+    return companies
+
+
+def build_company_page_mapping(cases: List[Dict], ocr_results: Dict[str, Dict]) -> Dict[str, Dict]:
+    """构建公司名到授权书/所函页码的映射（按 PDF 实际页顺序）"""
+    auth_companies = get_actual_page_companies(ocr_results, '授权书')
+    letter_companies = get_actual_page_companies(ocr_results, '所函')
+
+    result = {}
+    for case in cases:
+        company = case['company_name']
+        norm_company = normalize_company_name_for_matching(company)
+        result[company] = {
+            'sequence': case.get('sequence', ''),
+            'notice_number': case.get('notice_number', ''),
+            'auth_page': None,
+            'letter_page': None,
+            'auth_detected': None,
+            'letter_detected': None,
+        }
+
+        # 找授权书页码
+        for i, detected in enumerate(auth_companies):
+            if detected and normalize_company_name_for_matching(detected) == norm_company:
+                result[company]['auth_page'] = i + 1
+                result[company]['auth_detected'] = detected
+                break
+
+        # 找所函页码
+        for i, detected in enumerate(letter_companies):
+            if detected and normalize_company_name_for_matching(detected) == norm_company:
+                result[company]['letter_page'] = i + 1
+                result[company]['letter_detected'] = detected
+                break
+
+    return result
+
+
+def write_mapping_excel(cases: List[Dict], mappings: Dict[str, Dict], output_path: Path):
+    """生成台账-页码映射 Excel，方便人工核对"""
+    if not HAS_OPENPYXL:
+        _log(f"  [WARN] openpyxl 未安装，跳过生成映射表")
+        return
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "页码映射"
+
+    headers = ['台账序号', '责令号', '公司名', '授权书页码', '所函页码', '授权书文件名', '所函文件名', '备注']
+    ws.append(headers)
+
+    for case in cases:
+        company = case['company_name']
+        mapping = mappings.get(company, {})
+        auth_page = mapping.get('auth_page')
+        letter_page = mapping.get('letter_page')
+
+        auth_file = f"{company}.pdf" if auth_page else '未匹配'
+        letter_file = f"{company}.pdf" if letter_page else '未匹配'
+
+        notes = []
+        if not auth_page:
+            notes.append('授权书未匹配')
+        if not letter_page:
+            notes.append('所函未匹配')
+
+        ws.append([
+            mapping.get('sequence', case.get('sequence', '')),
+            mapping.get('notice_number', case.get('notice_number', '')),
+            company,
+            auth_page if auth_page else '未匹配',
+            letter_page if letter_page else '未匹配',
+            auth_file,
+            letter_file,
+            '；'.join(notes) if notes else '',
+        ])
+
+    wb.save(output_path)
+    _log(f"  [OK] 页码映射表已保存: {output_path}")

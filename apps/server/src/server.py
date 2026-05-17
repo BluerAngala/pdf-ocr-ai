@@ -135,6 +135,7 @@ class JsonRpcServer:
         self.methods['ocr.recognize'] = self._ocr_recognize
         self.methods['ocr.recognize_batch'] = self._ocr_recognize_batch
         self.methods['ocr.warmup'] = self._ocr_warmup
+        self.methods['ocr.clear_cache'] = self._ocr_clear_cache
 
         # 非诉审查模块
         self.methods['non_litigation.process'] = self._non_litigation_process
@@ -195,6 +196,14 @@ class JsonRpcServer:
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
+    def _ocr_clear_cache(self, params: Dict, id: Any) -> Dict:
+        """清除 OCR 结果缓存"""
+        cache_path = USER_DATA_DIR / 'output' / 'ocr-cache.pkl'
+        if cache_path.exists():
+            cache_path.unlink()
+            return {"status": "cleared"}
+        return {"status": "no_cache"}
+
     def _ocr_recognize(self, params: Dict, id: Any) -> Dict:
         """单文件 OCR 识别"""
         file_path = params.get('file_path')
@@ -242,7 +251,12 @@ class JsonRpcServer:
         force = params.get('force', False)
         task_id = params.get('task_id', f"nl-{id}")
         emitter = ProgressEmitter(task_id)
-        from task_cancel import is_cancelled as _is_task_cancelled
+        from task_cancel import is_cancelled as _is_task_cancelled, clear as _clear_task
+
+        if force:
+            cache_path = USER_DATA_DIR / 'output' / 'ocr-cache.pkl'
+            if cache_path.exists():
+                cache_path.unlink()
 
         try:
             emitter.log("debug", f"收到参数: preset_id={preset_id!r}, sample_root={sample_root!r}, excel_path={excel_path!r}")
@@ -309,21 +323,56 @@ class JsonRpcServer:
             result_root = get_non_litigation_result_root(ROOT)
             result_root.mkdir(parents=True, exist_ok=True)
 
+            total_t0 = __import__('time').perf_counter()
+
             # OCR 阶段
             emitter.progress("ocr", 1, 4, "正在扫描文件...", 0, 0)
             emitter.log("info", f"输入目录: {input_root}")
             if mode == 'real_ocr':
                 import time as _time
+                import pickle as _pickle
                 ocr_t0 = _time.perf_counter()
+
+                cache_path = USER_DATA_DIR / 'output' / 'ocr-cache.pkl'
+                cached_results = None
+                if cache_path.exists():
+                    try:
+                        with open(cache_path, 'rb') as f:
+                            cached_results = _pickle.load(f)
+                        if cached_results:
+                            stale = []
+                            for k, v in cached_results.items():
+                                pdf_path_check = input_root / k
+                                if pdf_path_check.exists():
+                                    from non_litigation_export import inspect_pdf_page_count
+                                    actual_pages = inspect_pdf_page_count(pdf_path_check)
+                                    cached_pages = v.get('total_pages', 0)
+                                    if cached_pages < actual_pages:
+                                        stale.append(k)
+                            for k in stale:
+                                del cached_results[k]
+                            if stale:
+                                emitter.log("info", f"缓存淘汰 {len(stale)} 个不完整结果: {', '.join(stale)}")
+                            emitter.log("info", f"加载OCR缓存: {len(cached_results)} 个文件")
+                    except Exception:
+                        cached_results = None
 
                 def ocr_progress(current, total, filename):
                     if _is_task_cancelled(task_id):
                         return
                     emitter.progress("ocr", 1, 4, f"正在识别 ({current}/{total}): {filename}", current, total)
 
-                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg))
+                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg), cached_results=cached_results)
+
+                try:
+                    cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(cache_path, 'wb') as f:
+                        _pickle.dump(ocr_results, f)
+                except Exception:
+                    pass
+
                 if _is_task_cancelled(task_id):
-                    emitter.log("warn", "任务已取消")
+                    emitter.log("warn", f"任务已取消，已完成 {len(ocr_results)} 个文件的OCR（已缓存）")
                     emitter.complete(False, error="用户取消")
                     raise Exception("任务已取消")
                 ocr_elapsed = _time.perf_counter() - ocr_t0
@@ -380,6 +429,8 @@ class JsonRpcServer:
             }
 
             emitter.complete(True, result)
+            total_elapsed = __import__('time').perf_counter() - total_t0
+            emitter.log("info", f"全部完成: OCR {ocr_elapsed:.1f}s + 导出/验证 {total_elapsed - ocr_elapsed:.1f}s = 总计 {total_elapsed:.1f}s")
             return result
 
         except Exception as e:
@@ -392,6 +443,7 @@ class JsonRpcServer:
                 non_litigation_export._suppress_print = False
             except Exception:
                 pass
+            _clear_task(task_id)
 
     def _non_litigation_get_cases(self, params: Dict, id: Any) -> Dict:
         """获取案件列表"""

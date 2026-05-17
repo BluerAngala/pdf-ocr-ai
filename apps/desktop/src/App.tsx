@@ -142,6 +142,7 @@ export default function App() {
   useEffect(() => {
     let unlistenFn: (() => void) | null = null;
     let mounted = true;
+    let initialized = false;
     setupJsonRpcListeners(
       (params) => handleProgressRef.current(params),
       (params) => addLogRef.current(params.level, params.message),
@@ -159,7 +160,14 @@ export default function App() {
       }
     });
     getPresets().then(() => {
+      if (initialized) return;
+      initialized = true;
       addLogRef.current("info", "应用已启动");
+      sendRequest("ocr.clear_cache", {})
+        .then(() => {
+          addLogRef.current("debug", "OCR 缓存已清除");
+        })
+        .catch(() => {});
       sendRequest("ocr.warmup", {})
         .then((res) => {
           const r = res as { status?: string; duration_seconds?: number };

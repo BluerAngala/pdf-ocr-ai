@@ -199,7 +199,7 @@ ocr:
         - company_top
         - company_middle
       所函:
-        - application_title
+        - company_middle
   parallelism:
     auto_detect_resources: true
     max_parallel_workers: 4

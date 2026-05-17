@@ -186,7 +186,7 @@ class RuleBasedExtractor:
                     'post_process': rule.get('post_process'),
                 })
             except re.error as e:
-                print(f"[WARN] 规则编译失败: {rule.get('name')}, 错误: {e}")
+                print(f"WARN: 规则编译失败: {rule.get('name')}, 错误: {e}")
 
     def extract(self, text: str) -> ExtractionResult:
         best_result = ExtractionResult(None, 0.0, "")
@@ -529,7 +529,7 @@ class RulingPDFExtractor:
                 )
                 self._ocr_engine = UltraFastOCR(config, skip_warmup=True)
             except ImportError:
-                print("[WARN] OCR引擎加载失败，将使用pdfplumber文本提取")
+                print(f"WARN: OCR引擎加载失败，将使用pdfplumber文本提取")
                 self.use_ocr = False
         return self._ocr_engine
 
@@ -554,7 +554,7 @@ class RulingPDFExtractor:
                     texts.append(text)
             return "\n".join(texts)
         except Exception as e:
-            print(f"[WARN] pdfplumber提取失败: {e}")
+            print(f"WARN: pdfplumber提取失败: {e}")
             return ""
 
     def _extract_text_with_ocr(self, pdf_path: Path) -> str:
@@ -570,7 +570,7 @@ class RulingPDFExtractor:
                 texts.append(page_text)
             return "\n".join(texts)
         except Exception as e:
-            print(f"[WARN] OCR提取失败: {e}")
+            print(f"WARN: OCR提取失败: {e}")
             return ""
 
     def _apply_corrections(self, text: str) -> str:
@@ -593,13 +593,13 @@ def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True) -> Dict[str, Ruli
     extractor = RulingPDFExtractor(use_ocr=use_ocr)
 
     for pdf_file in sorted(pdf_dir.glob("*.pdf")):
-        print(f"[INFO] 处理: {pdf_file.name}")
+        print(f"INFO: 处理: {pdf_file.name}")
         try:
             info = extractor.extract_from_pdf(pdf_file)
             key = info.court_case_number if info.court_case_number else pdf_file.stem
             results[key] = info
         except Exception as e:
-            print(f"[ERROR] 处理 {pdf_file.name} 失败: {e}")
+            print(f"ERROR: 处理 {pdf_file.name} 失败: {e}")
 
     return results
 
@@ -616,7 +616,7 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
     from enforcement_product import load_enforcement_cases
 
     if mock_mode:
-        print("[INFO] Mock 模式：使用模拟数据")
+        print(f"INFO: Mock 模式：使用模拟数据")
         mock_results = _build_mock_rulings(input_dir)
         pdf_results = mock_results
     else:
@@ -671,7 +671,7 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
             except Exception:
                 pass
         except Exception as e:
-            print(f"[WARN] 台账匹配/导出失败: {e}")
+            print(f"WARN: 台账匹配/导出失败: {e}")
 
     return {
         "processed": processed,
@@ -726,7 +726,7 @@ def _build_mock_rulings(input_dir: Path) -> Dict[str, RulingInfo]:
     for info in mock_data:
         key = info.court_case_number
         results[key] = info
-        print(f"[INFO] Mock: {key}")
+        print(f"INFO: Mock: {key}")
     return results
 
 

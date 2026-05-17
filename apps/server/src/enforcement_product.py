@@ -131,7 +131,7 @@ class EnforcementCaseRegistry:
             if case.court_case_number:
                 self._court_case_index[case.court_case_number] = case
         
-        print(f"[INFO] 从 {excel_path.name} 加载了 {len(self.cases)} 条案件记录")
+        print(f"INFO: 从 {excel_path.name} 加载了 {len(self.cases)} 条案件记录")
         return self
     
     def _get_cell_value(self, row: pd.Series, col_idx: int) -> str:
@@ -322,7 +322,7 @@ class EnforcementCaseRegistry:
         
         # 保存
         df_copy.to_excel(save_path, index=False)
-        print(f"[INFO] 已保存到: {save_path}")
+        print(f"INFO: 已保存到: {save_path}")
         return save_path
     
     def export_to_json(self, output_path: Path) -> Path:
@@ -337,7 +337,7 @@ class EnforcementCaseRegistry:
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         
-        print(f"[INFO] 已导出JSON到: {output_path}")
+        print(f"INFO: 已导出JSON到: {output_path}")
         return output_path
     
     def _normalize_notice_number(self, notice_number: str) -> str:

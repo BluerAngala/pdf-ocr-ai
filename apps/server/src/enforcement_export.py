@@ -328,6 +328,6 @@ if __name__ == "__main__":
         result = run_enforcement_extraction(input_dir, excel_path, output_dir, use_ocr=False)
         print("\n[OK] 处理完成!")
     else:
-        print(f"[ERROR] 输入路径不存在")
+        print(f"ERROR: 输入路径不存在")
         print(f"  输入目录: {input_dir} (存在: {input_dir.exists()})")
         print(f"  Excel文件: {excel_path} (存在: {excel_path.exists()})")

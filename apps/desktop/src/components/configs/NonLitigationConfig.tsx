@@ -41,7 +41,7 @@ export default function NonLitigationConfig({
                   d="M13 10V3L4 14h7v7l9-11h-7z"
                 />
               </svg>
-              测试示例
+              测试示例（可选）
             </button>
           </div>
           <div className="p-4 space-y-3.5">

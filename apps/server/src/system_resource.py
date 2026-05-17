@@ -25,7 +25,7 @@ class ResourceProfile:
         )
 
 
-OCR_MODEL_MEMORY_GB = 0.55
+OCR_MODEL_MEMORY_GB = 1.5
 
 
 def _get_total_memory_gb() -> float:
@@ -90,7 +90,7 @@ def detect_system_resources(*, reserve_gb: float = 1.5, max_workers: Optional[in
 
     max_by_memory = max(1, int(usable_gb / OCR_MODEL_MEMORY_GB))
     max_by_cpu = max(1, cpus - 1) if cpus > 2 else 1
-    workers = min(max_by_memory, max_by_cpu)
+    workers = min(max_by_memory, max_by_cpu, 4)
     if max_workers is not None:
         workers = min(workers, max_workers)
     workers = max(1, workers)

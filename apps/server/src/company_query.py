@@ -23,23 +23,7 @@ class CompanyQueryError(Exception):
         super().__init__(self.message)
 
 
-_cancel_flags: Dict[str, bool] = {}
-_cancel_lock = threading.Lock()
-
-
-def request_cancel(task_id: str):
-    with _cancel_lock:
-        _cancel_flags[task_id] = True
-
-
-def is_cancelled(task_id: str) -> bool:
-    with _cancel_lock:
-        return _cancel_flags.get(task_id, False)
-
-
-def clear_cancel(task_id: str):
-    with _cancel_lock:
-        _cancel_flags.pop(task_id, None)
+from task_cancel import request_cancel, is_cancelled, clear as clear_cancel
 
 
 def _wait_with_timeout(futures, timeout=0.5):

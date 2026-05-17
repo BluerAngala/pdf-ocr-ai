@@ -227,10 +227,11 @@ class UltraFastOCR:
     SUPPORTED_IMAGE_FORMATS = {'.png', '.jpg', '.jpeg'}
     SUPPORTED_PDF_FORMATS = {'.pdf'}
 
-    def __init__(self, config: Optional[OCRConfig] = None, skip_warmup: bool = False):
+    def __init__(self, config: Optional[OCRConfig] = None, skip_warmup: bool = False, log_fn: Optional[Callable[[str], None]] = None):
         self.config = config or OCRConfig()
         self.preprocessor = ImagePreprocessor()
         Path(self.config.output_dir).mkdir(exist_ok=True)
+        self._log_fn = log_fn or print
 
         self._check_dependencies()
         if not skip_warmup:
@@ -256,12 +257,12 @@ class UltraFastOCR:
 
     def _warmup(self):
         """模型预热 - 提前加载模型（线程安全版本）"""
-        print("  [INFO] 模型预热中...")
+        self._log_fn("  [INFO] 模型预热中...")
         start = time.time()
         engine = get_ocr_engine()
         dummy_img = Image.new('RGB', (100, 100), color='white')
         self._run_ocr(engine, dummy_img)
-        print(f"  [OK] 预热完成 ({time.time()-start:.2f}秒)")
+        self._log_fn(f"  [OK] 预热完成 ({time.time()-start:.2f}秒)")
     
     def _extract_texts_from_result(self, result: Any) -> List[str]:
         texts = []

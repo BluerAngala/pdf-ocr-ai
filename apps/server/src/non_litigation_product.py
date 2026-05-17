@@ -5,7 +5,7 @@ import os
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from openpyxl import load_workbook
 
@@ -30,9 +30,9 @@ def _safe_load_workbook(path):
     return load_workbook(path, data_only=True)
 
 
-def load_non_litigation_cases(sample_root: Path) -> List[Dict]:
-    excel_path = sample_root / _cfg.excel_filename
-    workbook = _safe_load_workbook(excel_path)
+def load_non_litigation_cases(sample_root: Path, excel_path: Optional[Path] = None) -> List[Dict]:
+    resolved = excel_path if excel_path else sample_root / _cfg.excel_filename
+    workbook = _safe_load_workbook(resolved)
     sheet = workbook.active
     cases: List[Dict] = []
     for row in sheet.iter_rows(values_only=True):
@@ -54,8 +54,8 @@ def load_non_litigation_cases(sample_root: Path) -> List[Dict]:
     return cases
 
 
-def build_non_litigation_standard_plan(sample_root: Path) -> Dict[str, List[Dict]]:
-    cases = load_non_litigation_cases(sample_root)
+def build_non_litigation_standard_plan(sample_root: Path, excel_path: Optional[Path] = None) -> Dict[str, List[Dict]]:
+    cases = load_non_litigation_cases(sample_root, excel_path=excel_path)
     plan = {dt.key: [] for dt in _cfg.doc_types}
     for case in cases:
         sequence = case['sequence']

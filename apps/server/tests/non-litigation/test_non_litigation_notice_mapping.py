@@ -96,7 +96,7 @@ def test_export_notice_files_should_keep_base_number_without_fuzzy_back_to_subnu
         }
     }
 
-    monkeypatch.setattr('non_litigation_export.load_non_litigation_cases', lambda _: [
+    monkeypatch.setattr('non_litigation_export.load_non_litigation_cases', lambda sample_root, excel_path=None: [
         {'sequence': '918', 'notice_number': '穗公积金中心番禺责字（2025）1971-2号', 'company_name': '甲公司'}
     ])
 

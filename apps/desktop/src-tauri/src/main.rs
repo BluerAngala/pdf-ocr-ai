@@ -74,7 +74,6 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
     let mut stdin = stdin;
     tokio::spawn(async move {
         while let Some(request) = request_rx.recv().await {
-            eprintln!("[Rust] Sending request to Python: {}", request);
             if let Err(e) = stdin.write_all(request.as_bytes()).await {
                 eprintln!("Failed to write to Python stdin: {}", e);
                 break;
@@ -87,7 +86,6 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
                 eprintln!("Failed to flush stdin: {}", e);
                 break;
             }
-            eprintln!("[Rust] Request sent successfully");
         }
     });
 
@@ -120,9 +118,7 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
-            eprintln!("[Python stderr] {}", line); // 调试输出
             if let Ok(notification) = serde_json::from_str::<serde_json::Value>(&line) {
-                // 发送通知到前端
                 let _ = app_handle_clone.emit_all("jsonrpc-notification", notification);
             }
         }

@@ -103,6 +103,16 @@ ocr_corrections:
       correct: "越秀责字"
     - wrong: "穗公积金中心"
       correct: "穗公积金中心"
+    - wrong: "贵字〔"
+      correct: "责字〔"
+    - wrong: "贵字["
+      correct: "责字["
+    - wrong: "贵字（"
+      correct: "责字（"
+    - wrong: "贵字【"
+      correct: "责字【"
+    - wrong: "贵字［"
+      correct: "责字［"
     - wrong: "责字〔"
       correct: "责字〔"
     - wrong: "责字【"
@@ -192,7 +202,7 @@ ocr:
         - application_title
   parallelism:
     auto_detect_resources: true
-    max_parallel_workers: 8
+    max_parallel_workers: 4
     memory_reserve_gb: 1.5
 
 text_processing:

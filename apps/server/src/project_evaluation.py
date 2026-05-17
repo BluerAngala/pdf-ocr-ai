@@ -19,10 +19,10 @@ from non_litigation_product import load_non_litigation_cases
 from non_litigation_validator import validate_ocr_results
 
 
-def evaluate_non_litigation_quality(root_dir: Path, output_root: Path, sample_root: Path | None = None) -> Dict:
+def evaluate_non_litigation_quality(root_dir: Path, output_root: Path, sample_root: Path | None = None, excel_path: Path | None = None) -> Dict:
     sample_root = sample_root or (root_dir / '样本材料' / '非诉组自动化样本材料')
     standard_root = sample_root / '对应输出文件（标准版）'
-    tree = build_expected_output_tree(sample_root)
+    tree = build_expected_output_tree(sample_root, excel_path=excel_path)
     total = 0
     matched = 0
     for folder, names in tree.items():

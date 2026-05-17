@@ -35,14 +35,14 @@ export async function sendRequest(
   });
 }
 
-export function setupJsonRpcListeners(
+export async function setupJsonRpcListeners(
   onProgress: (params: ProgressParams) => void,
   onLog: (params: { level: string; message: string }) => void,
   onTaskComplete: (params: { success: boolean; result?: unknown }) => void,
 ) {
-  if (!isTauri()) return;
+  if (!isTauri()) return () => {};
 
-  listen("jsonrpc-response", (event: TauriEvent) => {
+  const unlistenResponse = await listen("jsonrpc-response", (event: TauriEvent) => {
     const response = event.payload as JsonRpcResponse;
     const id = response.id;
     if (pendingRequests.has(id)) {
@@ -58,7 +58,7 @@ export function setupJsonRpcListeners(
     }
   });
 
-  listen("jsonrpc-notification", (event: TauriEvent) => {
+  const unlistenNotification = await listen("jsonrpc-notification", (event: TauriEvent) => {
     const notification = event.payload as JsonRpcNotification;
     if (notification.method === "notify.progress")
       onProgress(notification.params as ProgressParams);
@@ -67,6 +67,11 @@ export function setupJsonRpcListeners(
     else if (notification.method === "notify.task_complete")
       onTaskComplete(notification.params as { success: boolean; result?: unknown });
   });
+
+  return () => {
+    unlistenResponse();
+    unlistenNotification();
+  };
 }
 
 function mockResponse(method: string, params: Record<string, unknown>): unknown {

@@ -118,7 +118,6 @@ export default function App() {
       setProgressFileCurrent(params.file_current || 0);
       setProgressFileTotal(params.file_total || 0);
       setProgressMessage(params.message);
-      addLog("info", `[${params.phase}] ${params.message}`);
       if (currentModule === "company-query" && params.detail) {
         const detail = params.detail as { item?: CompanyQueryItem };
         if (detail.item) {
@@ -126,22 +125,59 @@ export default function App() {
         }
       }
     },
-    [addLog, currentModule],
+    [currentModule],
   );
 
+  const handleProgressRef = useRef(handleProgress);
+  const addLogRef = useRef(addLog);
+
   useEffect(() => {
+    handleProgressRef.current = handleProgress;
+  }, [handleProgress]);
+
+  useEffect(() => {
+    addLogRef.current = addLog;
+  }, [addLog]);
+
+  useEffect(() => {
+    let unlistenFn: (() => void) | null = null;
+    let mounted = true;
     setupJsonRpcListeners(
-      handleProgress,
-      (params) => addLog(params.level, params.message),
+      (params) => handleProgressRef.current(params),
+      (params) => addLogRef.current(params.level, params.message),
       (params) => {
         if (params.success && params.result) {
           setPreviewState("result");
           setResult(params.result as ProcessingResult);
         }
       },
-    );
-    getPresets().then(() => addLog("info", "应用已启动"));
-  }, [handleProgress, addLog]);
+    ).then((cleanup) => {
+      if (mounted) {
+        unlistenFn = cleanup;
+      } else {
+        cleanup();
+      }
+    });
+    getPresets().then(() => {
+      addLogRef.current("info", "应用已启动");
+      sendRequest("ocr.warmup", {})
+        .then((res) => {
+          const r = res as { status?: string; duration_seconds?: number };
+          if (r.status === "warm") {
+            addLogRef.current("info", `OCR 引擎预热完成 (${r.duration_seconds}s)`);
+          } else if (r.status === "already_warm") {
+            addLogRef.current("debug", "OCR 引擎已预热");
+          }
+        })
+        .catch(() => {
+          addLogRef.current("warn", "OCR 引擎预热失败，首次识别可能较慢");
+        });
+    });
+    return () => {
+      mounted = false;
+      if (unlistenFn) unlistenFn();
+    };
+  }, []);
 
   const navigateToModule = useCallback(
     (module: ModuleType) => {
@@ -270,21 +306,19 @@ export default function App() {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
     try {
-      if (currentModule === "company-query") {
-        await sendRequest("company_query.cancel", { task_id: taskId });
-      }
+      await sendRequest("task.cancel", { task_id: taskId });
       addLog("warn", "已发送取消请求...");
     } catch {
       addLog("error", "取消请求失败");
     }
-  }, [currentModule, addLog]);
+  }, [addLog]);
 
   const startProcessing = useCallback(async () => {
     if (!sampleRoot) {
       alert("请选择样本材料文件夹");
       return;
     }
-    if (currentModule === "enforcement" && !excelFile) {
+    if (!excelFile) {
       alert("请选择台账 Excel 文件");
       return;
     }
@@ -302,18 +336,20 @@ export default function App() {
     try {
       let res: ProcessingResult = {} as ProcessingResult;
       if (currentModule === "non-litigation") {
-        const config = MODULE_CONFIG[currentModule];
         const rawResult = await sendRequest("non_litigation.process", {
-          preset_id: config.presetId,
+          preset_id: null,
+          sample_root: sampleRoot || null,
+          excel_path: excelFile || null,
           mode: "real_ocr",
           force: false,
           task_id: taskId,
         });
         res = rawResult as ProcessingResult;
       } else if (currentModule === "enforcement") {
-        const config = MODULE_CONFIG[currentModule];
         const rawResult = (await sendRequest("enforcement.extract", {
-          preset_id: config.presetId,
+          preset_id: null,
+          input_dir: sampleRoot || null,
+          excel_path: excelFile || null,
           force_ocr: forceOcr,
           mock_mode: mockMode,
         })) as {

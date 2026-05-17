@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from non_litigation_product import build_non_litigation_standard_plan
 
@@ -11,8 +11,8 @@ from config_loader import load_config
 _cfg = load_config()
 
 
-def build_expected_output_tree(sample_root: Path) -> Dict[str, List[str]]:
-    plan = build_non_litigation_standard_plan(sample_root)
+def build_expected_output_tree(sample_root: Path, excel_path: Optional[Path] = None) -> Dict[str, List[str]]:
+    plan = build_non_litigation_standard_plan(sample_root, excel_path=excel_path)
     result: Dict[str, List[str]] = {}
     for doc_type, items in plan.items():
         result[_cfg.directory_mapping[doc_type]] = [item['target_filename'] for item in items]

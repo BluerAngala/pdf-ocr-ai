@@ -82,7 +82,7 @@ def _generate_test_image():
     return np.array(img)
 
 
-def _validate_gpu_accuracy(provider_type, **engine_kwargs):
+def _validate_gpu_det_accuracy(**engine_kwargs):
     try:
         test_engine = RapidOCR(**engine_kwargs)
         test_img = _generate_test_image()
@@ -115,18 +115,18 @@ def detect_gpu_provider():
         providers = ort.get_available_providers()
         if 'CUDAExecutionProvider' in providers:
             cuda_kwargs = dict(use_cls=False, det_use_cuda=True, rec_use_cuda=True)
-            if _validate_gpu_accuracy('cuda', **cuda_kwargs):
+            if _validate_gpu_det_accuracy(**cuda_kwargs):
                 _gpu_provider = 'cuda'
-                _gpu_info = 'NVIDIA CUDA GPU'
+                _gpu_info = 'NVIDIA CUDA GPU (det+rec)'
                 return _gpu_provider, _gpu_info
         if 'DmlExecutionProvider' in providers:
             import platform
             win_ver = int(platform.release().split('.')[0])
             if win_ver >= 10:
-                dml_kwargs = dict(use_cls=False, det_use_dml=True, rec_use_dml=True)
-                if _validate_gpu_accuracy('dml', **dml_kwargs):
-                    _gpu_provider = 'dml'
-                    _gpu_info = 'DirectML GPU'
+                dml_det_kwargs = dict(use_cls=False, det_use_dml=True)
+                if _validate_gpu_det_accuracy(**dml_det_kwargs):
+                    _gpu_provider = 'dml_det'
+                    _gpu_info = 'DirectML GPU (det only, rec=CPU)'
                     return _gpu_provider, _gpu_info
     except Exception:
         pass
@@ -158,11 +158,13 @@ def _create_ocr_engine():
     if provider == 'cuda':
         kwargs['det_use_cuda'] = True
         kwargs['rec_use_cuda'] = True
-        print(f"[OCR] 使用 NVIDIA CUDA GPU 加速")
-    elif provider == 'dml':
+        print(f"[OCR] 使用 NVIDIA CUDA GPU 加速 (det+rec)")
+    elif provider == 'dml_det':
         kwargs['det_use_dml'] = True
-        kwargs['rec_use_dml'] = True
-        print(f"[OCR] 使用 DirectML GPU 加速")
+        sess_opts = _build_onnx_session_options()
+        if sess_opts is not None:
+            kwargs['rec_session_options'] = sess_opts
+        print(f"[OCR] 使用 DirectML GPU 加速 (det=GPU, rec=CPU)")
     else:
         sess_opts = _build_onnx_session_options()
         if sess_opts is not None:
@@ -444,6 +446,10 @@ class UltraFastOCR:
                 finally:
                     fallback_path.unlink(missing_ok=True)
         
+        provider, _ = detect_gpu_provider()
+        if provider == 'dml_det' and use_lock:
+            with _ocr_lock:
+                return _do_ocr()
         return _do_ocr()
 
     def _process_single_image(

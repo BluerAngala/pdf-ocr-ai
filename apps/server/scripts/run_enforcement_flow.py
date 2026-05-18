@@ -21,7 +21,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'apps' / 'server' / 'src'))
 
-from enforcement_export import run_enforcement_extraction
+from enforcement.export import run_enforcement_extraction
 
 
 def main():

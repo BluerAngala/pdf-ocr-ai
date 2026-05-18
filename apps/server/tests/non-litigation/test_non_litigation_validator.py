@@ -5,9 +5,9 @@ SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT
+from core.paths import ROOT
 
-from non_litigation_validator import NonLitigationValidator, ValidationStatus
+from non_litigation.validator import NonLitigationValidator, ValidationStatus
 
 
 CASES = [

@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 
 from openpyxl import load_workbook
 
-from config_loader import load_config
+from core.config_loader import load_config
 
 _cfg = load_config()
 

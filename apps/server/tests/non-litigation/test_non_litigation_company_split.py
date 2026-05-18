@@ -5,9 +5,9 @@ SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT
+from core.paths import ROOT
 
-from non_litigation_export import detect_page_ranges
+from non_litigation.export import detect_page_ranges
 
 
 def test_detect_page_ranges_should_find_three_single_page_ranges_for_letters():

@@ -5,10 +5,10 @@ SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT
+from core.paths import ROOT
 
-from non_litigation_export import ensure_non_litigation_input_structure, get_non_litigation_input_root, get_non_litigation_result_root
-from project_evaluation import build_test_health, run_project_evaluation
+from non_litigation.export import ensure_non_litigation_input_structure, get_non_litigation_input_root, get_non_litigation_result_root
+from non_litigation.evaluation import build_test_health, run_project_evaluation
 
 
 def test_project_evaluation_should_return_runtime_quality_and_code_quality():

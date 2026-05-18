@@ -29,9 +29,9 @@ try:
 except ImportError:
     HAS_RAPIDOCR = False
 
-from region_extractor import RegionExtractor, REGIONS
+from core.region_extractor import RegionExtractor, REGIONS
 
-from config_loader import load_config
+from core.config_loader import load_config
 
 _cfg = load_config()
 

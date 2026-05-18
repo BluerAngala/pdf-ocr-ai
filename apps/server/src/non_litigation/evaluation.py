@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Dict
 
-from non_litigation_export import (
+from non_litigation.export import (
     build_mock_ocr_results,
     ensure_non_litigation_input_structure,
     export_non_litigation_standard_outputs,
@@ -14,9 +14,9 @@ from non_litigation_export import (
     get_non_litigation_result_root,
     inspect_pdf_page_count,
 )
-from non_litigation_output_plan import build_expected_output_tree
-from non_litigation_product import load_non_litigation_cases
-from non_litigation_validator import validate_ocr_results
+from non_litigation.output_plan import build_expected_output_tree
+from non_litigation.product import load_non_litigation_cases
+from non_litigation.validator import validate_ocr_results
 
 
 def evaluate_non_litigation_quality(root_dir: Path, output_root: Path, sample_root: Path | None = None, excel_path: Path | None = None) -> Dict:
@@ -145,7 +145,7 @@ def run_project_evaluation(root_dir: Path, sample_root: Path | None = None, inpu
 
 
 def main() -> int:
-    from paths import ROOT
+    from core.paths import ROOT
     root_dir = ROOT
     report = run_project_evaluation(root_dir)
     output_path = root_dir / 'output' / 'project-evaluation.json'

@@ -67,7 +67,7 @@ def extract_zip(zip_path: Path, extract_to: Path) -> None:
     with zipfile.ZipFile(zip_path, 'r') as zip_ref:
         zip_ref.extractall(extract_to)
 
-    print("解压完成！")
+    print("解压完成!")
 
 
 def setup_poppler() -> Optional[Path]:
@@ -78,7 +78,7 @@ def setup_poppler() -> Optional[Path]:
     # 检查是否已存在
     if check_poppler_exists():
         poppler_bin = get_poppler_dir() / f"poppler-{POPPLER_VERSION}" / "Library" / "bin"
-        print(f"✓ Poppler 已安装: {poppler_bin}")
+        print(f"[OK] Poppler 已安装: {poppler_bin}")
         return poppler_bin
 
     print("=" * 60)
@@ -101,20 +101,20 @@ def setup_poppler() -> Optional[Path]:
 
         # 清理 zip 文件
         zip_path.unlink()
-        print(f"✓ 清理临时文件: {zip_path.name}")
+        print(f"[OK] 清理临时文件: {zip_path.name}")
 
         # 验证安装
         if check_poppler_exists():
             poppler_bin = poppler_dir / f"poppler-{POPPLER_VERSION}" / "Library" / "bin"
-            print(f"\n✅ Poppler 安装成功！")
+            print(f"\n[OK] Poppler 安装成功!")
             print(f"   路径: {poppler_bin}")
             return poppler_bin
         else:
-            print("\n❌ 安装验证失败")
+            print("\n[FAIL] 安装验证失败")
             return None
 
     except Exception as e:
-        print(f"\n❌ 安装失败: {e}")
+        print(f"\n[FAIL] 安装失败: {e}")
         # 清理
         if zip_path.exists():
             zip_path.unlink()
@@ -126,7 +126,7 @@ def main() -> int:
     print("PDF OCR - Poppler 环境配置工具\n")
 
     if sys.platform != "win32":
-        print("⚠️  非 Windows 系统检测到")
+        print("[WARN] 非 Windows 系统检测到")
         print("   Linux/Mac 用户请使用包管理器安装 poppler:")
         print("   - Ubuntu/Debian: sudo apt-get install poppler-utils")
         print("   - macOS: brew install poppler")

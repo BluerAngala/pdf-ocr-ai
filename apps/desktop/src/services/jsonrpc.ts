@@ -96,6 +96,8 @@ function mockResponse(method: string, params: Record<string, unknown>): unknown 
           { name: "Poppler", installed: true },
         ],
       };
+    case "system.setup_poppler":
+      return { installed: true, message: "Poppler 已安装" };
     case "non_litigation.process":
       setTimeout(() => {
         console.log("[模拟] OCR 识别完成");

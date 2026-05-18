@@ -4,9 +4,9 @@
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from non_litigation_product import build_non_litigation_standard_plan
+from non_litigation.product import build_non_litigation_standard_plan
 
-from config_loader import load_config
+from core.config_loader import load_config
 
 _cfg = load_config()
 

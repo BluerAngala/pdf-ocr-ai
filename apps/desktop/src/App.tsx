@@ -16,7 +16,7 @@ import type {
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { getPresetById, getPresets } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
-import { fetchSystemStatus } from "./services/system";
+import { fetchSystemStatus, setupPoppler } from "./services/system";
 import { invoke } from "@tauri-apps/api/tauri";
 import HomeView from "./components/HomeView";
 import DetailView from "./components/DetailView";
@@ -537,7 +537,26 @@ export default function App() {
   const loadStatus = useCallback(async () => {
     const info = await fetchSystemStatus();
     setStatusInfo(info);
-  }, []);
+
+    if (info.deps && !info.deps.all_ready) {
+      const popplerDep = info.deps.dependencies.find((d) => d.name === "Poppler" && !d.installed);
+      if (popplerDep) {
+        addLog("info", "检测到 Poppler 未安装，正在自动安装...");
+        try {
+          const result = await setupPoppler();
+          if (result.installed) {
+            addLog("info", result.message);
+            const updated = await fetchSystemStatus();
+            setStatusInfo(updated);
+          } else {
+            addLog("error", result.message);
+          }
+        } catch (e) {
+          addLog("error", `Poppler 自动安装失败: ${e}`);
+        }
+      }
+    }
+  }, [addLog]);
 
   const openStatusModal = useCallback(() => {
     loadStatus();

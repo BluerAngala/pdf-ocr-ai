@@ -7,7 +7,7 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from company_query import _get_api_config, query_company_info, get_company_data
+from infra.company_query import _get_api_config, query_company_info, get_company_data
 
 # 测试用的企业名称
 TEST_COMPANY_NAME = "珠海横琴航投一号投资中心（有限合伙）"

@@ -22,3 +22,14 @@ export async function fetchSystemStatus(): Promise<{
 
   return { status, deps };
 }
+
+export interface SetupPopplerResult {
+  installed: boolean;
+  message: string;
+  path?: string;
+  output?: string;
+}
+
+export async function setupPoppler(): Promise<SetupPopplerResult> {
+  return (await sendRequest("system.setup_poppler", {})) as SetupPopplerResult;
+}

@@ -5,11 +5,11 @@ SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT
+from core.paths import ROOT
 
 import json
 
-from non_litigation_export import build_mock_ocr_results, detect_notice_source_mapping_from_ocr, discover_notice_files, ensure_non_litigation_input_structure, export_notice_files
+from non_litigation.export import build_mock_ocr_results, detect_notice_source_mapping_from_ocr, discover_notice_files, ensure_non_litigation_input_structure, export_notice_files
 
 
 def test_detect_notice_source_mapping_from_ocr_should_map_three_notice_pdfs_to_three_notice_numbers():
@@ -96,12 +96,12 @@ def test_export_notice_files_should_keep_base_number_without_fuzzy_back_to_subnu
         }
     }
 
-    monkeypatch.setattr('non_litigation_export.load_non_litigation_cases', lambda sample_root, excel_path=None: [
+    monkeypatch.setattr('non_litigation.export.load_non_litigation_cases', lambda sample_root, excel_path=None: [
         {'sequence': '918', 'notice_number': '穗公积金中心番禺责字（2025）1971-2号', 'company_name': '甲公司'}
     ])
 
     copied = []
-    monkeypatch.setattr('non_litigation_export.shutil.copy2', lambda src, dst: copied.append((str(src), str(dst))))
+    monkeypatch.setattr('non_litigation.export.shutil.copy2', lambda src, dst: copied.append((str(src), str(dst))))
 
     created = export_notice_files(sample_root, input_dir, output_dir, ocr_results)
     assert created == 1

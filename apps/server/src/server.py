@@ -47,7 +47,7 @@ else:
 if str(_server_src) not in sys.path:
     sys.path.insert(0, str(_server_src))
 
-from paths import ROOT, SERVER_SRC, USER_DATA_DIR
+from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR
 
 PRESET_SAMPLE_PATHS = {
     "non-litigation-batch1": ["sample-data/non-litigation-batch1", "样本材料/非诉组自动化样本材料"],
@@ -164,6 +164,7 @@ class JsonRpcServer:
         # 系统模块
         self.methods['system.get_status'] = self._system_get_status
         self.methods['system.check_dependencies'] = self._system_check_dependencies
+        self.methods['system.setup_poppler'] = self._system_setup_poppler
 
     def _send_response(self, result: Any, id: Any):
         response = {"jsonrpc": "2.0", "result": result, "id": id}
@@ -182,7 +183,7 @@ class JsonRpcServer:
         if JsonRpcServer._warmed_up:
             return {"status": "already_warm"}
         try:
-            from pdf_ocr_ultra import get_ocr_engine
+            from core.pdf_ocr_ultra import get_ocr_engine
             import time
             start = time.time()
             engine = get_ocr_engine()
@@ -210,7 +211,7 @@ class JsonRpcServer:
         force_ocr = params.get('force_ocr', False)
 
         try:
-            from pdf_ocr_ultra import UltraFastOCR, OCRConfig
+            from core.pdf_ocr_ultra import UltraFastOCR, OCRConfig
             config = OCRConfig()
             ocr = UltraFastOCR(config, skip_warmup=True)
             result = ocr.process_file(file_path, force_ocr=force_ocr)
@@ -251,28 +252,30 @@ class JsonRpcServer:
         force = params.get('force', False)
         task_id = params.get('task_id', f"nl-{id}")
         emitter = ProgressEmitter(task_id)
-        from task_cancel import is_cancelled as _is_task_cancelled, clear as _clear_task
+        from core.task_cancel import is_cancelled as _is_task_cancelled, clear as _clear_task
 
         if force:
             cache_path = USER_DATA_DIR / 'output' / 'ocr-cache.pkl'
             if cache_path.exists():
                 cache_path.unlink()
+            for db in (USER_DATA_DIR / 'temp').glob('streaming_*.db'):
+                db.unlink(missing_ok=True)
 
         try:
             emitter.log("debug", f"收到参数: preset_id={preset_id!r}, sample_root={sample_root!r}, excel_path={excel_path!r}")
 
             try:
-                from non_litigation_export import (
+                from non_litigation.export import (
                     build_mock_ocr_results, run_real_ocr,
                     ensure_non_litigation_input_structure,
                     export_non_litigation_standard_outputs,
                     get_non_litigation_result_root,
                     _suppress_print,
                 )
-                from non_litigation_product import load_non_litigation_cases
-                from non_litigation_validator import validate_ocr_results
-                from report_generator import generate_html_report
-                from project_evaluation import evaluate_non_litigation_quality
+                from non_litigation.product import load_non_litigation_cases
+                from non_litigation.validator import validate_ocr_results
+                from non_litigation.report import generate_html_report
+                from non_litigation.evaluation import evaluate_non_litigation_quality
                 emitter.log("info", "所有模块导入成功")
             except ImportError as e:
                 emitter.log("error", f"导入失败: {str(e)}")
@@ -280,7 +283,7 @@ class JsonRpcServer:
                 emitter.log("error", f"导入错误堆栈: {tb.format_exc()}")
                 raise
 
-            import non_litigation_export
+            import non_litigation.export as non_litigation_export
             non_litigation_export._suppress_print = True
 
             if sample_root:
@@ -309,7 +312,7 @@ class JsonRpcServer:
                 if not excel_file_path.is_absolute():
                     excel_file_path = (ROOT / excel_file_path).resolve()
             else:
-                from config_loader import load_config
+                from core.config_loader import load_config
                 _tmp_cfg = load_config()
                 excel_name = _tmp_cfg.excel_filename
                 excel_file_path = None
@@ -343,17 +346,22 @@ class JsonRpcServer:
                             stale = []
                             for k, v in cached_results.items():
                                 pdf_path_check = input_root / k
-                                if pdf_path_check.exists():
-                                    from non_litigation_export import inspect_pdf_page_count
+                                if not pdf_path_check.exists():
+                                    stale.append(k)
+                                else:
+                                    from non_litigation.export import inspect_pdf_page_count
                                     actual_pages = inspect_pdf_page_count(pdf_path_check)
                                     cached_pages = v.get('total_pages', 0)
-                                    if cached_pages < actual_pages:
+                                    if cached_pages != actual_pages:
                                         stale.append(k)
                             for k in stale:
                                 del cached_results[k]
-                            if stale:
-                                emitter.log("info", f"缓存淘汰 {len(stale)} 个不完整结果: {', '.join(stale)}")
-                            emitter.log("info", f"加载OCR缓存: {len(cached_results)} 个文件")
+                            if not cached_results:
+                                emitter.log("info", "OCR缓存内容与当前输入不匹配，已清空")
+                            else:
+                                if stale:
+                                    emitter.log("info", f"缓存淘汰 {len(stale)} 个过期结果: {', '.join(stale[:5])}{'...' if len(stale) > 5 else ''}")
+                                emitter.log("info", f"加载OCR缓存: {len(cached_results)} 个文件")
                     except Exception:
                         cached_results = None
 
@@ -362,7 +370,7 @@ class JsonRpcServer:
                         return
                     emitter.progress("ocr", 1, 4, f"正在识别 ({current}/{total}): {filename}", current, total)
 
-                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg), cached_results=cached_results)
+                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg), cached_results=cached_results, force=force)
 
                 try:
                     cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -439,7 +447,7 @@ class JsonRpcServer:
             raise Exception(f"非诉审查处理失败: {str(e)}")
         finally:
             try:
-                import non_litigation_export
+                import non_litigation.export as non_litigation_export
                 non_litigation_export._suppress_print = False
             except Exception:
                 pass
@@ -451,7 +459,7 @@ class JsonRpcServer:
         sample_root = params.get('sample_root')
         excel_path = params.get('excel_path')
         try:
-            from non_litigation_product import load_non_litigation_cases
+            from non_litigation.product import load_non_litigation_cases
             if sample_root:
                 sample_path = Path(sample_root)
                 if not sample_path.is_absolute():
@@ -472,7 +480,7 @@ class JsonRpcServer:
         pdf_path = params.get('pdf_path')
         expected_count = params.get('expected_count', 0)
         try:
-            from non_litigation_export import inspect_pdf_page_count, detect_page_ranges
+            from non_litigation.export import inspect_pdf_page_count, detect_page_ranges
             pdf_path_obj = Path(pdf_path)
             total_pages = inspect_pdf_page_count(pdf_path_obj)
             ranges = detect_page_ranges(total_pages, expected_count, doc_type)
@@ -498,7 +506,7 @@ class JsonRpcServer:
         force_ocr = params.get('force_ocr', False)
         mock_mode = params.get('mock_mode', False)
         try:
-            from enforcement_extractor import process_enforcement_cases
+            from enforcement.extractor import process_enforcement_cases
             if input_dir:
                 input_dir = Path(input_dir)
                 if not input_dir.is_absolute():
@@ -542,7 +550,7 @@ class JsonRpcServer:
         emitter = ProgressEmitter(task_id)
 
         try:
-            from company_query import process_company_query
+            from infra.company_query import process_company_query
             if preset_id and preset_id in PRESET_EXCEL_PATHS:
                 excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
             else:
@@ -570,13 +578,13 @@ class JsonRpcServer:
 
     def _company_query_cancel(self, params: Dict, id: Any) -> Dict:
         task_id = params.get('task_id', '')
-        from task_cancel import request_cancel
+        from core.task_cancel import request_cancel
         request_cancel(task_id)
         return {"cancelled": True, "task_id": task_id}
 
     def _task_cancel(self, params: Dict, id: Any) -> Dict:
         task_id = params.get('task_id', '')
-        from task_cancel import request_cancel
+        from core.task_cancel import request_cancel
         request_cancel(task_id)
         return {"cancelled": True, "task_id": task_id}
 
@@ -586,7 +594,7 @@ class JsonRpcServer:
         if not excel_path:
             return {"companies": [], "total": 0}
         try:
-            from company_query import load_cached_results
+            from infra.company_query import load_cached_results
             results = load_cached_results(excel_path, ttl_days=cache_ttl_days)
             return {"companies": results, "total": len(results)}
         except Exception as e:
@@ -599,7 +607,7 @@ class JsonRpcServer:
         if not excel_path:
             return {"cleared": False, "error": "未提供 Excel 文件路径"}
         try:
-            from company_query import clear_cache
+            from infra.company_query import clear_cache
             clear_cache(excel_path)
             return {"cleared": True}
         except Exception as e:
@@ -617,7 +625,7 @@ class JsonRpcServer:
         emitter = ProgressEmitter(task_id)
 
         try:
-            from print_service import process_print, list_printers, check_printer_status
+            from infra.print_service import process_print, list_printers, check_printer_status
             folder = Path(folder_path) if folder_path else Path('.')
             if not folder.exists():
                 raise FileNotFoundError(f"文件夹不存在: {folder}")
@@ -662,7 +670,7 @@ class JsonRpcServer:
 
     def _print_list_printers(self, params: Dict, id: Any) -> Dict:
         try:
-            from print_service import list_printers
+            from infra.print_service import list_printers
             printers = list_printers()
             return {
                 "printers": printers,
@@ -675,7 +683,7 @@ class JsonRpcServer:
     def _print_check_printer(self, params: Dict, id: Any) -> Dict:
         """检查指定打印机的状态"""
         try:
-            from print_service import check_printer_status
+            from infra.print_service import check_printer_status
             printer_name = params.get('printer_name', '')
             if not printer_name:
                 raise Exception("请指定打印机名称")
@@ -688,7 +696,7 @@ class JsonRpcServer:
     def _config_get(self, params: Dict, id: Any) -> Dict:
         """获取配置"""
         try:
-            from config_loader import load_config
+            from core.config_loader import load_config
             cfg = load_config()
             return {
                 "doc_types": [
@@ -710,7 +718,7 @@ class JsonRpcServer:
     def _config_reload(self, params: Dict, id: Any) -> Dict:
         """重新加载配置"""
         try:
-            from config_loader import load_config
+            from core.config_loader import load_config
             load_config._config = None
             cfg = load_config()
             return {"success": True, "config_path": str(cfg._config_path)}
@@ -726,10 +734,10 @@ class JsonRpcServer:
         poppler_installed = False
         ocr_version = ''
         try:
-            from pdf_ocr_ultra import check_poppler_installed, OCRConfig
+            from core.pdf_ocr_ultra import check_poppler_installed, OCRConfig
             cfg = OCRConfig()
             poppler_installed = check_poppler_installed(cfg.poppler_path)
-            from pdf_ocr_ultra import HAS_RAPIDOCR
+            from core.pdf_ocr_ultra import HAS_RAPIDOCR
             ocr_ready = HAS_RAPIDOCR
             if ocr_ready:
                 try:
@@ -748,7 +756,7 @@ class JsonRpcServer:
         app_version = ''
         developer = ''
         try:
-            from config_loader import _load_config
+            from core.config_loader import _load_config
             raw = _load_config()
             app_version = raw.get('version', '')
             developer = raw.get('developer', '')
@@ -771,7 +779,7 @@ class JsonRpcServer:
         all_ready = True
 
         try:
-            from pdf_ocr_ultra import HAS_RAPIDOCR
+            from core.pdf_ocr_ultra import HAS_RAPIDOCR
             if HAS_RAPIDOCR:
                 version = 'unknown'
                 try:
@@ -796,7 +804,7 @@ class JsonRpcServer:
             all_ready = False
 
         try:
-            from pdf_ocr_ultra import check_poppler_installed, OCRConfig
+            from core.pdf_ocr_ultra import check_poppler_installed, OCRConfig
             cfg = OCRConfig()
             if check_poppler_installed(cfg.poppler_path):
                 dependencies.append({"name": "Poppler", "installed": True})
@@ -808,6 +816,43 @@ class JsonRpcServer:
             all_ready = False
 
         return {"all_ready": all_ready, "dependencies": dependencies}
+
+    def _system_setup_poppler(self, params: Dict, id: Any) -> Dict:
+        """自动检测并安装 Poppler"""
+        from core.pdf_ocr_ultra import check_poppler_installed, OCRConfig
+
+        cfg = OCRConfig()
+        if check_poppler_installed(cfg.poppler_path):
+            return {"installed": True, "message": "Poppler 已安装", "path": cfg.poppler_path}
+
+        if getattr(sys, "frozen", False):
+            return {"installed": False, "message": "打包环境中 Poppler 缺失，请重新安装应用程序（Poppler 应随程序打包）", "path": cfg.poppler_path}
+
+        if sys.platform != "win32":
+            return {"installed": False, "message": "非 Windows 系统，请手动安装 poppler-utils"}
+
+        try:
+            scripts_dir = SERVER_SRC.parent / "scripts"
+            setup_script = scripts_dir / "setup_poppler.py"
+            if not setup_script.exists():
+                return {"installed": False, "message": f"安装脚本不存在: {setup_script}"}
+
+            import subprocess
+            result = subprocess.run(
+                [sys.executable, str(setup_script)],
+                capture_output=True, text=True, timeout=300,
+                cwd=str(ROOT),
+            )
+            output = (result.stdout or "") + (result.stderr or "")
+
+            if check_poppler_installed(cfg.poppler_path):
+                return {"installed": True, "message": "Poppler 自动安装成功", "path": cfg.poppler_path, "output": output.strip()}
+            else:
+                return {"installed": False, "message": "自动安装失败，请手动运行: python apps/server/scripts/setup_poppler.py", "output": output.strip(), "exit_code": result.returncode}
+        except subprocess.TimeoutExpired:
+            return {"installed": False, "message": "自动安装超时（5分钟），请手动运行: python apps/server/scripts/setup_poppler.py"}
+        except Exception as e:
+            return {"installed": False, "message": f"自动安装异常: {e}"}
 
     # ============ 主循环 ============
 

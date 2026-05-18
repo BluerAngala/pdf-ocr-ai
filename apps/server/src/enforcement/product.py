@@ -16,9 +16,9 @@ from typing import Dict, List, Optional, Any
 
 import pandas as pd
 
-from paths import ROOT
+from core.paths import ROOT
 
-from config_loader import load_config
+from core.config_loader import load_config
 
 _cfg = load_config()
 _enforcement_cfg = _cfg.raw_config.get('enforcement', {})

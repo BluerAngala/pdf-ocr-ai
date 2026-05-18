@@ -14,7 +14,7 @@ def get_project_root() -> Path:
             return exe_dir.parent
         return exe_dir
 
-    return Path(__file__).resolve().parents[3]
+    return Path(__file__).resolve().parents[4]
 
 
 def get_server_src() -> Path:
@@ -28,7 +28,7 @@ def get_server_src() -> Path:
             return exe_dir.parent / "server_src"
         return exe_dir / "server_src"
     
-    return Path(__file__).resolve().parent
+    return Path(__file__).resolve().parents[1]
 
 
 def get_resources_dir() -> Path:
@@ -42,7 +42,7 @@ def get_resources_dir() -> Path:
             return exe_dir.parent
         return exe_dir
     
-    return Path(__file__).resolve().parents[1]
+    return Path(__file__).resolve().parents[2]
 
 
 def get_user_data_dir() -> Path:

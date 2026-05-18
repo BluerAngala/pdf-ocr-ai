@@ -5,9 +5,9 @@ SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT
+from core.paths import ROOT
 
-from non_litigation_product import build_non_litigation_standard_plan
+from non_litigation.product import build_non_litigation_standard_plan
 
 
 def test_non_litigation_standard_plan_should_match_expected_outputs_per_document_type():

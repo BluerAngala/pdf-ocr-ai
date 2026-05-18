@@ -59,7 +59,7 @@ except ImportError:
 
 
 _ocr_engine = None
-_ocr_lock = None
+_ocr_lock = threading.Lock()
 
 def init_worker():
     """子进程初始化 - 预加载OCR模型"""
@@ -68,14 +68,18 @@ def init_worker():
         _ocr_engine = RapidOCR()
 
 def get_ocr_engine():
-    """获取OCR引擎 - 优化版"""
+    """获取OCR引擎 - 线程安全版"""
     global _ocr_engine
-    if _ocr_engine is None:
-        if not HAS_RAPIDOCR:
-            raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
-        # RapidOCR 默认使用轻量级模型，无需额外配置
-        _ocr_engine = RapidOCR()
-    return _ocr_engine
+    with _ocr_lock:
+        if _ocr_engine is None:
+            if not HAS_RAPIDOCR:
+                raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
+            _ocr_engine = RapidOCR()
+        return _ocr_engine
+
+def get_ocr_lock() -> threading.Lock:
+    """获取OCR引擎全局锁（供外部线程池使用）"""
+    return _ocr_lock
 
 
 def check_poppler_installed(poppler_path: str) -> bool:
@@ -111,6 +115,28 @@ def show_poppler_setup_guide():
     print("\n" + "=" * 70)
     print("详细说明请查看: INSTALL.md")
     print("=" * 70 + "\n")
+
+
+def _auto_install_poppler() -> bool:
+    """自动安装 Poppler（仅 Windows 开发环境），成功返回 True"""
+    if sys.platform != "win32":
+        return False
+    if getattr(sys, "frozen", False):
+        return False
+    try:
+        from core.paths import SERVER_SRC
+        setup_script = SERVER_SRC.parent / "scripts" / "setup_poppler.py"
+        if not setup_script.exists():
+            return False
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, str(setup_script)],
+            capture_output=True, text=True, timeout=300,
+            cwd=str(SERVER_SRC.parents[1]),
+        )
+        return result.returncode == 0
+    except Exception:
+        return False
 
 
 class ImagePreprocessor:
@@ -181,7 +207,7 @@ class OCRConfig:
 
     def __post_init__(self):
         import sys
-        from paths import ROOT, RESOURCES_DIR
+        from core.paths import ROOT, RESOURCES_DIR
         if self._base_dir is None:
             self._base_dir = ROOT
         if self._server_dir is None:
@@ -192,9 +218,11 @@ class OCRConfig:
 
     @property
     def poppler_path(self) -> str:
+        from core.paths import SERVER_SRC
+        server_root = SERVER_SRC.parent
         if getattr(sys, "frozen", False):
-            return str(self._server_dir / "poppler" / "poppler-24.08.0" / "Library" / "bin")
-        return str(self._server_dir / "tools" / "poppler" / "poppler-24.08.0" / "Library" / "bin")
+            return str(server_root / "poppler" / "poppler-24.08.0" / "Library" / "bin")
+        return str(server_root / "tools" / "poppler" / "poppler-24.08.0" / "Library" / "bin")
 
     @property
     def output_dir(self) -> str:
@@ -252,8 +280,14 @@ class UltraFastOCR:
             raise RuntimeError("依赖未安装")
         
         if not check_poppler_installed(self.config.poppler_path):
-            show_poppler_setup_guide()
-            raise RuntimeError("Poppler 未安装，请先运行: python scripts/setup_poppler.py")
+            if getattr(sys, "frozen", False):
+                raise RuntimeError(f"打包环境中 Poppler 缺失（路径: {self.config.poppler_path}），请重新安装应用程序")
+            self._log_fn("[INFO] Poppler 未安装，正在自动安装...")
+            if _auto_install_poppler():
+                self._log_fn("[OK] Poppler 自动安装成功")
+            else:
+                show_poppler_setup_guide()
+                raise RuntimeError("Poppler 自动安装失败，请手动运行: python scripts/setup_poppler.py")
 
     def _warmup(self):
         """模型预热 - 提前加载模型（线程安全版本）"""
@@ -279,19 +313,33 @@ class UltraFastOCR:
                         texts.append(str(text))
         return texts
 
-    def _run_ocr(self, engine: Any, image: Image.Image, fallback_path: Optional[Path] = None) -> List[str]:
+    def _run_ocr(self, engine: Any, image: Image.Image, fallback_path: Optional[Path] = None, use_lock: bool = True) -> List[str]:
+        """
+        执行OCR识别
+        
+        Args:
+            use_lock: 是否使用全局锁（多线程环境下必须设为True）
+        """
         image_array = np.array(image)
-        try:
-            return self._extract_texts_from_result(engine(image_array))
-        except Exception:
-            if fallback_path is None:
-                raise
-            fallback_path.parent.mkdir(exist_ok=True)
-            image.save(fallback_path, 'PNG', optimize=False)
+        
+        def _do_ocr():
             try:
-                return self._extract_texts_from_result(engine(str(fallback_path)))
-            finally:
-                fallback_path.unlink(missing_ok=True)
+                return self._extract_texts_from_result(engine(image_array))
+            except Exception:
+                if fallback_path is None:
+                    raise
+                fallback_path.parent.mkdir(exist_ok=True)
+                image.save(fallback_path, 'PNG', optimize=False)
+                try:
+                    return self._extract_texts_from_result(engine(str(fallback_path)))
+                finally:
+                    fallback_path.unlink(missing_ok=True)
+        
+        if use_lock:
+            with _ocr_lock:
+                return _do_ocr()
+        else:
+            return _do_ocr()
 
     def _process_single_image(
         self,
@@ -322,7 +370,7 @@ class UltraFastOCR:
                 temp_img = temp_dir / f"_page_{page_num}_{threading.get_ident()}_opt.png"
 
                 engine = get_ocr_engine()
-                texts = self._run_ocr(engine, optimized_img, fallback_path=temp_img)
+                texts = self._run_ocr(engine, optimized_img, fallback_path=temp_img, use_lock=True)
 
                 duration = time.time() - start
                 return PageResult(
@@ -764,7 +812,7 @@ class UltraFastOCR:
         # 应用文本后处理
         if apply_postprocess:
             try:
-                from text_postprocessor import TextPostProcessor
+                from core.text_postprocessor import TextPostProcessor
                 processor = TextPostProcessor()
                 process_result = processor.process(result['full_text'])
                 result['full_text'] = process_result['processed']

@@ -5,9 +5,9 @@ SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT
+from core.paths import ROOT
 
-from system_resource import detect_system_resources, ResourceProfile, OCR_MODEL_MEMORY_GB
+from core.system_resource import detect_system_resources, ResourceProfile, OCR_MODEL_MEMORY_GB
 
 
 def test_detect_system_resources_returns_valid_profile():

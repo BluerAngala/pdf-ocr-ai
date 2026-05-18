@@ -14,8 +14,8 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 
-from config_loader import load_config
-from non_litigation_export import normalize_notice_number, discover_notice_files
+from core.config_loader import load_config
+from non_litigation.export import normalize_notice_number, discover_notice_files
 
 _cfg = load_config()
 

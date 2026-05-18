@@ -12,7 +12,7 @@ from typing import Dict, List, Optional
 import pandas as pd
 import requests
 
-from config_loader import _load_config
+from core.config_loader import _load_config
 
 
 class CompanyQueryError(Exception):
@@ -23,7 +23,7 @@ class CompanyQueryError(Exception):
         super().__init__(self.message)
 
 
-from task_cancel import request_cancel, is_cancelled, clear as clear_cancel
+from core.task_cancel import request_cancel, is_cancelled, clear as clear_cancel
 
 
 def _wait_with_timeout(futures, timeout=0.5):

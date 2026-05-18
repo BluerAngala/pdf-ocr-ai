@@ -12,11 +12,11 @@ SRC = Path(__file__).resolve().parent.parent / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT, USER_DATA_DIR
-from pdf_ocr_ultra import UltraFastOCR, OCRConfig
-from region_extractor import RegionExtractor, REGIONS
-from text_postprocessor import TextPostProcessor
-from non_litigation_export import (
+from core.paths import ROOT, USER_DATA_DIR
+from core.pdf_ocr_ultra import UltraFastOCR, OCRConfig
+from core.region_extractor import RegionExtractor, REGIONS
+from core.text_postprocessor import TextPostProcessor
+from non_litigation.export import (
     apply_ocr_corrections,
     inspect_pdf_page_count,
     _extract_target_company,
@@ -24,7 +24,7 @@ from non_litigation_export import (
     _collect_region_texts,
     _build_ocr_processors,
 )
-from config_loader import load_config
+from core.config_loader import load_config
 
 _cfg = load_config()
 input_dir = ROOT / 'input' / 'non-litigation'

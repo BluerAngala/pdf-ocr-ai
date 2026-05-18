@@ -32,13 +32,12 @@ except ImportError:
 class Region:
     """页面区域定义（基于百分比）"""
     name: str
-    top: float      # 顶部位置（0-1）
-    bottom: float   # 底部位置（0-1）
-    left: float     # 左侧位置（0-1）
-    right: float    # 右侧位置（0-1）
-    
+    top: float
+    bottom: float
+    left: float
+    right: float
+
     def to_pixels(self, page_width: int, page_height: int) -> Tuple[int, int, int, int]:
-        """转换为像素坐标"""
         x1 = int(self.left * page_width)
         y1 = int(self.top * page_height)
         x2 = int(self.right * page_width)
@@ -46,75 +45,66 @@ class Region:
         return (x1, y1, x2, y2)
 
 
-# 预定义区域
-REGIONS = {
-    # 责令号通常在页面前25%
-    'notice_header': Region(
-        name='责令号区域',
-        top=0.0,
-        bottom=0.25,
-        left=0.0,
-        right=1.0
-    ),
-    
-    # 申请书标题通常在页面前20%
-    'application_title': Region(
-        name='申请书标题',
-        top=0.0,
-        bottom=0.2,
-        left=0.0,
-        right=1.0
-    ),
-    
-    # 公司名称通常在页面中间
-    'company_middle': Region(
-        name='公司名称（中间）',
-        top=0.3,
-        bottom=0.7,
-        left=0.1,
-        right=0.9
-    ),
-    
-    # 公司名称也可能在页眉
-    'company_top': Region(
-        name='公司名称（页眉）',
-        top=0.0,
-        bottom=0.3,
-        left=0.0,
-        right=1.0
-    ),
-    
-    # 公司名称也可能在页脚
-    'company_bottom': Region(
-        name='公司名称（页脚）',
-        top=0.7,
-        bottom=1.0,
-        left=0.0,
-        right=1.0
-    ),
+REGIONS: Dict[str, Region] = {}
+
+
+def init_regions_from_config():
+    """从 config.yaml 加载区域定义，替代硬编码。"""
+    global REGIONS
+    try:
+        from config_loader import load_config
+        cfg = load_config()
+        for key, rd in cfg.region_definitions.items():
+            REGIONS[key] = Region(
+                name=rd.name,
+                top=rd.top,
+                bottom=rd.bottom,
+                left=rd.left,
+                right=rd.right,
+            )
+    except Exception:
+        if not REGIONS:
+            REGIONS.update(_FALLBACK_REGIONS)
+
+
+_FALLBACK_REGIONS = {
+    'notice_header': Region(name='责令号区域', top=0.0, bottom=0.25, left=0.0, right=1.0),
+    'application_title': Region(name='申请书标题', top=0.0, bottom=0.2, left=0.0, right=1.0),
+    'company_middle': Region(name='公司名称（中间）', top=0.3, bottom=0.7, left=0.1, right=0.9),
+    'company_top': Region(name='公司名称（页眉）', top=0.0, bottom=0.3, left=0.0, right=1.0),
+    'company_bottom': Region(name='公司名称（页脚）', top=0.7, bottom=1.0, left=0.0, right=1.0),
 }
+
+init_regions_from_config()
 
 
 class RegionExtractor:
-    """区域提取器"""
+    """区域提取器（带LRU缓存限制）"""
 
-    def __init__(self, dpi: int = 200, poppler_path: Optional[str] = None):
+    def __init__(self, dpi: int = 200, poppler_path: Optional[str] = None, max_cache_size: int = 10):
         """
         Args:
             dpi: PDF转图片的DPI
+            poppler_path: Poppler工具路径
+            max_cache_size: 单实例最大缓存页数（防止内存无限增长）
         """
         self.dpi = dpi
         self.poppler_path = poppler_path
+        self._max_cache = max_cache_size
         self._page_cache: Dict[Tuple[str, int], Image.Image] = {}
+        self._cache_order: List[Tuple[str, int]] = []  # LRU顺序
 
         if not HAS_PDF2IMAGE:
             raise ImportError("pdf2image 未安装，请运行: pip install pdf2image")
 
     def _render_page(self, pdf_path: Path, page_num: int) -> Image.Image:
         cache_key = (str(pdf_path), page_num)
-        cached = self._page_cache.get(cache_key)
-        if cached is not None:
-            return cached
+        
+        # LRU: 命中则移到队尾
+        if cache_key in self._page_cache:
+            self._cache_order.remove(cache_key)
+            self._cache_order.append(cache_key)
+            return self._page_cache[cache_key]
 
         images = convert_from_path(
             str(pdf_path),
@@ -128,7 +118,14 @@ class RegionExtractor:
             raise ValueError(f"无法提取页面 {page_num}")
 
         full_image = images[0]
+        
+        # LRU: 淘汰最旧的
+        while len(self._cache_order) >= self._max_cache:
+            oldest = self._cache_order.pop(0)
+            del self._page_cache[oldest]
+        
         self._page_cache[cache_key] = full_image
+        self._cache_order.append(cache_key)
         return full_image
 
     def crop_regions_from_image(self, full_image: Image.Image, regions: List[Region]) -> List[Image.Image]:

@@ -5,10 +5,10 @@ SRC = Path(__file__).resolve().parents[4] / 'apps' / 'server' / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from paths import ROOT
+from core.paths import ROOT
 
-from non_litigation_export import discover_notice_files, get_notice_input_dirs
-from project_evaluation import evaluate_non_litigation_quality
+from non_litigation.export import discover_notice_files, get_notice_input_dirs
+from non_litigation.evaluation import evaluate_non_litigation_quality
 
 
 def test_get_notice_input_dirs_should_include_nested_batch2_notice_dir():

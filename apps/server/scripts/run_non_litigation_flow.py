@@ -22,22 +22,22 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
-from paths import ROOT, USER_DATA_DIR
+from core.paths import ROOT, USER_DATA_DIR
 SRC = Path(__file__).resolve().parent.parent / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from non_litigation_export import (
+from non_litigation.export import (
     build_mock_ocr_results,
     run_real_ocr,
     ensure_non_litigation_input_structure,
     export_non_litigation_standard_outputs,
     get_non_litigation_result_root,
 )
-from non_litigation_product import load_non_litigation_cases
-from non_litigation_validator import validate_ocr_results
-from report_generator import generate_html_report
-from project_evaluation import evaluate_non_litigation_quality
+from non_litigation.product import load_non_litigation_cases
+from non_litigation.validator import validate_ocr_results
+from non_litigation.report import generate_html_report
+from non_litigation.evaluation import evaluate_non_litigation_quality
 
 
 SAMPLE_ROOT = ROOT / '样本材料' / '非诉组自动化样本材料'

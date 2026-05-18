@@ -8,7 +8,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
 
 import json
-from company_query import _get_api_config, query_company_info
+from infra.company_query import _get_api_config, query_company_info
 
 # 测试用的企业名称（一个成功一个可能失败）
 TEST_COMPANIES = [

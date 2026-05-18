@@ -20,11 +20,11 @@ import pandas as pd
 import openpyxl
 from openpyxl.utils import get_column_letter
 
-from paths import ROOT
+from core.paths import ROOT
 
-from config_loader import load_config
-from enforcement_extractor import RulingPDFExtractor, RulingInfo, extract_ruling_from_pdf, chinese_date_to_arabic
-from enforcement_product import EnforcementCaseRegistry, load_enforcement_cases
+from core.config_loader import load_config
+from enforcement.extractor import RulingPDFExtractor, RulingInfo, extract_ruling_from_pdf, chinese_date_to_arabic
+from enforcement.product import EnforcementCaseRegistry, load_enforcement_cases
 
 _cfg = load_config()
 _enforcement_cfg = _cfg.raw_config.get('enforcement', {})

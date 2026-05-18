@@ -18,9 +18,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
 
-from paths import ROOT, USER_DATA_DIR
+from core.paths import ROOT, USER_DATA_DIR
 
-from config_loader import load_config
+from core.config_loader import load_config
 
 _cfg = load_config()
 _enforcement_cfg = _cfg.raw_config.get('enforcement', {})
@@ -521,7 +521,7 @@ class RulingPDFExtractor:
     def _get_ocr_engine(self):
         if self._ocr_engine is None and self.use_ocr:
             try:
-                from pdf_ocr_ultra import UltraFastOCR, OCRConfig
+                from core.pdf_ocr_ultra import UltraFastOCR, OCRConfig
                 config = OCRConfig(
                     dpi=_cfg.ocr_dpi,
                     max_image_size=_cfg.ocr_max_image_size,
@@ -613,7 +613,7 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
     2. 加载台账并与提取结果匹配
     3. 返回结构化的处理结果
     """
-    from enforcement_product import load_enforcement_cases
+    from enforcement.product import load_enforcement_cases
 
     if mock_mode:
         print(f"INFO: Mock 模式：使用模拟数据")
@@ -663,7 +663,7 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
             stats["matched_rows"] = matched_count
             stats["unmatched_rows"] = max(0, len(registry.cases) - matched_count)
 
-            from enforcement_export import build_output_excel
+            from enforcement.export import build_output_excel
             excel_output = output_dir / "执行组识别结果.xlsx"
             try:
                 build_output_excel(registry, pdf_results, excel_output)

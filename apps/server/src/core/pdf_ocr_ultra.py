@@ -102,6 +102,59 @@ def _validate_gpu_det_accuracy(**engine_kwargs):
         return False
 
 
+def _detect_gpu_hardware():
+    """检测系统中的 GPU 硬件信息，返回 (vendor, name) 或 (None, None)。"""
+    vendor = None
+    name = None
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE,
+            r'SYSTEM\CurrentControlSet\Control\Video',
+            access=winreg.KEY_READ,
+        )
+        i = 0
+        gpus = []
+        while True:
+            try:
+                subkey_name = winreg.EnumKey(key, i)
+                i += 1
+                try:
+                    subkey = winreg.OpenKey(key, f'{subkey_name}\\0000', access=winreg.KEY_READ)
+                    try:
+                        desc, _ = winreg.QueryValueEx(subkey, 'Device Description')
+                        gpus.append(desc)
+                    except FileNotFoundError:
+                        try:
+                            desc, _ = winreg.QueryValueEx(subkey, 'DriverDesc')
+                            gpus.append(desc)
+                        except FileNotFoundError:
+                            pass
+                    subkey.Close()
+                except FileNotFoundError:
+                    pass
+            except OSError:
+                break
+        key.Close()
+        for desc in gpus:
+            dl = desc.lower()
+            if 'nvidia' in dl or 'geforce' in dl or 'rtx' in dl or 'gtx' in dl:
+                vendor = 'nvidia'
+                name = desc
+                break
+            elif 'amd' in dl or 'radeon' in dl or 'rx ' in dl:
+                vendor = 'amd'
+                name = desc
+                break
+            elif 'intel' in dl or 'arc' in dl or 'iris' in dl or 'uhd' in dl:
+                vendor = 'intel'
+                name = desc
+                break
+    except Exception:
+        pass
+    return vendor, name
+
+
 def detect_gpu_provider():
     global _gpu_provider, _gpu_info
     if _gpu_provider is not None:
@@ -110,28 +163,53 @@ def detect_gpu_provider():
         _gpu_provider = 'cpu'
         _gpu_info = 'CPU only (RapidOCR 未安装)'
         return _gpu_provider, _gpu_info
+
+    hw_vendor, hw_name = _detect_gpu_hardware()
+
     try:
         import onnxruntime as ort
         providers = ort.get_available_providers()
+
         if 'CUDAExecutionProvider' in providers:
             cuda_kwargs = dict(use_cls=False, det_use_cuda=True, rec_use_cuda=True)
             if _validate_gpu_det_accuracy(**cuda_kwargs):
                 _gpu_provider = 'cuda'
-                _gpu_info = 'NVIDIA CUDA GPU (det+rec)'
+                _gpu_info = f'NVIDIA CUDA GPU (det+rec){f" [{hw_name}]" if hw_name else ""}'
                 return _gpu_provider, _gpu_info
+
         if 'DmlExecutionProvider' in providers:
-            import platform
-            win_ver = int(platform.release().split('.')[0])
-            if win_ver >= 10:
-                dml_det_kwargs = dict(use_cls=False, det_use_dml=True)
-                if _validate_gpu_det_accuracy(**dml_det_kwargs):
-                    _gpu_provider = 'dml_det'
-                    _gpu_info = 'DirectML GPU (det only, rec=CPU)'
+            try:
+                import platform
+                win_ver = int(platform.release().split('.')[0])
+                if win_ver < 10:
+                    _gpu_provider = 'cpu'
+                    _gpu_info = f'CPU (Windows {win_ver} < 10, DirectML 不可用)'
                     return _gpu_provider, _gpu_info
+            except Exception:
+                pass
+
+            dml_det_kwargs = dict(use_cls=False, det_use_dml=True)
+            if _validate_gpu_det_accuracy(**dml_det_kwargs):
+                _gpu_provider = 'dml_det'
+                vendor_label = hw_vendor or 'GPU'
+                name_label = f" [{hw_name}]" if hw_name else ""
+                _gpu_info = f'DirectML {vendor_label} (det=GPU, rec=CPU){name_label}'
+                return _gpu_provider, _gpu_info
+
+            dml_full_kwargs = dict(use_cls=False, det_use_dml=True, rec_use_dml=True)
+            if _validate_gpu_det_accuracy(**dml_full_kwargs):
+                _gpu_provider = 'dml_det'
+                _gpu_info = f'DirectML GPU (det+rec){f" [{hw_name}]" if hw_name else ""}'
+                return _gpu_provider, _gpu_info
+
     except Exception:
         pass
+
     _gpu_provider = 'cpu'
-    _gpu_info = 'CPU'
+    if hw_name:
+        _gpu_info = f'CPU ({hw_name} 检测到但 GPU 加速不可用)'
+    else:
+        _gpu_info = 'CPU (无 GPU 或驱动未安装)'
     return _gpu_provider, _gpu_info
 
 
@@ -574,6 +652,100 @@ class UltraFastOCR:
             method=method,
             optimize_output=optimize_output,
         )
+
+    def batch_ocr_images(
+        self,
+        images: List[Tuple[Image.Image, int]],
+        *,
+        max_image_size: Optional[int] = None,
+        apply_enhancement: bool = False,
+        apply_sharpen: bool = False,
+        method_prefix: str = "batch_region",
+    ) -> List[PageResult]:
+        """
+        批量 OCR：先对所有图片做 det，收集所有文字行，
+        再一次性送入 rec 模型做批量识别，减少模型调用开销。
+
+        Args:
+            images: [(PIL.Image, page_num), ...] 列表
+            max_image_size: 最大图片尺寸
+            apply_enhancement: 是否增强
+            apply_sharpen: 是否锐化
+            method_prefix: 结果 method 前缀
+
+        Returns:
+            PageResult 列表，与输入顺序一一对应
+        """
+        if not images:
+            return []
+
+        target_max_size = max_image_size or self.config.max_image_size
+        engine = get_ocr_engine()
+
+        all_crops = []
+        page_ranges = []
+        preprocessed_images = []
+
+        for img, page_num in images:
+            w, h = img.size
+            max_dim = max(w, h)
+            if max_dim > target_max_size or apply_enhancement or apply_sharpen:
+                processed = self.preprocessor.optimize_for_ocr(
+                    img,
+                    target_size=(target_max_size, target_max_size),
+                    apply_enhancement=apply_enhancement,
+                    apply_sharpen=apply_sharpen,
+                )
+            else:
+                processed = img
+            preprocessed_images.append(np.array(processed))
+
+        provider, _ = detect_gpu_provider()
+        need_lock = provider == 'dml_det'
+
+        def _do_det_all():
+            crops = []
+            ranges = []
+            for img_array in preprocessed_images:
+                start_idx = len(crops)
+                dt_boxes, _ = engine.text_det(img_array)
+                if dt_boxes is not None and len(dt_boxes) > 0:
+                    dt_boxes = engine.sorted_boxes(dt_boxes)
+                    page_crops = engine.get_crop_img_list(img_array, dt_boxes)
+                    crops.extend(page_crops)
+                ranges.append((start_idx, len(crops)))
+            return crops, ranges
+
+        if need_lock:
+            with _ocr_lock:
+                all_crops, page_ranges = _do_det_all()
+        else:
+            all_crops, page_ranges = _do_det_all()
+
+        if all_crops:
+            rec_results, _ = engine.text_rec(all_crops)
+        else:
+            rec_results = []
+
+        results = []
+        text_score = engine.text_score
+        for i, (img, page_num) in enumerate(images):
+            start, end = page_ranges[i]
+            page_texts = []
+            for j in range(start, end):
+                if j < len(rec_results):
+                    text_val, score = rec_results[j][0], rec_results[j][1]
+                    if float(score) >= text_score:
+                        page_texts.append(text_val)
+            text = "\n".join(page_texts)
+            results.append(PageResult(
+                page=page_num,
+                text=text,
+                method=f"{method_prefix}:{i+1}",
+                duration=0,
+            ))
+
+        return results
 
     def process_image(self, image_path: str) -> Optional[Dict]:
         """处理图片文件"""

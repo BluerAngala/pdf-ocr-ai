@@ -52,7 +52,7 @@ def init_regions_from_config():
     """从 config.yaml 加载区域定义，替代硬编码。"""
     global REGIONS
     try:
-        from config_loader import load_config
+        from core.config_loader import load_config
         cfg = load_config()
         for key, rd in cfg.region_definitions.items():
             REGIONS[key] = Region(

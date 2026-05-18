@@ -202,7 +202,7 @@ def open_pdf_reader(pdf_path: Path):
 def apply_ocr_corrections(text: str, doc_type: str = None) -> str:
     corrections = _cfg.get_doc_corrections(doc_type) if doc_type else NON_LITIGATION_CORRECTIONS
     for wrong, correct in corrections:
-        if wrong in text and correct not in text[:text.index(wrong)]:
+        if wrong in text:
             text = text.replace(wrong, correct)
     return text
 

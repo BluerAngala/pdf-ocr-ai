@@ -45,10 +45,34 @@ regions:
     right: 1.0
   application_title:
     name: "申请书标题"
-    top: 0.0
-    bottom: 0.2
-    left: 0.0
-    right: 1.0
+    top: 0.08
+    bottom: 0.18
+    left: 0.35
+    right: 0.75
+  application_respondent:
+    name: "申请书被执行人"
+    top: 0.60
+    bottom: 0.78
+    left: 0.15
+    right: 0.95
+  auth_title:
+    name: "授权书标题"
+    top: 0.08
+    bottom: 0.15
+    left: 0.35
+    right: 0.70
+  auth_company:
+    name: "授权书公司名称"
+    top: 0.38
+    bottom: 0.50
+    left: 0.10
+    right: 0.90
+  letter_company:
+    name: "所函标题及公司名称"
+    top: 0.14
+    bottom: 0.55
+    left: 0.10
+    right: 0.90
   company_top:
     name: "公司名称（页眉）"
     top: 0.0
@@ -138,6 +162,7 @@ doc_types:
       max_image_size: 600
       regions:
         - application_title
+        - application_respondent
       enable_region_first: true
       allow_full_page_fallback: true
       region_fallback_min_text_length: 5
@@ -173,8 +198,8 @@ doc_types:
       dpi: 150
       max_image_size: 600
       regions:
-        - company_top
-        - company_middle
+        - auth_title
+        - auth_company
       enable_region_first: true
       allow_full_page_fallback: true
       region_fallback_min_text_length: 6
@@ -222,7 +247,7 @@ doc_types:
       dpi: 150
       max_image_size: 600
       regions:
-        - company_middle
+        - letter_company
       enable_region_first: true
       allow_full_page_fallback: true
       region_fallback_min_text_length: 6
@@ -242,10 +267,14 @@ doc_types:
         min_fragment_hits: 2
         min_text_length: 6
       corrections:
+        - wrong: "律师事务所事务所事务所函"
+          correct: "律师事务所函"
+        - wrong: "律师事务所事务所函"
+          correct: "律师事务所函"
         - wrong: "岭南律师所"
           correct: "岭南律师事务所"
-        - wrong: "岭南律师"
-          correct: "岭南律师事务所"
+        - wrong: "岭南律师函"
+          correct: "岭南律师事务所函"
         - wrong: "有限责公司"
           correct: "有限责任公司"
         - wrong: "有限公词"

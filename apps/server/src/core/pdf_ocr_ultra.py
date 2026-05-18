@@ -25,8 +25,9 @@ import traceback
 import numpy as np
 
 os.environ['PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK'] = 'True'
-os.environ['OMP_NUM_THREADS'] = '2'
-os.environ['ONNXRUNTIME_CPU_NUM_THREADS'] = '2'
+_omp_threads = str(min(cpu_count(), 4))
+os.environ['OMP_NUM_THREADS'] = _omp_threads
+os.environ['ONNXRUNTIME_CPU_NUM_THREADS'] = _omp_threads
 os.environ['KMP_AFFINITY'] = 'granularity=fine,compact,1,0'
 
 try:
@@ -61,20 +62,45 @@ except ImportError:
 _ocr_engine = None
 _ocr_lock = threading.Lock()
 
+
+def _build_onnx_session_options():
+    try:
+        import onnxruntime as ort
+        opts = ort.SessionOptions()
+        opts.intra_op_num_threads = min(cpu_count(), 4)
+        opts.inter_op_num_threads = 2
+        opts.execution_mode = ort.ExecutionMode.ORT_PARALLEL
+        opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+        opts.enable_mem_pattern = True
+        opts.enable_mem_reuse = True
+        return opts
+    except Exception:
+        return None
+
+
+def _create_ocr_engine():
+    if not HAS_RAPIDOCR:
+        raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
+    sess_opts = _build_onnx_session_options()
+    kwargs = dict(use_cls=False)
+    if sess_opts is not None:
+        kwargs['det_session_options'] = sess_opts
+        kwargs['rec_session_options'] = sess_opts
+    return RapidOCR(**kwargs)
+
+
 def init_worker():
     """子进程初始化 - 预加载OCR模型"""
     global _ocr_engine
     if HAS_RAPIDOCR:
-        _ocr_engine = RapidOCR()
+        _ocr_engine = _create_ocr_engine()
 
 def get_ocr_engine():
     """获取OCR引擎 - 线程安全版"""
     global _ocr_engine
     with _ocr_lock:
         if _ocr_engine is None:
-            if not HAS_RAPIDOCR:
-                raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
-            _ocr_engine = RapidOCR()
+            _ocr_engine = _create_ocr_engine()
         return _ocr_engine
 
 def get_ocr_lock() -> threading.Lock:
@@ -359,12 +385,20 @@ class UltraFastOCR:
         for attempt in range(self.config.max_retries + 1):
             temp_img = None
             try:
-                optimized_img = self.preprocessor.optimize_for_ocr(
-                    image,
-                    target_size=(target_max_size, target_max_size),
-                    apply_enhancement=apply_enhancement,
-                    apply_sharpen=apply_sharpen,
-                )
+                w, h = image.size
+                max_dim = max(w, h)
+                needs_resize = max_dim > target_max_size
+                needs_preprocess = needs_resize or apply_enhancement or apply_sharpen
+
+                if needs_preprocess:
+                    optimized_img = self.preprocessor.optimize_for_ocr(
+                        image,
+                        target_size=(target_max_size, target_max_size),
+                        apply_enhancement=apply_enhancement,
+                        apply_sharpen=apply_sharpen,
+                    )
+                else:
+                    optimized_img = image
 
                 temp_dir = Path(self.config.output_dir) / "_temp"
                 temp_img = temp_dir / f"_page_{page_num}_{threading.get_ident()}_opt.png"

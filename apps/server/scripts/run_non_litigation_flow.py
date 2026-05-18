@@ -22,10 +22,11 @@ import time
 from pathlib import Path
 from typing import Dict, List
 
-from core.paths import ROOT, USER_DATA_DIR
 SRC = Path(__file__).resolve().parent.parent / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
+
+from core.paths import ROOT, USER_DATA_DIR
 
 from non_litigation.export import (
     build_mock_ocr_results,

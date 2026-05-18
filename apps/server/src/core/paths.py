@@ -18,11 +18,10 @@ def get_project_root() -> Path:
 
 
 def get_server_src() -> Path:
-    env = os.environ.get("GJJ_OCR_RESOURCES")
-    if env:
-        return Path(env).resolve() / "server_src"
-    
     if getattr(sys, "frozen", False):
+        env = os.environ.get("GJJ_OCR_RESOURCES")
+        if env:
+            return Path(env).resolve() / "server_src"
         exe_dir = Path(sys.executable).resolve().parent
         if exe_dir.name == "gjj-ocr-server":
             return exe_dir.parent / "server_src"
@@ -32,11 +31,10 @@ def get_server_src() -> Path:
 
 
 def get_resources_dir() -> Path:
-    env = os.environ.get("GJJ_OCR_RESOURCES")
-    if env:
-        return Path(env).resolve()
-    
     if getattr(sys, "frozen", False):
+        env = os.environ.get("GJJ_OCR_RESOURCES")
+        if env:
+            return Path(env).resolve()
         exe_dir = Path(sys.executable).resolve().parent
         if exe_dir.name == "gjj-ocr-server":
             return exe_dir.parent

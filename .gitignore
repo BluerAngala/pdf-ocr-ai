@@ -98,6 +98,7 @@ input/**/*.pdf
 *.temp
 *.log
 nul
+~$*
 
 # Large archives
 *.zip
@@ -137,3 +138,4 @@ scripts/generate_icons.py
 # Keep directory structure
 # =============================================================================
 !.gitkeep
+scripts/

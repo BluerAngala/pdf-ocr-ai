@@ -1395,51 +1395,79 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
     if not use_mock and HAS_OCR and shared_ocr is None:
         shared_ocr, shared_region_extractor = _build_ocr_processors()
         shared_post_processor = TextPostProcessor()
-    other_idx = 0
-    other_total = len(other_files)
-    type_durations = {}
+
+    parallel_candidates = []
+    serial_candidates = []
     for filename, stem in other_files:
-        if cancel_check and cancel_check():
-            _report(f"其他文件已取消，已完成 {other_idx}/{other_total}")
-            break
         pdf_path = input_dir / filename
+        if not pdf_path.exists():
+            continue
+        if filename in ocr_results:
+            skipped_count += 1
+            _report(f"[SKIP] {filename} (已有缓存)")
+            continue
+        doc_type = stem if stem in {'申请书', '授权书', '所函'} else None
+        if doc_type:
+            parallel_candidates.append((filename, doc_type, pdf_path))
+        else:
+            serial_candidates.append((filename, stem, pdf_path))
 
-        if pdf_path.exists():
-            if filename in ocr_results:
-                skipped_count += 1
-                other_idx += 1
-                _report(f"[SKIP] {filename} (已有缓存)")
-                continue
-            other_idx += 1
-            doc_type = stem if stem in {'申请书', '授权书', '所函'} else None
-            total_pages = inspect_pdf_page_count(pdf_path)
-            _report(f"[{other_idx}/{other_total}] {filename} ({total_pages} pages)...")
-            t_file = time.perf_counter()
+    if parallel_candidates:
+        _report(f"  [并行] 启动 {len(parallel_candidates)} 个文档的多线程 OCR...")
+        t_parallel = time.perf_counter()
 
-            def _make_page_progress(fname: str, tot: int):
-                def _cb(done: int, total: int):
-                    _report(f"  {fname}: {done}/{total} pages")
-                return _cb
-
-            result = _run_ocr_with_timeout(
+        def _ocr_one_file(task):
+            filename, doc_type, pdf_path = task
+            return filename, _run_ocr_with_timeout(
                 pdf_path,
                 use_mock=use_mock,
                 doc_type=doc_type,
                 ocr=shared_ocr,
                 region_extractor=shared_region_extractor,
                 post_processor=shared_post_processor,
-                page_progress=_make_page_progress(filename, total_pages),
                 cancel_check=cancel_check,
             )
-            file_dur = time.perf_counter() - t_file
-            ocr_results[filename] = result
-            _report(f"[{other_idx}/{other_total}] {filename} 完成 ({file_dur:.1f}s)")
-            if doc_type:
-                type_durations[doc_type] = type_durations.get(doc_type, 0) + file_dur
-            if progress_callback:
-                progress_callback(other_idx, other_total, filename)
-        else:
-            _report(f"[WARN] 文件不存在: {pdf_path}")
+
+        with ThreadPoolExecutor(max_workers=min(len(parallel_candidates), 3)) as pool:
+            for filename, result in pool.map(_ocr_one_file, parallel_candidates):
+                ocr_results[filename] = result
+                _report(f"  [并行完成] {filename}")
+
+        parallel_dur = time.perf_counter() - t_parallel
+        _report(f"  [并行] 完成: {len(parallel_candidates)} 个文件, 耗时 {parallel_dur:.1f}s")
+
+    other_idx = len(parallel_candidates)
+    other_total = len(parallel_candidates) + len(serial_candidates)
+    type_durations = {}
+    for filename, stem, pdf_path in serial_candidates:
+        if cancel_check and cancel_check():
+            _report(f"其他文件已取消，已完成 {other_idx}/{other_total}")
+            break
+        other_idx += 1
+        total_pages = inspect_pdf_page_count(pdf_path)
+        _report(f"[{other_idx}/{other_total}] {filename} ({total_pages} pages)...")
+        t_file = time.perf_counter()
+
+        def _make_page_progress(fname: str, tot: int):
+            def _cb(done: int, total: int):
+                _report(f"  {fname}: {done}/{total} pages")
+            return _cb
+
+        result = _run_ocr_with_timeout(
+            pdf_path,
+            use_mock=use_mock,
+            doc_type=None,
+            ocr=shared_ocr,
+            region_extractor=shared_region_extractor,
+            post_processor=shared_post_processor,
+            page_progress=_make_page_progress(filename, total_pages),
+            cancel_check=cancel_check,
+        )
+        file_dur = time.perf_counter() - t_file
+        ocr_results[filename] = result
+        _report(f"[{other_idx}/{other_total}] {filename} 完成 ({file_dur:.1f}s)")
+        if progress_callback:
+            progress_callback(other_idx, other_total, filename)
 
     for dt, dur in type_durations.items():
         _report(f"{dt}完成: {dur:.1f}s")

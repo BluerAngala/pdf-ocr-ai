@@ -1591,7 +1591,7 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
 
 
 def export_application_files(input_dir: Path, output_dir: Path, target_names: List[str], ocr_results: Dict[str, Dict]) -> int:
-    source_pdf = input_dir / SOURCE_MAPPING['输出文件（申请书）']
+    source_pdf = input_dir / SOURCE_MAPPING['输出文件（申请书）'] 
 
     if not source_pdf.exists():
         _log(f"  [ERROR] 申请书文件不存在: {source_pdf}")

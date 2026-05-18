@@ -61,6 +61,78 @@ except ImportError:
 
 _ocr_engine = None
 _ocr_lock = threading.Lock()
+_gpu_provider = None
+_gpu_info = ""
+
+
+def _generate_test_image():
+    from PIL import Image, ImageDraw, ImageFont
+    img = Image.new('RGB', (600, 120), 'white')
+    draw = ImageDraw.Draw(img)
+    try:
+        font = ImageFont.truetype("msyh.ttc", 24)
+    except Exception:
+        try:
+            font = ImageFont.truetype("simsun.ttc", 24)
+        except Exception:
+            font = ImageFont.load_default()
+    draw.text((15, 10), "住房公积金管理中心强制执行申请书", fill='black', font=font)
+    draw.text((15, 50), "广州住房公积金管理中心越秀管理部", fill='black', font=font)
+    draw.text((15, 85), "责令限期缴存决定书穗公积金中心", fill='black', font=font)
+    return np.array(img)
+
+
+def _validate_gpu_accuracy(provider_type, **engine_kwargs):
+    try:
+        test_engine = RapidOCR(**engine_kwargs)
+        test_img = _generate_test_image()
+        result = test_engine(test_img)
+        if result[0] is None or len(result[0]) == 0:
+            return False
+        text = ''.join(line[1] for line in result[0])
+        has_chinese = any('\u4e00' <= c <= '\u9fff' for c in text)
+        if not has_chinese:
+            return False
+        garbage_chars = set('μβäÞðþŋœŧ')
+        garbage_count = sum(1 for c in text if c in garbage_chars)
+        if garbage_count > 2:
+            return False
+        return True
+    except Exception:
+        return False
+
+
+def detect_gpu_provider():
+    global _gpu_provider, _gpu_info
+    if _gpu_provider is not None:
+        return _gpu_provider, _gpu_info
+    if not HAS_RAPIDOCR:
+        _gpu_provider = 'cpu'
+        _gpu_info = 'CPU only (RapidOCR 未安装)'
+        return _gpu_provider, _gpu_info
+    try:
+        import onnxruntime as ort
+        providers = ort.get_available_providers()
+        if 'CUDAExecutionProvider' in providers:
+            cuda_kwargs = dict(use_cls=False, det_use_cuda=True, rec_use_cuda=True)
+            if _validate_gpu_accuracy('cuda', **cuda_kwargs):
+                _gpu_provider = 'cuda'
+                _gpu_info = 'NVIDIA CUDA GPU'
+                return _gpu_provider, _gpu_info
+        if 'DmlExecutionProvider' in providers:
+            import platform
+            win_ver = int(platform.release().split('.')[0])
+            if win_ver >= 10:
+                dml_kwargs = dict(use_cls=False, det_use_dml=True, rec_use_dml=True)
+                if _validate_gpu_accuracy('dml', **dml_kwargs):
+                    _gpu_provider = 'dml'
+                    _gpu_info = 'DirectML GPU'
+                    return _gpu_provider, _gpu_info
+    except Exception:
+        pass
+    _gpu_provider = 'cpu'
+    _gpu_info = 'CPU'
+    return _gpu_provider, _gpu_info
 
 
 def _build_onnx_session_options():
@@ -81,11 +153,22 @@ def _build_onnx_session_options():
 def _create_ocr_engine():
     if not HAS_RAPIDOCR:
         raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
-    sess_opts = _build_onnx_session_options()
+    provider, info = detect_gpu_provider()
     kwargs = dict(use_cls=False)
-    if sess_opts is not None:
-        kwargs['det_session_options'] = sess_opts
-        kwargs['rec_session_options'] = sess_opts
+    if provider == 'cuda':
+        kwargs['det_use_cuda'] = True
+        kwargs['rec_use_cuda'] = True
+        print(f"[OCR] 使用 NVIDIA CUDA GPU 加速")
+    elif provider == 'dml':
+        kwargs['det_use_dml'] = True
+        kwargs['rec_use_dml'] = True
+        print(f"[OCR] 使用 DirectML GPU 加速")
+    else:
+        sess_opts = _build_onnx_session_options()
+        if sess_opts is not None:
+            kwargs['det_session_options'] = sess_opts
+            kwargs['rec_session_options'] = sess_opts
+        print(f"[OCR] 使用 CPU 模式 (GPU 不可用或准确度验证未通过)")
     return RapidOCR(**kwargs)
 
 
@@ -361,11 +444,7 @@ class UltraFastOCR:
                 finally:
                     fallback_path.unlink(missing_ok=True)
         
-        if use_lock:
-            with _ocr_lock:
-                return _do_ocr()
-        else:
-            return _do_ocr()
+        return _do_ocr()
 
     def _process_single_image(
         self,

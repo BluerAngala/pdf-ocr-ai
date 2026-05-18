@@ -15,13 +15,17 @@ class ResourceProfile:
     recommended_workers: int
     memory_per_worker_gb: float
     safety_level: str
+    gpu_provider: str = "cpu"
+    gpu_info: str = ""
 
     def __str__(self) -> str:
+        gpu_str = f", GPU: {self.gpu_info}" if self.gpu_info else ""
         return (
             f"CPU: {self.cpu_count} 核, "
             f"内存: {self.available_memory_gb:.1f}/{self.total_memory_gb:.1f} GB 可用, "
             f"推荐并发: {self.recommended_workers}, "
             f"安全等级: {self.safety_level}"
+            f"{gpu_str}"
         )
 
 
@@ -85,7 +89,6 @@ def detect_system_resources(*, reserve_gb: float = 1.5, max_workers: Optional[in
     total_gb = _get_total_memory_gb()
     available_gb = _get_available_memory_gb()
     
-    # 保留 40% 的可用内存，只使用 60%
     usable_gb = available_gb * 0.6
 
     max_by_memory = max(1, int(usable_gb / OCR_MODEL_MEMORY_GB))
@@ -97,6 +100,14 @@ def detect_system_resources(*, reserve_gb: float = 1.5, max_workers: Optional[in
 
     safety = _calc_safety_level(available_gb, workers)
 
+    gpu_provider = "cpu"
+    gpu_info = ""
+    try:
+        from core.pdf_ocr_ultra import detect_gpu_provider
+        gpu_provider, gpu_info = detect_gpu_provider()
+    except Exception:
+        pass
+
     return ResourceProfile(
         cpu_count=cpus,
         total_memory_gb=round(total_gb, 2),
@@ -104,4 +115,6 @@ def detect_system_resources(*, reserve_gb: float = 1.5, max_workers: Optional[in
         recommended_workers=workers,
         memory_per_worker_gb=OCR_MODEL_MEMORY_GB,
         safety_level=safety,
+        gpu_provider=gpu_provider,
+        gpu_info=gpu_info,
     )

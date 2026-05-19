@@ -8,6 +8,7 @@ interface Props {
   onSelectFolder: () => void;
   onSelectExcel: () => void;
   onRun: () => void;
+  onCancel: () => void;
 }
 
 export default function NonLitigationConfig({
@@ -20,6 +21,7 @@ export default function NonLitigationConfig({
   onSelectFolder,
   onSelectExcel,
   onRun,
+  onCancel,
 }: Props) {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
@@ -111,6 +113,22 @@ export default function NonLitigationConfig({
         </svg>
         {running ? "处理中..." : "开始处理"}
       </button>
+      {running && (
+        <button
+          onClick={onCancel}
+          className="shrink-0 w-full h-10 rounded-lg text-sm font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 active:scale-[0.98] transition-all cursor-pointer flex items-center justify-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+          取消任务
+        </button>
+      )}
     </div>
   );
 }

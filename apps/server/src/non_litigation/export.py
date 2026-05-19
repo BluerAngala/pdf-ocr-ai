@@ -1103,6 +1103,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
 def _run_ocr_with_timeout(pdf_path: Path, **kwargs) -> Dict:
     timeout = kwargs.pop('timeout', None)
     page_progress = kwargs.pop('page_progress', None)
+    cancel_check = kwargs.get('cancel_check')
     kwargs['page_progress'] = page_progress
     if timeout is None:
         total_pages = inspect_pdf_page_count(pdf_path) if pdf_path.exists() else 1
@@ -1110,10 +1111,25 @@ def _run_ocr_with_timeout(pdf_path: Path, **kwargs) -> Dict:
     with ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(run_real_ocr_on_pdf, pdf_path, **kwargs)
         try:
-            return future.result(timeout=timeout)
-        except FuturesTimeoutError:
+            elapsed = 0
+            step = 2
+            while elapsed < timeout:
+                try:
+                    return future.result(timeout=step)
+                except FuturesTimeoutError:
+                    elapsed += step
+                    if cancel_check and cancel_check():
+                        _log(f"  [CANCEL] {pdf_path.name} 已取消，等待 OCR 退出...")
+                        try:
+                            return future.result(timeout=30)
+                        except FuturesTimeoutError:
+                            _log(f"  [CANCEL] {pdf_path.name} OCR 未在 30s 内退出，强制跳过")
+                            return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'cancelled'}
             _log(f"  [TIMEOUT] {pdf_path.name} 处理超时 ({timeout}s)，跳过")
             return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'timeout'}
+        except Exception as e:
+            _log(f"  [ERROR] {pdf_path.name}: {e}")
+            return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'error'}
 
 
 # ---------------------------------------------------------------------------
@@ -1282,10 +1298,18 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                  cancel_check: Optional[callable] = None,
                  log_callback: Optional[callable] = None,
                  cached_results: Optional[Dict[str, Dict]] = None,
-                 force: bool = False) -> Dict[str, Dict]:
+                 force: bool = False,
+                 result_callback: Optional[callable] = None) -> Dict[str, Dict]:
     ocr_start = time.perf_counter()
     ocr_results: Dict[str, Dict] = dict(cached_results) if cached_results else {}
     skipped_count = 0
+
+    def _on_result(filename: str, result: Dict):
+        if result_callback:
+            try:
+                result_callback(filename, result, ocr_results)
+            except Exception:
+                pass
 
     def _report(msg: str):
         _log(msg)
@@ -1380,11 +1404,18 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
             )
             file_dur = time.perf_counter() - t0
             ocr_results[source_name] = result
+            _on_result(source_name, result)
             _report(f"[{idx}/{notice_count}] {source_name} ({file_dur:.1f}s)")
             if progress_callback:
                 progress_callback(idx, notice_count, source_name)
         notice_dur = time.perf_counter() - notice_start
         _report(f"责催完成: {notice_count} 个文件, 耗时 {notice_dur:.1f}s")
+
+    if cancel_check and cancel_check():
+        _report(f"任务已取消，跳过其他文件处理，已缓存 {len(ocr_results)} 个结果")
+        total_duration = round(time.perf_counter() - ocr_start, 4)
+        _report(f"OCR 阶段中断: {total_duration:.2f}s, 已处理 {len(ocr_results)} 个文件")
+        return ocr_results
 
     other_files = [
         (pdf_name, pdf_name.replace('.pdf', ''))
@@ -1413,28 +1444,67 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
             serial_candidates.append((filename, stem, pdf_path))
 
     if parallel_candidates:
-        _report(f"  [并行] 启动 {len(parallel_candidates)} 个文档的多线程 OCR...")
+        from core.pdf_ocr_ultra import detect_gpu_provider
+        gpu_provider, _ = detect_gpu_provider()
+        use_parallel = gpu_provider not in ('dml_det',) and len(parallel_candidates) > 1
+
         t_parallel = time.perf_counter()
 
-        def _ocr_one_file(task):
-            filename, doc_type, pdf_path = task
-            return filename, _run_ocr_with_timeout(
-                pdf_path,
-                use_mock=use_mock,
-                doc_type=doc_type,
-                ocr=shared_ocr,
-                region_extractor=shared_region_extractor,
-                post_processor=shared_post_processor,
-                cancel_check=cancel_check,
-            )
+        if use_parallel:
+            _report(f"  [并行] 启动 {len(parallel_candidates)} 个文档的多线程 OCR (GPU={gpu_provider})...")
 
-        with ThreadPoolExecutor(max_workers=min(len(parallel_candidates), 3)) as pool:
-            for filename, result in pool.map(_ocr_one_file, parallel_candidates):
+            def _ocr_one_file(task):
+                filename, doc_type, pdf_path = task
+                return filename, _run_ocr_with_timeout(
+                    pdf_path,
+                    use_mock=use_mock,
+                    doc_type=doc_type,
+                    ocr=shared_ocr,
+                    region_extractor=shared_region_extractor,
+                    post_processor=shared_post_processor,
+                    cancel_check=cancel_check,
+                )
+
+            from concurrent.futures import as_completed
+            with ThreadPoolExecutor(max_workers=min(len(parallel_candidates), 3)) as pool:
+                future_map = {
+                    pool.submit(_ocr_one_file, task): task[0]
+                    for task in parallel_candidates
+                }
+                for future in as_completed(future_map):
+                    filename = future_map[future]
+                    try:
+                        _, result = future.result()
+                        ocr_results[filename] = result
+                        _on_result(filename, result)
+                        _report(f"  [并行完成] {filename}")
+                    except Exception as e:
+                        _report(f"  [并行失败] {filename}: {e}")
+        else:
+            _report(f"  [串行] DirectML 模式下禁止多线程并行，改为逐文件处理...")
+            for idx, (filename, doc_type, pdf_path) in enumerate(parallel_candidates, 1):
+                if cancel_check and cancel_check():
+                    _report(f"  [取消] 已取消，已完成 {idx-1}/{len(parallel_candidates)}")
+                    break
+                total_pages = inspect_pdf_page_count(pdf_path) if pdf_path.exists() else 0
+                _report(f"  [{idx}/{len(parallel_candidates)}] {filename} ({total_pages} pages)...")
+                t_file = time.perf_counter()
+                result = _run_ocr_with_timeout(
+                    pdf_path,
+                    use_mock=use_mock,
+                    doc_type=doc_type,
+                    ocr=shared_ocr,
+                    region_extractor=shared_region_extractor,
+                    post_processor=shared_post_processor,
+                    cancel_check=cancel_check,
+                )
                 ocr_results[filename] = result
-                _report(f"  [并行完成] {filename}")
+                _on_result(filename, result)
+                _report(f"  [{idx}/{len(parallel_candidates)}] {filename} done ({time.perf_counter() - t_file:.1f}s)")
 
         parallel_dur = time.perf_counter() - t_parallel
-        _report(f"  [并行] 完成: {len(parallel_candidates)} 个文件, 耗时 {parallel_dur:.1f}s")
+        mode_label = '并行' if use_parallel else '串行'
+        _report(f"  [{mode_label}] 完成: {len(parallel_candidates)} 个文件, 耗时 {parallel_dur:.1f}s")
 
     other_idx = len(parallel_candidates)
     other_total = len(parallel_candidates) + len(serial_candidates)
@@ -1465,6 +1535,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
         )
         file_dur = time.perf_counter() - t_file
         ocr_results[filename] = result
+        _on_result(filename, result)
         _report(f"[{other_idx}/{other_total}] {filename} 完成 ({file_dur:.1f}s)")
         if progress_callback:
             progress_callback(other_idx, other_total, filename)

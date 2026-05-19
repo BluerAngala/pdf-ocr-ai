@@ -370,14 +370,20 @@ class JsonRpcServer:
                         return
                     emitter.progress("ocr", 1, 4, f"正在识别 ({current}/{total}): {filename}", current, total)
 
-                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg), cached_results=cached_results, force=force)
+                def _save_cache(results):
+                    try:
+                        cache_path.parent.mkdir(parents=True, exist_ok=True)
+                        with open(cache_path, 'wb') as f:
+                            _pickle.dump(results, f)
+                    except Exception:
+                        pass
 
-                try:
-                    cache_path.parent.mkdir(parents=True, exist_ok=True)
-                    with open(cache_path, 'wb') as f:
-                        _pickle.dump(ocr_results, f)
-                except Exception:
-                    pass
+                def _on_ocr_result(filename, result, all_results):
+                    _save_cache(all_results)
+
+                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg), cached_results=cached_results, force=force, result_callback=_on_ocr_result)
+
+                _save_cache(ocr_results)
 
                 if _is_task_cancelled(task_id):
                     emitter.log("warn", f"任务已取消，已完成 {len(ocr_results)} 个文件的OCR（已缓存）")

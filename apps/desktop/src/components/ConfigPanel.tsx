@@ -100,6 +100,7 @@ export default function ConfigPanel({
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}
           onRun={onRun}
+          onCancel={onCancel}
         />
       );
     case "enforcement":

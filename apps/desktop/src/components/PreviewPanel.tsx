@@ -190,7 +190,7 @@ export default function PreviewPanel({
                 onClick={onOpenOutput}
                 className="h-9 px-5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
               >
-                📂 打开输出
+                📂 输出结果
               </button>
               <button
                 onClick={onClearResult}

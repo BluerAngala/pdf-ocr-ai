@@ -164,7 +164,7 @@ fn get_resources_dir() -> Result<std::path::PathBuf, String> {
 fn is_bundled() -> bool {
     if let Ok(exe_path) = std::env::current_exe() {
         if let Some(exe_dir) = exe_path.parent() {
-            let marker = exe_dir.join("resources").join("gjj-ocr-server");
+            let marker = exe_dir.join("resources").join("gjj-ocr-server.exe");
             if marker.exists() {
                 eprintln!("[is_bundled] Detected by resources marker: {:?}", marker);
                 return true;
@@ -209,7 +209,7 @@ fn get_project_root() -> Result<std::path::PathBuf, String> {
 
 fn get_python_path(_app_handle: &tauri::AppHandle) -> Result<String, String> {
     if is_bundled() {
-        let exe_path = get_resources_dir()?.join("gjj-ocr-server").join("gjj-ocr-server.exe");
+        let exe_path = get_resources_dir()?.join("gjj-ocr-server.exe");
         println!("Using bundled server exe: {:?}", exe_path);
         return Ok(exe_path.to_string_lossy().to_string());
     }

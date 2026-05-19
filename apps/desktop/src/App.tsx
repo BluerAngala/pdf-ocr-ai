@@ -345,7 +345,7 @@ export default function App() {
       let res: ProcessingResult = {} as ProcessingResult;
       if (currentModule === "non-litigation") {
         const rawResult = await sendRequest("non_litigation.process", {
-          preset_id: null,
+          preset_id: MODULE_CONFIG[currentModule]?.presetId || null,
           sample_root: sampleRoot || null,
           excel_path: excelFile || null,
           mode: "real_ocr",
@@ -355,7 +355,7 @@ export default function App() {
         res = rawResult as ProcessingResult;
       } else if (currentModule === "enforcement") {
         const rawResult = (await sendRequest("enforcement.extract", {
-          preset_id: null,
+          preset_id: MODULE_CONFIG[currentModule]?.presetId || null,
           input_dir: sampleRoot || null,
           excel_path: excelFile || null,
           force_ocr: forceOcr,

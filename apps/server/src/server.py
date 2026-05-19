@@ -12,7 +12,11 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import io as _io
+
 os.environ.setdefault("PYTHONUTF8", "1")
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
 if hasattr(sys, "flags") and not sys.flags.utf8_mode:
     try:
         sys.flags.utf8_mode = 1
@@ -36,8 +40,29 @@ def _sanitize(obj):
 def _safe_json_dumps(obj, **kwargs):
     return json.dumps(_sanitize(obj), ensure_ascii=False, **kwargs)
 
-sys.stdout = open(sys.stdout.fileno(), mode='w', encoding='utf-8', buffering=1, errors='replace')
-sys.stderr = open(sys.stderr.fileno(), mode='w', encoding='utf-8', buffering=1, errors='replace')
+def _force_utf8_stream(stream, mode='r'):
+    if stream is None:
+        return stream
+    try:
+        if hasattr(stream, 'reconfigure'):
+            stream.reconfigure(encoding='utf-8', errors='replace')
+            return stream
+    except Exception:
+        pass
+    try:
+        if hasattr(stream, 'buffer'):
+            return _io.TextIOWrapper(stream.buffer, encoding='utf-8', errors='replace', line_buffering=True)
+    except Exception:
+        pass
+    try:
+        return open(stream.fileno(), mode=mode, encoding='utf-8', buffering=1, errors='replace')
+    except Exception:
+        pass
+    return stream
+
+sys.stdin = _force_utf8_stream(sys.stdin, mode='r')
+sys.stdout = _force_utf8_stream(sys.stdout, mode='w')
+sys.stderr = _force_utf8_stream(sys.stderr, mode='w')
 
 if getattr(sys, "frozen", False):
     _exe_dir = Path(sys.executable).resolve().parent
@@ -49,20 +74,22 @@ if str(_server_src) not in sys.path:
 
 from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR
 
+print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"ROOT={ROOT}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}, stdin_encoding={getattr(sys.stdin, 'encoding', '?')}"}}), file=sys.stderr, flush=True)
+
 PRESET_SAMPLE_PATHS = {
-    "non-litigation-batch1": ["sample-data/non-litigation-batch1", "样本材料/非诉组自动化样本材料"],
-    "non-litigation-batch2": ["sample-data/non-litigation-batch2", "样本材料/非诉组自动化样本材料（第2批）"],
-    "enforcement-extract": ["sample-data/enforcement/extract", "样本材料/强制组-自动化/提取信息"],
-    "enforcement-print": ["sample-data/enforcement/print", "样本材料/强制组-自动化/自动打印"],
-    "company-query": ["sample-data/company-query", "样本材料/企业信息查询"],
+    "non-litigation-batch1": ["sample-data/non-litigation-batch1"],
+    "non-litigation-batch2": ["sample-data/non-litigation-batch2"],
+    "enforcement-extract": ["sample-data/enforcement/extract"],
+    "enforcement-print": ["sample-data/enforcement/print"],
+    "company-query": ["sample-data"],
 }
 
 PRESET_EXCEL_PATHS = {
-    "non-litigation-batch1": ["sample-data/non-litigation-batch1/台账及命名规则.xlsx", "样本材料/非诉组自动化样本材料/台账及命名规则.xlsx"],
-    "non-litigation-batch2": ["sample-data/non-litigation-batch2/台账及命名规则.xlsx", "样本材料/非诉组自动化样本材料（第2批）/台账及命名规则.xlsx"],
-    "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx", "样本材料/强制组-自动化/提取信息/非诉表格.xlsx"],
-    "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx", "样本材料/强制组-自动化/自动打印/AOL网上网立台账.xlsx"],
-    "company-query": ["sample-data/company-query/companies.xlsx", "样本材料/企业信息查询/5月案件-被执行人信息（新）(1).xlsx"],
+    "non-litigation-batch1": ["sample-data/non-litigation-batch1/台账及命名规则.xlsx"],
+    "non-litigation-batch2": ["sample-data/non-litigation-batch2/台账及命名规则.xlsx"],
+    "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx"],
+    "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx"],
+    "company-query": ["sample-data/may-cases.xlsx"],
 }
 
 
@@ -289,7 +316,11 @@ class JsonRpcServer:
                 sample_root_path = Path(sample_root)
                 if not sample_root_path.is_absolute():
                     sample_root_path = (ROOT / sample_root_path).resolve()
-                emitter.log("info", f"使用用户指定路径: {sample_root_path}")
+                if not sample_root_path.exists() and preset_id and preset_id in PRESET_SAMPLE_PATHS:
+                    emitter.log("warn", f"路径不存在({sample_root_path})，回退到预设路径")
+                    sample_root_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
+                else:
+                    emitter.log("info", f"使用用户指定路径: {sample_root_path}")
             elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
                 sample_root_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
                 emitter.log("info", f"通过预设 {preset_id} 解析路径: {sample_root_path}")
@@ -310,6 +341,17 @@ class JsonRpcServer:
                 excel_file_path = Path(excel_path)
                 if not excel_file_path.is_absolute():
                     excel_file_path = (ROOT / excel_file_path).resolve()
+                if not excel_file_path.exists():
+                    if preset_id and preset_id in PRESET_EXCEL_PATHS:
+                        emitter.log("warn", f"Excel不存在({excel_file_path})，回退到预设路径")
+                        excel_file_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
+                    else:
+                        for _pid, _paths in PRESET_EXCEL_PATHS.items():
+                            try:
+                                excel_file_path = _resolve_preset_path(_paths)
+                                break
+                            except FileNotFoundError:
+                                continue
             else:
                 from core.config_loader import load_config
                 _tmp_cfg = load_config()
@@ -514,18 +556,37 @@ class JsonRpcServer:
                 input_dir = Path(input_dir)
                 if not input_dir.is_absolute():
                     input_dir = (ROOT / input_dir).resolve()
+                if not input_dir.exists() and preset_id and preset_id in PRESET_SAMPLE_PATHS:
+                    print(f"[WARN] input_dir 不存在({input_dir})，回退到预设路径")
+                    input_dir = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
             elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
                 input_dir = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
             else:
                 input_dir = Path('.')
+
             if excel_path:
                 excel_path = Path(excel_path)
                 if not excel_path.is_absolute():
                     excel_path = (ROOT / excel_path).resolve()
+                if not excel_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
+                    print(f"[WARN] excel_path 不存在({excel_path})，回退到预设路径")
+                    excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
             elif preset_id and preset_id in PRESET_EXCEL_PATHS:
                 excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
             else:
                 excel_path = Path('.')
+
+            if not input_dir.exists():
+                raise FileNotFoundError(f"输入文件夹不存在: {input_dir} (ROOT={ROOT})")
+            if not excel_path.exists():
+                raise FileNotFoundError(f"台账文件不存在: {excel_path} (ROOT={ROOT})")
+
+            pdf_count = len(list(input_dir.glob('*.pdf'))) if input_dir.is_dir() else 0
+            if pdf_count == 0 and not mock_mode:
+                raise FileNotFoundError(f"输入文件夹中没有PDF文件: {input_dir}")
+
+            print(f"[INFO] 强制执行提取: input_dir={input_dir}, excel_path={excel_path}, pdf_count={pdf_count}")
+
             result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path, use_ocr=force_ocr, mock_mode=mock_mode)
             return {
                 "processed": result.get('processed', 0),
@@ -554,10 +615,29 @@ class JsonRpcServer:
 
         try:
             from infra.company_query import process_company_query
-            if preset_id and preset_id in PRESET_EXCEL_PATHS:
+            if excel_path:
+                excel_path = Path(excel_path)
+                if not excel_path.is_absolute():
+                    excel_path = (ROOT / excel_path).resolve()
+                if not excel_path.exists():
+                    if preset_id and preset_id in PRESET_EXCEL_PATHS:
+                        excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
+                    else:
+                        for _pid, _paths in PRESET_EXCEL_PATHS.items():
+                            try:
+                                excel_path = _resolve_preset_path(_paths)
+                                break
+                            except FileNotFoundError:
+                                continue
+            elif preset_id and preset_id in PRESET_EXCEL_PATHS:
                 excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
             else:
-                excel_path = Path(excel_path) if excel_path else Path('.')
+                for _pid, _paths in PRESET_EXCEL_PATHS.items():
+                    try:
+                        excel_path = _resolve_preset_path(_paths)
+                        break
+                    except FileNotFoundError:
+                        continue
 
             if not Path(excel_path).exists():
                 raise FileNotFoundError(f"Excel 文件不存在: {excel_path}")
@@ -880,10 +960,6 @@ class JsonRpcServer:
     def run(self):
         """运行服务器主循环"""
         print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"}}), file=sys.stderr, flush=True)
-
-        import io
-        if getattr(os, "frozen", False):
-            sys.stdin = io.TextIOWrapper(sys.stdin.buffer, encoding='utf-8', errors='replace')
         stdin_reader = sys.stdin
 
         while True:

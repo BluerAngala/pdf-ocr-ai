@@ -255,6 +255,7 @@ def process_company_query(
     cache_ttl_days: int = 0,
     task_id: str = "",
     emitter=None,
+    output_dir: Path = None,
 ) -> dict:
     config = _get_api_config()
     column_name = config["excel_column_name"]
@@ -385,8 +386,9 @@ def process_company_query(
     fail_count = sum(1 for r in ordered_results if r["status"] == "failed")
     cancelled = is_cancelled(task_id)
 
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
+    if output_dir is None:
+        output_dir = Path("output") / "company-query"
+    output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_excel_path = output_dir / f"企业查询结果_{timestamp}.xlsx"
 

@@ -29,6 +29,7 @@ export default function App() {
   const [currentModule, setCurrentModule] = useState<ModuleType>("non-litigation");
   const [sampleRoot, setSampleRoot] = useState("");
   const [excelFile, setExcelFile] = useState("");
+  const [outputDir, setOutputDir] = useState("");
   const [mockMode, setMockMode] = useState(false);
   const forceOcr = true;
   const [printerName, setPrinterName] = useState("");
@@ -193,6 +194,7 @@ export default function App() {
       setCurrentView("detail");
       setPreviewState("empty");
       setResult(null);
+      setOutputDir("");
       const config = MODULE_CONFIG[module];
       const preset = getPresetById(config.presetId);
       if (preset) {
@@ -244,6 +246,15 @@ export default function App() {
       if (result) setSampleRoot(result);
     } catch {
       addLog("error", "选择文件夹失败");
+    }
+  }, [addLog]);
+
+  const selectOutputDir = useCallback(async () => {
+    try {
+      const result = (await invoke("select_folder")) as string | null;
+      if (result) setOutputDir(result);
+    } catch {
+      addLog("error", "选择输出文件夹失败");
     }
   }, [addLog]);
 
@@ -351,6 +362,7 @@ export default function App() {
           mode: "real_ocr",
           force: false,
           task_id: taskId,
+          output_dir: outputDir || null,
         });
         res = rawResult as ProcessingResult;
       } else if (currentModule === "enforcement") {
@@ -360,6 +372,7 @@ export default function App() {
           excel_path: excelFile || null,
           force_ocr: forceOcr,
           mock_mode: mockMode,
+          output_dir: outputDir || null,
         })) as {
           processed?: number;
           extracted?: EnforcementExtracted[];
@@ -385,11 +398,13 @@ export default function App() {
           return;
         }
         const rawResult = (await sendRequest("company_query.process", {
+          preset_id: MODULE_CONFIG["company-query"]?.presetId || null,
           excel_path: excelFile,
           range_start: rangeStart,
           range_end: rangeEnd,
           cache_ttl_days: cacheTtlDays,
           task_id: taskId,
+          output_dir: outputDir || null,
         })) as {
           companies?: CompanyQueryItem[];
           total?: number;
@@ -570,6 +585,8 @@ export default function App() {
           onSampleRootChange={setSampleRoot}
           onExcelFileChange={setExcelFile}
           onMockModeChange={setMockMode}
+          outputDir={outputDir}
+          onOutputDirChange={setOutputDir}
           printerName={printerName}
           printCopies={printCopies}
           printers={printers}
@@ -579,6 +596,7 @@ export default function App() {
           onPreset={loadPreset}
           onSelectFolder={selectFolder}
           onSelectExcel={selectExcel}
+          onSelectOutputDir={selectOutputDir}
           onRun={startProcessing}
           onCancel={cancelProcessing}
           onLoadCache={loadCache}

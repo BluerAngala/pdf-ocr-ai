@@ -604,7 +604,7 @@ def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True) -> Dict[str, Ruli
     return results
 
 
-def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool = True, mock_mode: bool = False) -> Dict[str, Any]:
+def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool = True, mock_mode: bool = False, output_dir: Path = None) -> Dict[str, Any]:
     """
     强制执行组完整处理流程（供 server.py 调用）
 
@@ -630,7 +630,8 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
     stats = {"total_pdfs": processed, "total_excel_rows": 0, "matched_rows": 0, "unmatched_rows": 0, "withdraw_count": 0}
     updated_excel_path = ""
 
-    output_dir = USER_DATA_DIR / "output" / "enforcement"
+    if output_dir is None:
+        output_dir = USER_DATA_DIR / "output" / "enforcement"
     output_dir.mkdir(parents=True, exist_ok=True)
 
     if excel_path.exists():

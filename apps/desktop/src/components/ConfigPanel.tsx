@@ -9,6 +9,7 @@ interface Props {
   sampleRoot: string;
   excelFile: string;
   mockMode: boolean;
+  outputDir: string;
 
   running: boolean;
   printerName: string;
@@ -17,12 +18,14 @@ interface Props {
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
   onMockModeChange: (v: boolean) => void;
+  onOutputDirChange: (v: string) => void;
 
   onPrinterNameChange: (v: string) => void;
   onPrintCopiesChange: (v: number) => void;
   onPreset: () => void;
   onSelectFolder: () => void;
   onSelectExcel: () => void;
+  onSelectOutputDir: () => void;
   onRun: () => void;
   onCancel: () => void;
   onLoadCache: () => void;
@@ -51,6 +54,7 @@ export default function ConfigPanel({
   sampleRoot,
   excelFile,
   mockMode: _mockMode,
+  outputDir,
 
   running,
   printerName,
@@ -59,12 +63,14 @@ export default function ConfigPanel({
   onSampleRootChange,
   onExcelFileChange,
   onMockModeChange: _onMockModeChange,
+  onOutputDirChange,
 
   onPrinterNameChange,
   onPrintCopiesChange,
   onPreset,
   onSelectFolder,
   onSelectExcel,
+  onSelectOutputDir,
   onRun,
   onCancel,
   onLoadCache,
@@ -93,12 +99,15 @@ export default function ConfigPanel({
         <NonLitigationConfig
           sampleRoot={sampleRoot}
           excelFile={excelFile}
+          outputDir={outputDir}
           running={running}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
           onPreset={onPreset}
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}
+          onSelectOutputDir={onSelectOutputDir}
+          onOutputDirChange={onOutputDirChange}
           onRun={onRun}
           onCancel={onCancel}
         />
@@ -108,12 +117,15 @@ export default function ConfigPanel({
         <EnforcementConfig
           sampleRoot={sampleRoot}
           excelFile={excelFile}
+          outputDir={outputDir}
           running={running}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
           onPreset={onPreset}
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}
+          onSelectOutputDir={onSelectOutputDir}
+          onOutputDirChange={onOutputDirChange}
           onRun={onRun}
         />
       );
@@ -121,6 +133,7 @@ export default function ConfigPanel({
       return (
         <CompanyQueryConfig
           excelFile={excelFile}
+          outputDir={outputDir}
           running={running}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
@@ -131,6 +144,8 @@ export default function ConfigPanel({
           onCacheTtlDaysChange={onCacheTtlDaysChange}
           onPreset={onPreset}
           onSelectExcel={onSelectExcel}
+          onSelectOutputDir={onSelectOutputDir}
+          onOutputDirChange={onOutputDirChange}
           onRun={onRun}
           onCancel={onCancel}
           onLoadCache={onLoadCache}

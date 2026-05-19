@@ -17,10 +17,12 @@ interface Props {
   sampleRoot: string;
   excelFile: string;
   mockMode: boolean;
+  outputDir: string;
 
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
   onMockModeChange: (v: boolean) => void;
+  onOutputDirChange: (v: string) => void;
 
   printerName: string;
   printCopies: number;
@@ -31,6 +33,7 @@ interface Props {
   onPreset: () => void;
   onSelectFolder: () => void;
   onSelectExcel: () => void;
+  onSelectOutputDir: () => void;
   onRun: () => void;
   onCancel: () => void;
   onLoadCache: () => void;
@@ -81,6 +84,8 @@ export default function DetailView({
   onSampleRootChange,
   onExcelFileChange,
   onMockModeChange,
+  outputDir,
+  onOutputDirChange,
   printerName,
   printCopies,
   printers,
@@ -90,6 +95,7 @@ export default function DetailView({
   onPreset,
   onSelectFolder,
   onSelectExcel,
+  onSelectOutputDir,
   onRun,
   onCancel,
   onLoadCache,
@@ -217,6 +223,7 @@ export default function DetailView({
             sampleRoot={sampleRoot}
             excelFile={excelFile}
             mockMode={mockMode}
+            outputDir={outputDir}
             running={running}
             printerName={printerName}
             printCopies={printCopies}
@@ -224,11 +231,13 @@ export default function DetailView({
             onSampleRootChange={onSampleRootChange}
             onExcelFileChange={onExcelFileChange}
             onMockModeChange={onMockModeChange}
+            onOutputDirChange={onOutputDirChange}
             onPrinterNameChange={onPrinterNameChange}
             onPrintCopiesChange={onPrintCopiesChange}
             onPreset={onPreset}
             onSelectFolder={onSelectFolder}
             onSelectExcel={onSelectExcel}
+            onSelectOutputDir={onSelectOutputDir}
             onRun={onRun}
             onCancel={onCancel}
             onLoadCache={onLoadCache}

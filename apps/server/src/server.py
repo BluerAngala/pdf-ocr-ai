@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import io as _io
+import datetime as _datetime
 
 os.environ.setdefault("PYTHONUTF8", "1")
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
@@ -91,6 +92,22 @@ PRESET_EXCEL_PATHS = {
     "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx"],
     "company-query": ["sample-data/may-cases.xlsx"],
 }
+
+
+def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "") -> Path:
+    if user_dir:
+        d = Path(user_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    ts = _datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    parts = [ts]
+    if module:
+        parts.append(module)
+    if task_id:
+        parts.append(task_id)
+    d = USER_DATA_DIR / "output" / "_".join(parts)
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 def _resolve_preset_path(path_list):
@@ -278,6 +295,7 @@ class JsonRpcServer:
         mode = params.get('mode', 'mock')
         force = params.get('force', False)
         task_id = params.get('task_id', f"nl-{id}")
+        user_output_dir = params.get('output_dir')
         emitter = ProgressEmitter(task_id)
         from core.task_cancel import is_cancelled as _is_task_cancelled, clear as _clear_task
 
@@ -341,17 +359,9 @@ class JsonRpcServer:
                 excel_file_path = Path(excel_path)
                 if not excel_file_path.is_absolute():
                     excel_file_path = (ROOT / excel_file_path).resolve()
-                if not excel_file_path.exists():
-                    if preset_id and preset_id in PRESET_EXCEL_PATHS:
-                        emitter.log("warn", f"Excel不存在({excel_file_path})，回退到预设路径")
-                        excel_file_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-                    else:
-                        for _pid, _paths in PRESET_EXCEL_PATHS.items():
-                            try:
-                                excel_file_path = _resolve_preset_path(_paths)
-                                break
-                            except FileNotFoundError:
-                                continue
+                if not excel_file_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
+                    emitter.log("warn", f"Excel不存在({excel_file_path})，回退到预设路径")
+                    excel_file_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
             else:
                 from core.config_loader import load_config
                 _tmp_cfg = load_config()
@@ -364,8 +374,7 @@ class JsonRpcServer:
                 if excel_file_path is None:
                     excel_file_path = sample_root_path / excel_name
 
-            result_root = get_non_litigation_result_root(ROOT)
-            result_root.mkdir(parents=True, exist_ok=True)
+            result_root = _make_task_output_dir(task_id, "非诉审查", user_output_dir)
 
             total_t0 = __import__('time').perf_counter()
 
@@ -550,6 +559,7 @@ class JsonRpcServer:
         excel_path = params.get('excel_path')
         force_ocr = params.get('force_ocr', False)
         mock_mode = params.get('mock_mode', False)
+        user_output_dir = params.get('output_dir')
         try:
             from enforcement.extractor import process_enforcement_cases
             if input_dir:
@@ -587,7 +597,8 @@ class JsonRpcServer:
 
             print(f"[INFO] 强制执行提取: input_dir={input_dir}, excel_path={excel_path}, pdf_count={pdf_count}")
 
-            result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path, use_ocr=force_ocr, mock_mode=mock_mode)
+            task_output_dir = _make_task_output_dir("", "强制执行提取", user_output_dir)
+            result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path, use_ocr=force_ocr, mock_mode=mock_mode, output_dir=task_output_dir)
             return {
                 "processed": result.get('processed', 0),
                 "extracted": result.get('extracted', []),
@@ -611,6 +622,7 @@ class JsonRpcServer:
         range_end = params.get('range_end', 99999)
         cache_ttl_days = params.get('cache_ttl_days', 0)
         task_id = params.get('task_id', f"cq-{id}")
+        user_output_dir = params.get('output_dir')
         emitter = ProgressEmitter(task_id)
 
         try:
@@ -619,30 +631,18 @@ class JsonRpcServer:
                 excel_path = Path(excel_path)
                 if not excel_path.is_absolute():
                     excel_path = (ROOT / excel_path).resolve()
-                if not excel_path.exists():
-                    if preset_id and preset_id in PRESET_EXCEL_PATHS:
-                        excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-                    else:
-                        for _pid, _paths in PRESET_EXCEL_PATHS.items():
-                            try:
-                                excel_path = _resolve_preset_path(_paths)
-                                break
-                            except FileNotFoundError:
-                                continue
+                if not excel_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
+                    excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
             elif preset_id and preset_id in PRESET_EXCEL_PATHS:
                 excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
             else:
-                for _pid, _paths in PRESET_EXCEL_PATHS.items():
-                    try:
-                        excel_path = _resolve_preset_path(_paths)
-                        break
-                    except FileNotFoundError:
-                        continue
+                excel_path = Path('.')
 
             if not Path(excel_path).exists():
                 raise FileNotFoundError(f"Excel 文件不存在: {excel_path}")
 
             emitter.log("info", f"开始企业信息查询: {Path(excel_path).name} (第{range_start}-{range_end or '末'}条)")
+            task_output_dir = _make_task_output_dir(task_id, "企业查询", user_output_dir)
             result = process_company_query(
                 Path(excel_path),
                 range_start=range_start,
@@ -650,6 +650,7 @@ class JsonRpcServer:
                 cache_ttl_days=cache_ttl_days,
                 task_id=task_id,
                 emitter=emitter,
+                output_dir=task_output_dir,
             )
             cached = result.get('skipped_cached', 0)
             cancelled = result.get('cancelled', False)

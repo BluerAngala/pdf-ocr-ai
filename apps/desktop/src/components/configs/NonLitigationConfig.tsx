@@ -5,8 +5,11 @@ interface Props {
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
   onPreset: () => void;
+  outputDir: string;
   onSelectFolder: () => void;
   onSelectExcel: () => void;
+  onSelectOutputDir: () => void;
+  onOutputDirChange: (v: string) => void;
   onRun: () => void;
   onCancel: () => void;
 }
@@ -17,9 +20,12 @@ export default function NonLitigationConfig({
   running,
   onSampleRootChange,
   onExcelFileChange,
+  outputDir,
   onPreset,
   onSelectFolder,
   onSelectExcel,
+  onSelectOutputDir,
+  onOutputDirChange,
   onRun,
   onCancel,
 }: Props) {
@@ -87,6 +93,23 @@ export default function NonLitigationConfig({
                   />
                 </svg>
                 📊 选择文件
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-slate-500">📂 输出目录（可选）</label>
+              <input
+                type="text"
+                readOnly
+                value={outputDir}
+                onChange={(e) => onOutputDirChange(e.target.value)}
+                placeholder="默认按时间自动创建..."
+                className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+              />
+              <button
+                onClick={onSelectOutputDir}
+                className="w-full h-8 inline-flex items-center justify-center gap-1.5 rounded-md text-xs font-medium text-slate-600 bg-slate-50 border border-slate-200 hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700 transition-all cursor-pointer"
+              >
+                📁 选择输出目录
               </button>
             </div>
           </div>

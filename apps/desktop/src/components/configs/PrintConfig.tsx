@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { PrinterInfo } from "../../types";
+import { useState, useCallback } from "react";
+import type { PrinterInfo, PrintExcelColumn } from "../../types";
 
 interface Props {
   sampleRoot: string;
@@ -10,9 +10,9 @@ interface Props {
   running: boolean;
   rangeStart: number;
   rangeEnd: number;
-  companyNameColumn: string;
+  columnName: string;
+  excelColumns: PrintExcelColumn[];
   printMode: "single" | "double";
-  pageRange: "all" | "custom";
   customStartPage: number;
   customEndPage: number;
   onSampleRootChange: (v: string) => void;
@@ -21,24 +21,15 @@ interface Props {
   onPrintCopiesChange: (v: number) => void;
   onRangeStartChange: (v: number) => void;
   onRangeEndChange: (v: number) => void;
-  onCompanyNameColumnChange: (v: string) => void;
+  onColumnNameChange: (v: string) => void;
   onPrintModeChange: (v: "single" | "double") => void;
-  onPageRangeChange: (v: "all" | "custom") => void;
   onCustomStartPageChange: (v: number) => void;
   onCustomEndPageChange: (v: number) => void;
   onPreset: () => void;
   onSelectFolder: () => void;
   onSelectExcel: () => void;
   onRun: () => void;
-}
-
-interface AccordionSectionProps {
-  title: string;
-  icon: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  children: React.ReactNode;
-  extra?: React.ReactNode;
+  onLoadExcelColumns: () => void;
 }
 
 function AccordionSection({
@@ -48,7 +39,14 @@ function AccordionSection({
   onToggle,
   children,
   extra,
-}: AccordionSectionProps) {
+}: {
+  title: string;
+  icon: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: React.ReactNode;
+  extra?: React.ReactNode;
+}) {
   return (
     <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
       <div
@@ -73,7 +71,7 @@ function AccordionSection({
       </div>
       <div
         className={`transition-all duration-200 ease-in-out overflow-hidden ${
-          isOpen ? "max-h-[600px] opacity-100" : "max-h-0 opacity-0"
+          isOpen ? "max-h-[800px] opacity-100" : "max-h-0 opacity-0"
         }`}
       >
         <div className="p-4 space-y-3.5">{children}</div>
@@ -91,9 +89,9 @@ export default function PrintConfig({
   running,
   rangeStart,
   rangeEnd,
-  companyNameColumn,
+  columnName,
+  excelColumns,
   printMode,
-  pageRange: _pageRange,
   customStartPage,
   customEndPage,
   onSampleRootChange,
@@ -102,34 +100,38 @@ export default function PrintConfig({
   onPrintCopiesChange,
   onRangeStartChange,
   onRangeEndChange,
-  onCompanyNameColumnChange,
+  onColumnNameChange,
   onPrintModeChange,
-  onPageRangeChange: _onPageRangeChange,
   onCustomStartPageChange,
   onCustomEndPageChange,
   onPreset,
   onSelectFolder,
   onSelectExcel,
   onRun,
+  onLoadExcelColumns,
 }: Props) {
-  const [openSections, setOpenSections] = useState({
-    excel: true,
-    print: true,
-  });
+  const [openSections, setOpenSections] = useState({ excel: true, print: true });
+  const toggle = (s: keyof typeof openSections) => setOpenSections((p) => ({ ...p, [s]: !p[s] }));
 
-  const toggleSection = (section: keyof typeof openSections) => {
-    setOpenSections((prev) => ({ ...prev, [section]: !prev[section] }));
-  };
+  const handleExcelSelect = useCallback(() => {
+    onSelectExcel();
+  }, [onSelectExcel]);
+
+  const handleExcelChange = useCallback(
+    (v: string) => {
+      onExcelFileChange(v);
+    },
+    [onExcelFileChange],
+  );
 
   return (
     <div className="h-full flex flex-col gap-3 overflow-hidden">
       <div className="flex-1 overflow-y-auto space-y-3">
-        {/* Excel设置（包含材料文件夹） */}
         <AccordionSection
-          title="Excel设置"
+          title="台账与材料"
           icon="📊"
           isOpen={openSections.excel}
-          onToggle={() => toggleSection("excel")}
+          onToggle={() => toggle("excel")}
           extra={
             <button
               onClick={(e) => {
@@ -143,7 +145,6 @@ export default function PrintConfig({
           }
         >
           <div className="space-y-3">
-            {/* 材料文件夹 */}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-500">材料文件夹</label>
               <div className="flex gap-2">
@@ -172,20 +173,19 @@ export default function PrintConfig({
               </div>
             </div>
 
-            {/* Excel文件 */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">Excel文件</label>
+              <label className="text-xs font-medium text-slate-500">台账 Excel</label>
               <div className="flex gap-2">
                 <input
                   type="text"
                   readOnly
                   value={excelFile}
-                  onChange={(e) => onExcelFileChange(e.target.value)}
-                  placeholder="选择包含案号/公司名称的表格..."
+                  onChange={(e) => handleExcelChange(e.target.value)}
+                  placeholder="选择台账表格（可选）..."
                   className="flex-1 h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
                 />
                 <button
-                  onClick={onSelectExcel}
+                  onClick={handleExcelSelect}
                   className="h-8 w-8 flex items-center justify-center rounded-md text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-700 transition-all cursor-pointer"
                   title="选择Excel文件"
                 >
@@ -201,50 +201,85 @@ export default function PrintConfig({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500">起始行</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={rangeStart}
-                  onChange={(e) => onRangeStartChange(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-slate-500">结束行</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={rangeEnd}
-                  onChange={(e) => onRangeEndChange(Math.max(1, parseInt(e.target.value) || 1))}
-                  className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                />
-              </div>
-            </div>
+            {excelFile && (
+              <>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-slate-500">匹配字段</label>
+                    <button
+                      onClick={onLoadExcelColumns}
+                      className="text-[10px] text-blue-500 hover:text-blue-600 cursor-pointer"
+                    >
+                      读取列名
+                    </button>
+                  </div>
+                  {excelColumns.length > 0 ? (
+                    <select
+                      value={columnName}
+                      onChange={(e) => onColumnNameChange(e.target.value)}
+                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all cursor-pointer"
+                    >
+                      <option value="">-- 选择匹配列 --</option>
+                      {excelColumns.map((col) => (
+                        <option key={col.column} value={col.column}>
+                          {col.column} - {col.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={columnName}
+                      onChange={(e) => onColumnNameChange(e.target.value.toUpperCase())}
+                      placeholder="输入列字母，如 A、B、C..."
+                      maxLength={3}
+                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
+                    />
+                  )}
+                  <p className="text-[10px] text-slate-400">
+                    {columnName
+                      ? `按「列${columnName}」的值匹配文件夹中文件名`
+                      : "选择列后，按该列值自动匹配材料文件"}
+                  </p>
+                </div>
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">公司名称列</label>
-              <input
-                type="text"
-                value={companyNameColumn}
-                onChange={(e) => onCompanyNameColumnChange(e.target.value.toUpperCase())}
-                placeholder="如: A, B, C..."
-                maxLength={3}
-                className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-              />
-              <p className="text-[10px] text-slate-400">输入列字母，如 A、B、C</p>
-            </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-500">Excel 起始行</label>
+                    <input
+                      type="number"
+                      min={2}
+                      value={rangeStart}
+                      onChange={(e) =>
+                        onRangeStartChange(Math.max(2, parseInt(e.target.value) || 2))
+                      }
+                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-slate-500">Excel 结束行</label>
+                    <input
+                      type="number"
+                      min={2}
+                      value={rangeEnd}
+                      onChange={(e) => onRangeEndChange(Math.max(2, parseInt(e.target.value) || 2))}
+                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
+                    />
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-400">
+                  行范围决定打印顺序（第1行是表头，从第2行开始）
+                </p>
+              </>
+            )}
           </div>
         </AccordionSection>
 
-        {/* 打印设置 */}
         <AccordionSection
           title="打印设置"
           icon="🖨️"
           isOpen={openSections.print}
-          onToggle={() => toggleSection("print")}
+          onToggle={() => toggle("print")}
         >
           <div className="space-y-3">
             <div className="space-y-1.5">
@@ -264,7 +299,6 @@ export default function PrintConfig({
               </select>
             </div>
 
-            {/* 份数和打印方式并列 */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-500">份数</label>
@@ -290,34 +324,35 @@ export default function PrintConfig({
               </div>
             </div>
 
-            {/* 页面范围 - 起始页/结束页形式 */}
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">页面范围</label>
+              <label className="text-xs font-medium text-slate-500">打印页码范围（材料页码）</label>
               <div className="grid grid-cols-2 gap-3">
-                <input
-                  type="number"
-                  min={1}
-                  max={9999}
-                  value={customStartPage}
-                  onChange={(e) =>
-                    onCustomStartPageChange(Math.max(1, parseInt(e.target.value) || 1))
-                  }
-                  placeholder="1"
-                  className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                />
-                <input
-                  type="number"
-                  min={1}
-                  max={9999}
-                  value={customEndPage}
-                  onChange={(e) =>
-                    onCustomEndPageChange(Math.max(1, parseInt(e.target.value) || 1))
-                  }
-                  placeholder="9999"
-                  className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                />
+                <div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={customStartPage}
+                    onChange={(e) =>
+                      onCustomStartPageChange(Math.max(1, parseInt(e.target.value) || 1))
+                    }
+                    placeholder="起始页"
+                    className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
+                  />
+                </div>
+                <div>
+                  <input
+                    type="number"
+                    min={1}
+                    value={customEndPage}
+                    onChange={(e) =>
+                      onCustomEndPageChange(Math.max(1, parseInt(e.target.value) || 1))
+                    }
+                    placeholder="结束页"
+                    className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
+                  />
+                </div>
               </div>
-              <p className="text-[10px] text-slate-400">默认全部页，指定范围请输入起止页码</p>
+              <p className="text-[10px] text-slate-400">留 1 表示打印全部页面</p>
             </div>
           </div>
         </AccordionSection>

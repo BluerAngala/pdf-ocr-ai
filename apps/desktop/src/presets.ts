@@ -44,8 +44,8 @@ const PRESET_DEFS = [
     id: "company-query",
     name: "企业信息查询",
     description: "企业工商信息、司法信息查询",
-    sampleRel: "sample-data",
-    excelRel: "sample-data/may-cases.xlsx",
+    sampleRel: "sample-data/company-query",
+    excelRel: "sample-data/company-query/companies.xlsx",
     mode: "mock" as const,
   },
 ];

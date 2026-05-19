@@ -1,4 +1,4 @@
-import type { ModuleType, PrinterInfo } from "../types";
+import type { ModuleType, PrinterInfo, PrintExcelColumn } from "../types";
 import NonLitigationConfig from "./configs/NonLitigationConfig";
 import EnforcementConfig from "./configs/EnforcementConfig";
 import CompanyQueryConfig from "./configs/CompanyQueryConfig";
@@ -41,12 +41,12 @@ interface Props {
   onPrintCompanyNameColumnChange: (v: string) => void;
   printMode: "single" | "double";
   onPrintModeChange: (v: "single" | "double") => void;
-  printPageRange: "all" | "custom";
-  onPrintPageRangeChange: (v: "all" | "custom") => void;
   printCustomStartPage: number;
   onPrintCustomStartPageChange: (v: number) => void;
   printCustomEndPage: number;
   onPrintCustomEndPageChange: (v: number) => void;
+  printExcelColumns: PrintExcelColumn[];
+  onLoadExcelColumns: () => void;
 }
 
 export default function ConfigPanel({
@@ -86,12 +86,12 @@ export default function ConfigPanel({
   onPrintCompanyNameColumnChange,
   printMode,
   onPrintModeChange,
-  printPageRange,
-  onPrintPageRangeChange,
   printCustomStartPage,
   onPrintCustomStartPageChange,
   printCustomEndPage,
   onPrintCustomEndPageChange,
+  printExcelColumns,
+  onLoadExcelColumns,
 }: Props) {
   switch (moduleType) {
     case "non-litigation":
@@ -163,9 +163,9 @@ export default function ConfigPanel({
           running={running}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
-          companyNameColumn={printCompanyNameColumn}
+          columnName={printCompanyNameColumn}
+          excelColumns={printExcelColumns}
           printMode={printMode}
-          pageRange={printPageRange}
           customStartPage={printCustomStartPage}
           customEndPage={printCustomEndPage}
           onSampleRootChange={onSampleRootChange}
@@ -174,15 +174,15 @@ export default function ConfigPanel({
           onPrintCopiesChange={onPrintCopiesChange}
           onRangeStartChange={onRangeStartChange}
           onRangeEndChange={onRangeEndChange}
-          onCompanyNameColumnChange={onPrintCompanyNameColumnChange}
+          onColumnNameChange={onPrintCompanyNameColumnChange}
           onPrintModeChange={onPrintModeChange}
-          onPageRangeChange={onPrintPageRangeChange}
           onCustomStartPageChange={onPrintCustomStartPageChange}
           onCustomEndPageChange={onPrintCustomEndPageChange}
           onPreset={onPreset}
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}
           onRun={onRun}
+          onLoadExcelColumns={onLoadExcelColumns}
         />
       );
   }

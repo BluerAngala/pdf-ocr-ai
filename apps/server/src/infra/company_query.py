@@ -401,7 +401,77 @@ def process_company_query(
             values += [""] * (len(result_df) - len(values))
         result_df[col] = values[:len(result_df)]
 
-    result_df.to_excel(str(output_excel_path), index=False)
+    col_order = []
+    for c in ["被执行人", "现用名", "法代", "所在地", "社会信用代码"]:
+        if c in result_df.columns:
+            col_order.append(c)
+    for c in result_df.columns:
+        if c not in col_order:
+            col_order.append(c)
+    result_df = result_df[col_order]
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill, numbers
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "企业查询结果"
+
+    headers = list(result_df.columns)
+    ws.append(headers)
+
+    header_font = Font(name="微软雅黑", bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_border = Border(
+        left=Side(style="thin", color="B4C6E7"),
+        right=Side(style="thin", color="B4C6E7"),
+        top=Side(style="thin", color="B4C6E7"),
+        bottom=Side(style="thin", color="B4C6E7"),
+    )
+    for col_idx, _ in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    data_font = Font(name="微软雅黑", size=10)
+    data_align = Alignment(vertical="center", wrap_text=True)
+    success_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+    failed_fill = PatternFill(start_color="FCE4EC", end_color="FCE4EC", fill_type="solid")
+    warning_fill = PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
+
+    for row_idx, (_, row_data) in enumerate(result_df.iterrows(), 2):
+        for col_idx, header in enumerate(headers, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=row_data.get(header, ""))
+            cell.font = data_font
+            cell.alignment = data_align
+            cell.border = thin_border
+
+        status = ordered_results[row_idx - 2].get("status", "") if row_idx - 2 < len(ordered_results) else ""
+        if status == "success":
+            fill = success_fill
+        elif status == "failed":
+            fill = failed_fill
+        elif status == "warning":
+            fill = warning_fill
+        else:
+            fill = None
+        if fill:
+            for col_idx in range(1, len(headers) + 1):
+                ws.cell(row=row_idx, column=col_idx).fill = fill
+
+    col_widths = {"被执行人": 28, "现用名": 28, "法代": 14, "所在地": 30, "社会信用代码": 22}
+    for col_idx, header in enumerate(headers, 1):
+        from openpyxl.utils import get_column_letter
+        letter = get_column_letter(col_idx)
+        ws.column_dimensions[letter].width = col_widths.get(header, 15)
+
+    ws.auto_filter.ref = ws.dimensions
+    ws.freeze_panes = "A2"
+
+    wb.save(str(output_excel_path))
     clear_cancel(task_id)
 
     return {

@@ -86,6 +86,45 @@ export default function EnforcementResult({ result }: { result: ProcessingResult
         </div>
       </div>
 
+      {stats && stats.unmatched_details && stats.unmatched_details.length > 0 && (
+        <div>
+          <h4 className="text-[10px] font-semibold text-red-400 uppercase tracking-wider mb-2">
+            未匹配台账记录
+          </h4>
+          <div className="space-y-1.5">
+            {stats.unmatched_details.map(
+              (
+                item: {
+                  notice_number: string;
+                  respondent?: string;
+                  employee?: string;
+                  region?: string;
+                  reason: string;
+                },
+                i: number,
+              ) => (
+                <div key={i} className="border-l-2 border-l-red-400 bg-red-50/50 rounded px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-red-700 truncate">
+                      {item.notice_number}
+                    </span>
+                    {item.region && (
+                      <span className="text-[10px] text-slate-400 shrink-0">{item.region}</span>
+                    )}
+                  </div>
+                  {(item.respondent || item.employee) && (
+                    <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                      {[item.respondent, item.employee].filter(Boolean).join(" · ")}
+                    </p>
+                  )}
+                  <p className="text-[10px] text-red-400 mt-0.5">{item.reason}</p>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+      )}
+
       {extracted.length > 0 && (
         <div>
           <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">

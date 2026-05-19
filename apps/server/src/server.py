@@ -82,7 +82,7 @@ PRESET_SAMPLE_PATHS = {
     "non-litigation-batch2": ["sample-data/non-litigation-batch2"],
     "enforcement-extract": ["sample-data/enforcement/extract"],
     "enforcement-print": ["sample-data/enforcement/print"],
-    "company-query": ["sample-data"],
+    "company-query": ["sample-data/company-query"],
 }
 
 PRESET_EXCEL_PATHS = {
@@ -90,7 +90,7 @@ PRESET_EXCEL_PATHS = {
     "non-litigation-batch2": ["sample-data/non-litigation-batch2/台账及命名规则.xlsx"],
     "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx"],
     "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx"],
-    "company-query": ["sample-data/may-cases.xlsx"],
+    "company-query": ["sample-data/company-query/companies.xlsx"],
 }
 
 
@@ -196,7 +196,10 @@ class JsonRpcServer:
         self.methods['company_query.clear_cache'] = self._company_query_clear_cache
         self.methods['task.cancel'] = self._task_cancel
 
-        self.methods['print.process'] = self._print_process
+        self.methods['print.start'] = self._print_start
+        self.methods['print.cancel'] = self._print_cancel
+        self.methods['print.status'] = self._print_status
+        self.methods['print.excel_columns'] = self._print_excel_columns
         self.methods['print.list_printers'] = self._print_list_printers
         self.methods['print.check_printer'] = self._print_check_printer
 
@@ -599,12 +602,19 @@ class JsonRpcServer:
 
             task_output_dir = _make_task_output_dir("", "强制执行提取", user_output_dir)
             result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path, use_ocr=force_ocr, mock_mode=mock_mode, output_dir=task_output_dir)
+
+            stats = result.get('stats', {})
+            unmatched = stats.get('unmatched_details', [])
+            if unmatched:
+                for item in unmatched:
+                    print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": f"台账未匹配: {item.get('notice_number', '')} - {item.get('respondent', '')} ({item.get('reason', '')})"}}), file=sys.stderr, flush=True)
+
             return {
                 "processed": result.get('processed', 0),
                 "extracted": result.get('extracted', []),
                 "updated_excel_path": result.get('updated_excel_path', ''),
                 "output_dir": result.get('output_dir', ''),
-                "stats": result.get('stats', {}),
+                "stats": stats,
             }
         except Exception as e:
             raise Exception(f"强制执行提取失败: {str(e)}")
@@ -701,56 +711,103 @@ class JsonRpcServer:
 
     # ============ 自动打印模块 ============
 
-    def _print_process(self, params: Dict, id: Any) -> Dict:
-        folder_path = params.get('folder_path')
+    def _print_start(self, params: Dict, id: Any) -> Dict:
+        folder_path = params.get('folder_path', '')
+        excel_path = params.get('excel_path', '')
+        column_name = params.get('column_name', '')
+        range_start = params.get('range_start', 2)
+        range_end = params.get('range_end', 9999)
         printer_name = params.get('printer_name', '')
         copies = params.get('copies', 1)
+        page_start = params.get('page_start')
+        page_end = params.get('page_end')
+        print_mode = params.get('print_mode', 'single')
         task_id = params.get('task_id', f"print-{id}")
+
         emitter = ProgressEmitter(task_id)
 
         try:
-            from infra.print_service import process_print, list_printers, check_printer_status
-            folder = Path(folder_path) if folder_path else Path('.')
+            from infra.print_service import process_print_v2, list_printers, check_printer_status
+
+            if not folder_path:
+                raise Exception("请选择材料文件夹")
+            folder = Path(folder_path)
             if not folder.exists():
                 raise FileNotFoundError(f"文件夹不存在: {folder}")
 
-            # 检查打印机列表
+            if excel_path:
+                excel = Path(excel_path)
+                if not excel.exists():
+                    raise FileNotFoundError(f"台账文件不存在: {excel}")
+
             printers = list_printers()
             if not printers:
-                raise Exception("系统中未找到任何可用打印机，请检查打印机连接")
+                raise Exception("系统中未找到任何可用打印机")
 
             if not printer_name:
                 default = next((p for p in printers if p["is_default"]), None)
-                if default:
-                    printer_name = default["name"]
-                else:
-                    printer_name = printers[0]["name"]
+                printer_name = default["name"] if default else printers[0]["name"]
 
-            # 验证打印机状态
             printer_status = check_printer_status(printer_name)
             if not printer_status.get("available"):
-                raise Exception(f"打印机 '{printer_name}' 不可用: {printer_status.get('error', '未知错误')}")
-            
+                raise Exception(f"打印机 '{printer_name}' 不可用")
             if not printer_status.get("is_ready"):
-                status_msg = printer_status.get("status", "状态异常")
-                emitter.log("warn", f"打印机状态: {status_msg}")
+                emitter.log("warn", f"打印机状态: {printer_status.get('status', '异常')}")
 
-            emitter.log("info", f"开始提交打印任务: {folder} → {printer_name}")
-            result = process_print(folder, printer_name, copies, emitter=emitter)
-            
-            # 更新日志信息以反映新的状态字段
-            submitted = result.get('submitted', 0)
-            failed = result.get('failed', 0)
-            total = result.get('total_files', 0)
-            
-            if failed > 0:
-                emitter.log("warn", f"打印任务提交完成: {submitted}/{total} 成功, {failed} 失败")
-            else:
-                emitter.log("info", f"打印任务提交完成: {submitted}/{total} 成功")
-                
+            if page_start is not None:
+                page_start = int(page_start) if page_start else None
+            if page_end is not None:
+                page_end = int(page_end) if page_end else None
+
+            result = process_print_v2(
+                excel_path=excel_path,
+                folder_path=folder_path,
+                column_name=column_name,
+                range_start=int(range_start),
+                range_end=int(range_end),
+                printer_name=printer_name,
+                copies=int(copies),
+                page_start=page_start,
+                page_end=page_end,
+                print_mode=print_mode,
+                task_id=task_id,
+                emitter=emitter,
+            )
             return result
         except Exception as e:
+            from infra.print_service import _mgr
+            _mgr.finish_task(task_id, "failed")
             raise Exception(f"打印失败: {str(e)}")
+
+    def _print_cancel(self, params: Dict, id: Any) -> Dict:
+        task_id = params.get('task_id', '')
+        try:
+            from infra.print_service import cancel_print_task
+            ok = cancel_print_task(task_id)
+            return {"cancelled": ok, "task_id": task_id}
+        except Exception as e:
+            raise Exception(f"取消失败: {str(e)}")
+
+    def _print_status(self, params: Dict, id: Any) -> Dict:
+        task_id = params.get('task_id', '')
+        try:
+            from infra.print_service import get_print_task_status
+            info = get_print_task_status(task_id)
+            if info is None:
+                return {"status": "not_found", "task_id": task_id}
+            return info
+        except Exception as e:
+            raise Exception(f"查询状态失败: {str(e)}")
+
+    def _print_excel_columns(self, params: Dict, id: Any) -> Dict:
+        excel_path = params.get('excel_path', '')
+        try:
+            from infra.print_service import read_excel_columns
+            if not excel_path:
+                raise Exception("请指定Excel文件路径")
+            return read_excel_columns(excel_path)
+        except Exception as e:
+            raise Exception(f"读取Excel列失败: {str(e)}")
 
     def _print_list_printers(self, params: Dict, id: Any) -> Dict:
         try:
@@ -765,7 +822,6 @@ class JsonRpcServer:
             raise Exception(f"获取打印机列表失败: {str(e)}")
 
     def _print_check_printer(self, params: Dict, id: Any) -> Dict:
-        """检查指定打印机的状态"""
         try:
             from infra.print_service import check_printer_status
             printer_name = params.get('printer_name', '')

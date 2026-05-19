@@ -1,9 +1,15 @@
 import { useMemo } from "react";
-import type { ModuleType, PreviewState, ProcessingResult, CompanyQueryItem } from "../types";
+import type {
+  ModuleType,
+  PreviewState,
+  ProcessingResult,
+  CompanyQueryItem,
+  PrintTaskStatus,
+} from "../types";
 import NonLitigationResult from "./results/NonLitigationResult";
 import EnforcementResult from "./results/EnforcementResult";
 import CompanyQueryResult from "./results/CompanyQueryResult";
-import PrintCardGrid from "./results/PrintCardGrid";
+import PrintProgress from "./results/PrintCardGrid";
 
 interface Props {
   moduleType: ModuleType;
@@ -16,8 +22,10 @@ interface Props {
   progressMessage: string;
   result: ProcessingResult | null;
   liveCompanies: CompanyQueryItem[];
+  printTaskStatus: PrintTaskStatus | null;
   onOpenOutput: () => void;
   onClearResult: () => void;
+  onCancelPrint: () => void;
 }
 
 const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = {
@@ -35,11 +43,13 @@ const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = 
   },
 };
 
-const RESULT_COMPONENTS: Record<ModuleType, React.ComponentType<{ result: ProcessingResult }>> = {
+const RESULT_COMPONENTS: Record<
+  Exclude<ModuleType, "print">,
+  React.ComponentType<{ result: ProcessingResult }>
+> = {
   "non-litigation": NonLitigationResult,
   enforcement: EnforcementResult,
   "company-query": CompanyQueryResult,
-  print: PrintCardGrid,
 };
 
 const EMPTY_HINTS: Record<ModuleType, string> = {
@@ -60,8 +70,10 @@ export default function PreviewPanel({
   progressMessage,
   result,
   liveCompanies,
+  printTaskStatus,
   onOpenOutput,
   onClearResult,
+  onCancelPrint,
 }: Props) {
   const badge = STATUS_BADGE[previewState];
   // 是否有文件级进度
@@ -79,7 +91,7 @@ export default function PreviewPanel({
         : 100 / progressTotal;
     return Math.round(completedPhaseProgress + currentPhaseProgress);
   }, [progressCurrent, progressTotal, progressFileCurrent, progressFileTotal, hasFileProgress]);
-  const ResultComponent = RESULT_COMPONENTS[moduleType];
+  const ResultComponent = moduleType !== "print" ? RESULT_COMPONENTS[moduleType] : null;
   const emptyHint = EMPTY_HINTS[moduleType];
 
   const showLiveTable =
@@ -180,7 +192,17 @@ export default function PreviewPanel({
             </div>
           )}
 
-          {previewState === "result" && result && <ResultComponent result={result} />}
+          {previewState === "result" &&
+            result &&
+            (moduleType === "print" ? (
+              <PrintProgress
+                result={result}
+                taskStatus={printTaskStatus}
+                onCancel={onCancelPrint}
+              />
+            ) : ResultComponent ? (
+              <ResultComponent result={result} />
+            ) : null)}
         </div>
 
         {previewState === "result" && result && (

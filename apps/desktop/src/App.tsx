@@ -11,7 +11,8 @@ import type {
   CompanyQueryItem,
   EnforcementStats,
   EnforcementExtracted,
-  PrintFileItem,
+  PrintExcelColumn,
+  PrintTaskStatus,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { getPresetById, getPresets } from "./presets";
@@ -41,11 +42,12 @@ export default function App() {
   const [liveCompanies, setLiveCompanies] = useState<CompanyQueryItem[]>([]);
 
   // Print module specific states
-  const [printCompanyNameColumn, setPrintCompanyNameColumn] = useState("A");
+  const [printCompanyNameColumn, setPrintCompanyNameColumn] = useState("");
   const [printMode, setPrintMode] = useState<"single" | "double">("single");
-  const [printPageRange, setPrintPageRange] = useState<"all" | "custom">("all");
   const [printCustomStartPage, setPrintCustomStartPage] = useState(1);
   const [printCustomEndPage, setPrintCustomEndPage] = useState(1);
+  const [printExcelColumns, setPrintExcelColumns] = useState<PrintExcelColumn[]>([]);
+  const [printTaskStatus, setPrintTaskStatus] = useState<PrintTaskStatus | null>(null);
 
   const [previewState, setPreviewState] = useState<PreviewState>("empty");
   const [phase, setPhase] = useState("");
@@ -321,6 +323,56 @@ export default function App() {
     }
   }, [excelFile, addLog]);
 
+  const loadExcelColumns = useCallback(async () => {
+    if (!excelFile) return;
+    try {
+      const rawResult = (await sendRequest("print.excel_columns", {
+        excel_path: excelFile,
+      })) as { columns?: PrintExcelColumn[]; error?: string };
+      if (rawResult.error) {
+        addLog("error", `读取Excel列失败: ${rawResult.error}`);
+        return;
+      }
+      const cols = rawResult.columns || [];
+      setPrintExcelColumns(cols);
+      addLog("info", `已读取 ${cols.length} 列`);
+    } catch (e) {
+      const err = e as Error;
+      addLog("error", `读取Excel列失败: ${err?.message || e}`);
+    }
+  }, [excelFile, addLog]);
+
+  const cancelPrintProcessing = useCallback(async () => {
+    const taskId = currentTaskIdRef.current;
+    if (!taskId) return;
+    try {
+      await sendRequest("print.cancel", { task_id: taskId });
+      addLog("warn", "已发送打印中止请求...");
+    } catch {
+      addLog("error", "中止打印请求失败");
+    }
+  }, [addLog]);
+
+  const pollPrintStatusRef = useRef<((taskId: string) => Promise<void>) | null>(null);
+
+  const pollPrintStatus = useCallback(async (taskId: string) => {
+    try {
+      const rawResult = (await sendRequest("print.status", {
+        task_id: taskId,
+      })) as PrintTaskStatus;
+      setPrintTaskStatus(rawResult);
+      if (rawResult.status === "running" || rawResult.status === "pending") {
+        setTimeout(() => pollPrintStatusRef.current?.(taskId), 1000);
+      }
+    } catch {
+      // ignore poll errors
+    }
+  }, []);
+
+  useEffect(() => {
+    pollPrintStatusRef.current = pollPrintStatus;
+  }, [pollPrintStatus]);
+
   const cancelProcessing = useCallback(async () => {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
@@ -333,11 +385,11 @@ export default function App() {
   }, [addLog]);
 
   const startProcessing = useCallback(async () => {
-    if (!sampleRoot) {
+    if (!sampleRoot && currentModule !== "company-query") {
       alert("请选择样本材料文件夹");
       return;
     }
-    if (!excelFile) {
+    if (!excelFile && currentModule !== "print") {
       alert("请选择台账 Excel 文件");
       return;
     }
@@ -429,42 +481,62 @@ export default function App() {
         };
       } else if (currentModule === "print") {
         if (!sampleRoot) {
-          alert("请选择打印文件夹");
+          alert("请选择材料文件夹");
           setRunning(false);
           setPreviewState("empty");
           return;
         }
-        const rawResult = (await sendRequest("print.process", {
+        const rawResult = (await sendRequest("print.start", {
           folder_path: sampleRoot,
           excel_path: excelFile || undefined,
           range_start: excelFile ? rangeStart : undefined,
           range_end: excelFile ? rangeEnd : undefined,
-          company_name_column: excelFile ? printCompanyNameColumn : undefined,
+          column_name: excelFile ? printCompanyNameColumn : undefined,
           printer_name: printerName,
           copies: printCopies,
           print_mode: printMode,
-          page_range: printPageRange,
-          custom_start_page: printPageRange === "custom" ? printCustomStartPage : undefined,
-          custom_end_page: printPageRange === "custom" ? printCustomEndPage : undefined,
+          page_start: printCustomStartPage > 1 ? printCustomStartPage : undefined,
+          page_end: printCustomEndPage > 1 ? printCustomEndPage : undefined,
           task_id: taskId,
         })) as {
-          files?: PrintFileItem[];
-          total_files?: number;
-          printed?: number;
+          task_id?: string;
+          status?: string;
+          total_jobs?: number;
+          submitted?: number;
           failed?: number;
           printer_used?: string;
+          errors?: { company: string; file?: string; error: string }[];
         };
+        const printTaskId = rawResult.task_id || taskId;
+        setPrintTaskStatus({
+          task_id: printTaskId,
+          status:
+            rawResult.status === "cancelled"
+              ? "cancelled"
+              : rawResult.status === "failed"
+                ? "failed"
+                : "completed",
+          total_jobs: rawResult.total_jobs || 0,
+          completed_jobs: rawResult.submitted || 0,
+          failed_jobs: rawResult.failed || 0,
+          current_file: "",
+          current_company: "",
+          printer_name: rawResult.printer_used || printerName,
+          started_at: null,
+          finished_at: null,
+          error_count: (rawResult.errors || []).length,
+        });
         res = {
-          print_files: rawResult.files || [],
           print_stats:
-            rawResult.total_files !== undefined
+            rawResult.total_jobs !== undefined
               ? {
-                  total_files: rawResult.total_files,
-                  printed: rawResult.printed || 0,
+                  total_jobs: rawResult.total_jobs,
+                  submitted: rawResult.submitted || 0,
                   failed: rawResult.failed || 0,
                 }
               : undefined,
           printer_used: rawResult.printer_used || "",
+          print_task_id: printTaskId,
           summary: { result_root: sampleRoot },
         };
       }
@@ -484,6 +556,7 @@ export default function App() {
     currentModule,
     sampleRoot,
     excelFile,
+    outputDir,
     mockMode,
     forceOcr,
     printerName,
@@ -495,7 +568,6 @@ export default function App() {
     flushLogs,
     printCompanyNameColumn,
     printMode,
-    printPageRange,
     printCustomStartPage,
     printCustomEndPage,
   ]);
@@ -611,12 +683,14 @@ export default function App() {
           onPrintCompanyNameColumnChange={setPrintCompanyNameColumn}
           printMode={printMode}
           onPrintModeChange={setPrintMode}
-          printPageRange={printPageRange}
-          onPrintPageRangeChange={setPrintPageRange}
           printCustomStartPage={printCustomStartPage}
           onPrintCustomStartPageChange={setPrintCustomStartPage}
           printCustomEndPage={printCustomEndPage}
           onPrintCustomEndPageChange={setPrintCustomEndPage}
+          printExcelColumns={printExcelColumns}
+          onLoadExcelColumns={loadExcelColumns}
+          printTaskStatus={printTaskStatus}
+          onCancelPrint={cancelPrintProcessing}
           running={running}
           previewState={previewState}
           phase={phase}

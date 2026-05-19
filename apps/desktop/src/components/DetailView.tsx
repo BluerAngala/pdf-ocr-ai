@@ -6,6 +6,8 @@ import type {
   LogEntry,
   PrinterInfo,
   CompanyQueryItem,
+  PrintExcelColumn,
+  PrintTaskStatus,
 } from "../types";
 import ConfigPanel from "./ConfigPanel";
 import PreviewPanel from "./PreviewPanel";
@@ -49,12 +51,14 @@ interface Props {
   onPrintCompanyNameColumnChange: (v: string) => void;
   printMode: "single" | "double";
   onPrintModeChange: (v: "single" | "double") => void;
-  printPageRange: "all" | "custom";
-  onPrintPageRangeChange: (v: "all" | "custom") => void;
   printCustomStartPage: number;
   onPrintCustomStartPageChange: (v: number) => void;
   printCustomEndPage: number;
   onPrintCustomEndPageChange: (v: number) => void;
+  printExcelColumns: PrintExcelColumn[];
+  onLoadExcelColumns: () => void;
+  printTaskStatus: PrintTaskStatus | null;
+  onCancelPrint: () => void;
   running: boolean;
   previewState: PreviewState;
   phase: string;
@@ -111,12 +115,14 @@ export default function DetailView({
   onPrintCompanyNameColumnChange,
   printMode,
   onPrintModeChange,
-  printPageRange,
-  onPrintPageRangeChange,
   printCustomStartPage,
   onPrintCustomStartPageChange,
   printCustomEndPage,
   onPrintCustomEndPageChange,
+  printExcelColumns,
+  onLoadExcelColumns,
+  printTaskStatus,
+  onCancelPrint,
   running,
   previewState,
   phase,
@@ -252,12 +258,12 @@ export default function DetailView({
             onPrintCompanyNameColumnChange={onPrintCompanyNameColumnChange}
             printMode={printMode}
             onPrintModeChange={onPrintModeChange}
-            printPageRange={printPageRange}
-            onPrintPageRangeChange={onPrintPageRangeChange}
             printCustomStartPage={printCustomStartPage}
             onPrintCustomStartPageChange={onPrintCustomStartPageChange}
             printCustomEndPage={printCustomEndPage}
             onPrintCustomEndPageChange={onPrintCustomEndPageChange}
+            printExcelColumns={printExcelColumns}
+            onLoadExcelColumns={onLoadExcelColumns}
           />
         </div>
 
@@ -282,8 +288,10 @@ export default function DetailView({
               progressMessage={progressMessage}
               result={result}
               liveCompanies={liveCompanies}
+              printTaskStatus={printTaskStatus}
               onOpenOutput={onOpenOutput}
               onClearResult={onClearResult}
+              onCancelPrint={onCancelPrint}
             />
           </div>
 

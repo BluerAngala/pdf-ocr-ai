@@ -75,6 +75,13 @@ export interface EnforcementStats {
   matched_rows: number;
   unmatched_rows: number;
   withdraw_count: number;
+  unmatched_details?: {
+    notice_number: string;
+    respondent?: string;
+    employee?: string;
+    region?: string;
+    reason: string;
+  }[];
 }
 
 export interface CompanyQueryItem {
@@ -97,9 +104,29 @@ export interface CompanyQueryStats {
 
 export interface PrintFileItem {
   filename: string;
-  status: "printed" | "failed" | "pending" | "printing";
+  status: "printed" | "failed" | "pending" | "printing" | "submitted";
+  company?: string;
   pages?: number;
   error?: string;
+}
+
+export interface PrintTaskStatus {
+  task_id: string;
+  status: "pending" | "running" | "completed" | "cancelled" | "failed";
+  total_jobs: number;
+  completed_jobs: number;
+  failed_jobs: number;
+  current_file: string;
+  current_company: string;
+  printer_name: string;
+  started_at: number | null;
+  finished_at: number | null;
+  error_count: number;
+}
+
+export interface PrintExcelColumn {
+  column: string;
+  name: string;
 }
 
 export interface PrinterInfo {
@@ -139,7 +166,8 @@ export interface ProcessingResult {
   company_stats?: CompanyQueryStats;
   output_excel_path?: string;
   print_files?: PrintFileItem[];
-  print_stats?: { total_files: number; printed: number; failed: number };
+  print_stats?: { total_jobs: number; submitted: number; failed: number };
+  print_task_id?: string;
   printer_used?: string;
 }
 

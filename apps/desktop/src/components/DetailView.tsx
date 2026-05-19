@@ -62,7 +62,6 @@ interface Props {
   progressMessage: string;
   result: ProcessingResult | null;
   liveCompanies: CompanyQueryItem[];
-  onOpenReport: () => void;
   onOpenOutput: () => void;
   onClearResult: () => void;
   logs: LogEntry[];
@@ -122,7 +121,6 @@ export default function DetailView({
   progressMessage,
   result,
   liveCompanies,
-  onOpenReport,
   onOpenOutput,
   onClearResult,
   logs,
@@ -275,7 +273,6 @@ export default function DetailView({
               progressMessage={progressMessage}
               result={result}
               liveCompanies={liveCompanies}
-              onOpenReport={onOpenReport}
               onOpenOutput={onOpenOutput}
               onClearResult={onClearResult}
             />

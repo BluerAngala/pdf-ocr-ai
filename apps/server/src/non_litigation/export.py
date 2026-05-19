@@ -1364,6 +1364,14 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
     total_found = len(notice_files) + len(other_existing)
     _report(f"文件发现: 责催 {len(notice_files)} 个, 其他 {len(other_existing)} 个, 合计 {total_found} 个")
 
+    _global_done = [0]
+    _global_total = total_found
+
+    def _progress_update(filename: str):
+        _global_done[0] += 1
+        if progress_callback:
+            progress_callback(_global_done[0], _global_total, filename)
+
     shared_ocr = None
     shared_region_extractor = None
     shared_post_processor = None
@@ -1389,6 +1397,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 break
             if source_name in ocr_results:
                 skipped_count += 1
+                _progress_update(source_name)
                 continue
             t0 = time.perf_counter()
             result = _run_ocr_with_timeout(
@@ -1406,8 +1415,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
             ocr_results[source_name] = result
             _on_result(source_name, result)
             _report(f"[{idx}/{notice_count}] {source_name} ({file_dur:.1f}s)")
-            if progress_callback:
-                progress_callback(idx, notice_count, source_name)
+            _progress_update(source_name)
         notice_dur = time.perf_counter() - notice_start
         _report(f"责催完成: {notice_count} 个文件, 耗时 {notice_dur:.1f}s")
 
@@ -1435,6 +1443,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
             continue
         if filename in ocr_results:
             skipped_count += 1
+            _progress_update(filename)
             _report(f"[SKIP] {filename} (已有缓存)")
             continue
         doc_type = stem if stem in {'申请书', '授权书', '所函'} else None
@@ -1477,6 +1486,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                         _, result = future.result()
                         ocr_results[filename] = result
                         _on_result(filename, result)
+                        _progress_update(filename)
                         _report(f"  [并行完成] {filename}")
                     except Exception as e:
                         _report(f"  [并行失败] {filename}: {e}")
@@ -1500,6 +1510,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 )
                 ocr_results[filename] = result
                 _on_result(filename, result)
+                _progress_update(filename)
                 _report(f"  [{idx}/{len(parallel_candidates)}] {filename} done ({time.perf_counter() - t_file:.1f}s)")
 
         parallel_dur = time.perf_counter() - t_parallel
@@ -1537,8 +1548,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
         ocr_results[filename] = result
         _on_result(filename, result)
         _report(f"[{other_idx}/{other_total}] {filename} 完成 ({file_dur:.1f}s)")
-        if progress_callback:
-            progress_callback(other_idx, other_total, filename)
+        _progress_update(filename)
 
     for dt, dur in type_durations.items():
         _report(f"{dt}完成: {dur:.1f}s")

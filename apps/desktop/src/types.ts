@@ -33,6 +33,15 @@ export interface ValidationDetail {
   timing?: {
     total_duration?: number;
     method?: string;
+    avg_time_per_page?: number;
+  };
+  accuracy?: {
+    fallback_rate?: number;
+    region_first_hit_rate?: number;
+    keyword_detection_rate?: number;
+    text_quality?: string;
+    extraction_success?: boolean;
+    match_confidence?: number;
   };
 }
 
@@ -122,7 +131,6 @@ export interface ProcessingResult {
   validation_failed?: ValidationDetail[];
   validation_warnings?: ValidationDetail[];
   timing_statistics?: TimingStats;
-  html_report_path?: string;
   processed?: number;
   extracted?: EnforcementExtracted[];
   enforcement_stats?: EnforcementStats;

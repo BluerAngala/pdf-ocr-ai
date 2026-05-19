@@ -16,7 +16,6 @@ interface Props {
   progressMessage: string;
   result: ProcessingResult | null;
   liveCompanies: CompanyQueryItem[];
-  onOpenReport: () => void;
   onOpenOutput: () => void;
   onClearResult: () => void;
 }
@@ -61,7 +60,6 @@ export default function PreviewPanel({
   progressMessage,
   result,
   liveCompanies,
-  onOpenReport,
   onOpenOutput,
   onClearResult,
 }: Props) {
@@ -188,12 +186,6 @@ export default function PreviewPanel({
         {previewState === "result" && result && (
           <div className="shrink-0 px-4 py-3 border-t border-slate-100">
             <div className="flex gap-2 justify-center">
-              <button
-                onClick={onOpenReport}
-                className="h-9 px-5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 transition-colors cursor-pointer"
-              >
-                📄 查看报告
-              </button>
               <button
                 onClick={onOpenOutput}
                 className="h-9 px-5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"

@@ -372,7 +372,6 @@ export default function App() {
           extracted: rawResult.extracted || [],
           enforcement_stats: rawResult.stats,
           updated_excel_path: rawResult.updated_excel_path || "",
-          html_report_path: rawResult.updated_excel_path || undefined,
           summary: {
             created_count: rawResult.processed || 0,
             result_root: rawResult.output_dir || undefined,
@@ -485,23 +484,6 @@ export default function App() {
     printCustomStartPage,
     printCustomEndPage,
   ]);
-
-  const openReport = useCallback(async () => {
-    const path =
-      currentModule === "company-query"
-        ? result?.output_excel_path
-        : result?.html_report_path || result?.summary?.result_root;
-    if (!path) {
-      alert("报告尚未生成");
-      return;
-    }
-    try {
-      if (isTauri()) await invoke("open_path", { path });
-      else alert(`报告路径: ${path}`);
-    } catch (err) {
-      addLog("error", `打开报告失败: ${err}`);
-    }
-  }, [result, currentModule, addLog]);
 
   const openOutput = useCallback(async () => {
     const path =
@@ -627,7 +609,6 @@ export default function App() {
           progressMessage={progressMessage}
           result={result}
           liveCompanies={liveCompanies}
-          onOpenReport={openReport}
           onOpenOutput={openOutput}
           onClearResult={clearResult}
           logs={logs}

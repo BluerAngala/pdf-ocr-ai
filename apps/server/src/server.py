@@ -274,7 +274,6 @@ class JsonRpcServer:
                 )
                 from non_litigation.product import load_non_litigation_cases
                 from non_litigation.validator import validate_ocr_results
-                from non_litigation.report import generate_html_report
                 from non_litigation.evaluation import evaluate_non_litigation_quality
                 emitter.log("info", "所有模块导入成功")
             except ImportError as e:
@@ -329,8 +328,9 @@ class JsonRpcServer:
             total_t0 = __import__('time').perf_counter()
 
             # OCR 阶段
-            emitter.progress("ocr", 1, 4, "正在扫描文件...", 0, 0)
+            emitter.progress("ocr", 0, 100, "正在扫描文件...", 0, 0)
             emitter.log("info", f"输入目录: {input_root}")
+            ocr_file_total = [0]
             if mode == 'real_ocr':
                 import time as _time
                 import pickle as _pickle
@@ -368,7 +368,8 @@ class JsonRpcServer:
                 def ocr_progress(current, total, filename):
                     if _is_task_cancelled(task_id):
                         return
-                    emitter.progress("ocr", 1, 4, f"正在识别 ({current}/{total}): {filename}", current, total)
+                    ocr_file_total[0] = total
+                    emitter.progress("ocr", current, total + 2, f"正在识别 ({current}/{total}): {filename}", current, total)
 
                 def _save_cache(results):
                     try:
@@ -398,34 +399,32 @@ class JsonRpcServer:
                 emitter.log("info", "开始构建 mock OCR 数据...")
                 ocr_results = build_mock_ocr_results(sample_root_path, input_dir=input_root)
                 emitter.log("info", "Mock OCR 数据构建完成")
-            emitter.progress("ocr", 1, 4, "OCR 识别完成", 0, 0)
+            _ocr_total = ocr_file_total[0] if ocr_file_total[0] > 0 else len(ocr_results)
+            emitter.progress("ocr", _ocr_total, _ocr_total + 2, "OCR 识别完成", _ocr_total, _ocr_total)
 
             # 导出阶段
-            emitter.progress("export", 2, 4, "开始导出文件...")
+            emitter.progress("export", _ocr_total + 1, _ocr_total + 2, "开始导出文件...")
             export_result = export_non_litigation_standard_outputs(
                 sample_root=sample_root_path, input_dir=input_root,
                 output_root=result_root, ocr_results=ocr_results,
                 excel_path=excel_file_path,
             )
-            emitter.progress("export", 3, 4, f"导出完成: {export_result['created_count']} 个文件")
+            emitter.progress("export", _ocr_total + 1, _ocr_total + 2, f"导出完成: {export_result['created_count']} 个文件")
 
             # 验证阶段
-            emitter.progress("validation", 4, 4, "开始验证...")
+            emitter.progress("validation", _ocr_total + 2, _ocr_total + 2, "开始验证...")
             cases = load_non_litigation_cases(sample_root_path, excel_path=excel_file_path)
             validation_result = validate_ocr_results(cases, ocr_results, input_dir=input_root)
             quality = evaluate_non_litigation_quality(ROOT, result_root, sample_root=sample_root_path, excel_path=excel_file_path)
 
-            # 生成报告
-            html_report_path = USER_DATA_DIR / 'output' / 'ocr-validation-report.html'
-            html_report_path.parent.mkdir(parents=True, exist_ok=True)
-            generate_html_report(validation_result, html_report_path, mode=mode, runtime_seconds=0)
+            total_elapsed = __import__('time').perf_counter() - total_t0
 
             result = {
                 "success": True,
                 "summary": {
                     "sample_root": str(sample_root_path),
                     "result_root": str(result_root),
-                    "runtime_seconds": 0,
+                    "runtime_seconds": round(total_elapsed, 2),
                     "mode": mode,
                     "created_count": export_result['created_count'],
                     "quality": {
@@ -439,11 +438,9 @@ class JsonRpcServer:
                 "validation_failed": validation_result.get('failed_items', []),
                 "validation_warnings": validation_result.get('warning_items', []),
                 "timing_statistics": validation_result.get('timing_statistics', {}),
-                "html_report_path": str(html_report_path)
             }
 
             emitter.complete(True, result)
-            total_elapsed = __import__('time').perf_counter() - total_t0
             emitter.log("info", f"全部完成: OCR {ocr_elapsed:.1f}s + 导出/验证 {total_elapsed - ocr_elapsed:.1f}s = 总计 {total_elapsed:.1f}s")
             return result
 

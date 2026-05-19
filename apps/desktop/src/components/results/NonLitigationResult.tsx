@@ -1,4 +1,4 @@
-import type { ProcessingResult, ValidationDetail } from "../../types";
+import type { ProcessingResult, ValidationDetail, TimingStats } from "../../types";
 
 const STATUS_STYLE: Record<string, string> = {
   pass: "border-l-emerald-500 bg-emerald-50/50",
@@ -6,24 +6,100 @@ const STATUS_STYLE: Record<string, string> = {
   fail: "border-l-red-500 bg-red-50/50",
 };
 
+const METHOD_LABEL: Record<string, string> = {
+  pdfplumber: "PDF提取",
+  pdfplumber_sequential: "PDF提取",
+  rapidocr: "OCR",
+  region_first_sequential: "区域优先",
+  region_first: "区域优先",
+  mixed: "混合",
+};
+
+const TYPE_LABEL: Record<string, string> = {
+  notice: "责催",
+  application: "申请书",
+  authorization: "授权书",
+  letter: "所函",
+};
+
+function formatSeconds(s: number): string {
+  if (s < 60) return `${s.toFixed(1)}s`;
+  const m = Math.floor(s / 60);
+  const sec = (s % 60).toFixed(0);
+  return `${m}m${sec}s`;
+}
+
+function computeTimingSummary(ts: TimingStats | undefined) {
+  if (!ts) return null;
+  let grandTotal = 0;
+  let fileCount = 0;
+  let maxTime = 0;
+  let maxType = "";
+  for (const [type, stats] of Object.entries(ts)) {
+    grandTotal += stats.total;
+    fileCount += stats.count;
+    if (stats.max > maxTime) {
+      maxTime = stats.max;
+      maxType = type;
+    }
+  }
+  return {
+    grandTotal,
+    fileCount,
+    avgPerFile: fileCount > 0 ? grandTotal / fileCount : 0,
+    maxTime,
+    maxType,
+  };
+}
+
 function DetailItem({ item }: { item: ValidationDetail }) {
   const borderStyle = STATUS_STYLE[item.status] || "border-l-slate-300";
   const parts: string[] = [];
   const d = item.details || {};
+
   if (d.total_pages) parts.push(`${d.total_pages}页`);
   if (d.detected_cases) parts.push(`${d.detected_cases}案件`);
   const detectedNotices = d.detected_notices as string[] | undefined;
   if (detectedNotices?.length) parts.push(detectedNotices.slice(0, 2).join(", "));
-  if (item.timing?.total_duration) {
-    const methodMap: Record<string, string> = { pdfplumber: "PDF提取", rapidocr: "OCR识别" };
-    const method = item.timing.method || "";
-    parts.push(`${methodMap[method] || method} ${item.timing.total_duration.toFixed(1)}s`);
+
+  const strategy = d.optimization_strategy as string | undefined;
+  if (strategy && strategy !== "unknown") {
+    parts.push(METHOD_LABEL[strategy] || strategy);
   }
+
+  if (item.timing?.total_duration) {
+    parts.push(`${formatSeconds(item.timing.total_duration)}`);
+  }
+
+  const badges: string[] = [];
+  if (
+    item.accuracy?.region_first_hit_rate !== undefined &&
+    item.accuracy.region_first_hit_rate > 0
+  ) {
+    badges.push(`区域命中${Math.round(item.accuracy.region_first_hit_rate)}%`);
+  }
+  if (item.accuracy?.fallback_rate !== undefined && item.accuracy.fallback_rate > 0) {
+    badges.push(`回退${Math.round(item.accuracy.fallback_rate)}%`);
+  }
+  if (
+    item.accuracy?.keyword_detection_rate !== undefined &&
+    item.accuracy.keyword_detection_rate > 0
+  ) {
+    badges.push(`关键字${Math.round(item.accuracy.keyword_detection_rate)}%`);
+  }
+
+  const sameRootRemap = d.same_root_remap as boolean | undefined;
+  const suggestions = item.suggestions?.filter(Boolean).slice(0, 2) || [];
 
   return (
     <div className={`border-l-2 ${borderStyle} rounded px-3 py-2`}>
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium text-slate-700 truncate">{item.file_name}</span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-[10px] font-medium text-slate-400 shrink-0">
+            {TYPE_LABEL[item.file_type] || item.file_type}
+          </span>
+          <span className="text-xs font-medium text-slate-700 truncate">{item.file_name}</span>
+        </div>
         <span
           className={`text-[10px] font-semibold uppercase shrink-0 ${
             item.status === "pass"
@@ -39,12 +115,30 @@ function DetailItem({ item }: { item: ValidationDetail }) {
       </div>
       <p className="text-[11px] text-slate-500 mt-0.5 truncate">{item.message}</p>
       {parts.length > 0 && <p className="text-[10px] text-slate-400 mt-0.5">{parts.join(" · ")}</p>}
+      {badges.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {badges.map((b, i) => (
+            <span key={i} className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+              {b}
+            </span>
+          ))}
+        </div>
+      )}
+      {sameRootRemap && <p className="text-[10px] text-amber-600 mt-0.5">同根号重映射</p>}
+      {suggestions.length > 0 && (
+        <p className="text-[10px] text-slate-400 mt-0.5">{suggestions.join(" | ")}</p>
+      )}
     </div>
   );
 }
 
 export default function NonLitigationResult({ result }: { result: ProcessingResult }) {
   const v = result?.summary?.validation;
+  const ts = result?.timing_statistics;
+  const timingSummary = computeTimingSummary(ts);
+  const runtime = result?.summary?.runtime_seconds;
+  const mode = result?.summary?.mode;
+
   const failedItems = result?.validation_failed || [];
   const warningItems = result?.validation_warnings || [];
   const allDetails = result?.validation_details || [];
@@ -52,7 +146,7 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
   const showItems = [...failedItems, ...warningItems, ...passItems];
 
   return (
-    <div className="flex flex-col gap-4 h-full">
+    <div className="flex flex-col gap-3 h-full">
       <div className="grid grid-cols-5 gap-2">
         <div className="rounded-lg bg-slate-50 p-3 text-center border border-slate-100">
           <p className="text-lg font-bold text-slate-800">{v?.total ?? "-"}</p>
@@ -78,26 +172,37 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
         </div>
       </div>
 
-      {result.summary?.quality && (
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg bg-slate-50 px-3 py-2 flex items-center justify-between border border-slate-100">
-            <span className="text-[11px] text-slate-500">📄 生成文件</span>
-            <span className="text-sm font-bold text-slate-700">
-              {result.summary.created_count ?? "-"}
+      {timingSummary && (
+        <div className="rounded-lg bg-indigo-50/50 border border-indigo-100 px-3 py-2">
+          <div className="flex items-center gap-4 flex-wrap">
+            <span className="text-[11px] font-medium text-indigo-600">⏱ OCR 耗时</span>
+            <span className="text-[10px] text-slate-500">
+              总计{" "}
+              <strong className="text-slate-700">{formatSeconds(timingSummary.grandTotal)}</strong>
             </span>
-          </div>
-          <div className="rounded-lg bg-slate-50 px-3 py-2 flex items-center justify-between border border-slate-100">
-            <span className="text-[11px] text-slate-500">📊 页数匹配率</span>
-            <span className="text-sm font-bold text-slate-700">
-              {Math.round((result.summary.quality?.page_count_match_rate || 0) * 100)}%
+            <span className="text-[10px] text-slate-500">
+              均文件{" "}
+              <strong className="text-slate-700">{formatSeconds(timingSummary.avgPerFile)}</strong>
+            </span>
+            <span className="text-[10px] text-slate-500">
+              最慢{" "}
+              <strong className="text-slate-700">{formatSeconds(timingSummary.maxTime)}</strong>
+              <span className="text-slate-400 ml-0.5">
+                ({TYPE_LABEL[timingSummary.maxType] || timingSummary.maxType})
+              </span>
+            </span>
+            <span className="text-[10px] text-slate-400">
+              含导出验证{" "}
+              <strong className="text-slate-600">{runtime ? formatSeconds(runtime) : "-"}</strong>
+              {mode && <span className="ml-1">{mode === "real_ocr" ? "真实OCR" : "Mock"}</span>}
             </span>
           </div>
         </div>
       )}
 
       {showItems.length > 0 && (
-        <div>
-          <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="flex-1 min-h-0 flex flex-col">
+          <h4 className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-2 shrink-0">
             验证明细
           </h4>
           <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto">

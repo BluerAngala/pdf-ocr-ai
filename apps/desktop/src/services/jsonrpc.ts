@@ -115,7 +115,6 @@ function mockResponse(method: string, params: Record<string, unknown>): unknown 
           quality: { total_files: 12, page_count_matched: 11, page_count_match_rate: 0.92 },
           validation: { total: 12, passed: 11, warnings: 1, failed: 0, pass_rate: 0.92 },
         },
-        html_report_path: "/output/report.html",
       };
     case "enforcement.extract":
       return {

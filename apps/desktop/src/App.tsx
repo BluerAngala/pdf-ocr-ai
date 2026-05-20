@@ -444,12 +444,14 @@ export default function App() {
   const cancelPrintProcessing = useCallback(async () => {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
+    addLog("warn", `正在中止打印任务 ${taskId}...`);
+    setRunning(false);
+    currentTaskIdRef.current = null;
     try {
-      addLog("warn", `正在中止打印任务 ${taskId}...`);
-      const res = await sendRequest("print.cancel", { task_id: taskId });
-      addLog("warn", `中止打印已响应: ${JSON.stringify(res)}`);
+      await sendRequest("print.cancel", { task_id: taskId });
+      addLog("warn", "打印已中止");
     } catch (err) {
-      addLog("error", `中止打印请求失败: ${err}`);
+      addLog("error", `中止打印请求发送失败: ${err}`);
     }
   }, [addLog]);
 
@@ -575,12 +577,15 @@ export default function App() {
   const cancelProcessing = useCallback(async () => {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
+    addLog("warn", `正在取消任务 ${taskId}...`);
+    setRunning(false);
+    setPreviewState("empty");
+    currentTaskIdRef.current = null;
     try {
-      addLog("warn", `正在取消任务 ${taskId}...`);
-      const res = await sendRequest("task.cancel", { task_id: taskId });
-      addLog("warn", `取消请求已响应: ${JSON.stringify(res)}`);
+      await sendRequest("task.cancel", { task_id: taskId });
+      addLog("warn", "任务已取消");
     } catch (err) {
-      addLog("error", `取消请求失败: ${err}`);
+      addLog("error", `取消请求发送失败: ${err}`);
     }
   }, [addLog]);
 
@@ -755,10 +760,18 @@ export default function App() {
           summary: { result_root: sampleRoot },
         };
       }
+      if (!currentTaskIdRef.current) {
+        addLog("warn", "任务已取消，忽略后续结果");
+        return;
+      }
       setPreviewState("result");
       setResult(res);
       addLog("info", "处理完成！");
     } catch (err) {
+      if (!currentTaskIdRef.current) {
+        addLog("warn", "任务已取消，忽略后续响应");
+        return;
+      }
       const error = err as Error | string;
       const msg = typeof error === "string" ? error : (error as Error)?.message || String(error);
       addLog("error", `处理失败: ${msg}`);

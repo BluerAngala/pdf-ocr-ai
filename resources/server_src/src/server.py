@@ -74,7 +74,6 @@ if str(_server_src) not in sys.path:
     sys.path.insert(0, str(_server_src))
 
 from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR
-from core.task_cancel import CancelledError
 
 print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"ROOT={ROOT}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}, stdin_encoding={getattr(sys.stdin, 'encoding', '?')}"}}), file=sys.stderr, flush=True)
 
@@ -430,7 +429,7 @@ class JsonRpcServer:
 
                 def ocr_progress(current, total, filename):
                     if _is_task_cancelled(task_id):
-                        raise CancelledError("任务已取消")
+                        return
                     ocr_file_total[0] = total
                     emitter.progress("ocr", current, total + 2, f"正在识别 ({current}/{total}): {filename}", current, total)
 
@@ -452,7 +451,7 @@ class JsonRpcServer:
                 if _is_task_cancelled(task_id):
                     emitter.log("warn", f"任务已取消，已完成 {len(ocr_results)} 个文件的OCR（已缓存）")
                     emitter.complete(False, error="用户取消")
-                    raise CancelledError("任务已取消")
+                    raise Exception("任务已取消")
                 ocr_elapsed = _time.perf_counter() - ocr_t0
                 emitter.log("info", f"OCR 完成: {len(ocr_results)} 个文件, 耗时 {ocr_elapsed:.1f}s")
                 if not ocr_results:
@@ -507,9 +506,6 @@ class JsonRpcServer:
             emitter.log("info", f"全部完成: OCR {ocr_elapsed:.1f}s + 导出/验证 {total_elapsed - ocr_elapsed:.1f}s = 总计 {total_elapsed:.1f}s")
             return result
 
-        except CancelledError as e:
-            emitter.log("warn", str(e))
-            emitter.complete(False, error="用户取消")
         except Exception as e:
             emitter.log("error", f"处理失败: {str(e)}")
             emitter.complete(False, error=str(e))
@@ -667,12 +663,8 @@ class JsonRpcServer:
                 "output_dir": result.get('output_dir', ''),
                 "stats": stats,
             }
-        except CancelledError:
-            raise
         except Exception as e:
             raise Exception(f"强制执行提取失败: {str(e)}")
-        finally:
-            _clear_task(task_id)
 
     def _enforcement_fill_excel(self, params: Dict, id: Any) -> Dict:
         """回填到 Excel"""
@@ -736,12 +728,6 @@ class JsonRpcServer:
         from core.task_cancel import request_cancel, is_cancelled
         request_cancel(task_id)
         print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": f"收到取消请求: task_id={task_id}, 已设置标志={is_cancelled(task_id)}"}}), file=sys.stderr, flush=True)
-        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
-        from infra.print_service import cancel_print_task as _cancel_print
-        try:
-            _cancel_print(task_id)
-        except Exception:
-            pass
         return {"cancelled": True, "task_id": task_id}
 
     def _company_query_load_cache(self, params: Dict, id: Any) -> Dict:
@@ -1073,8 +1059,6 @@ class JsonRpcServer:
         try:
             result = self.methods[method](params, id)
             self._send_response(result, id)
-        except CancelledError:
-            self._send_error(-32001, "任务已取消", id)
         except Exception as e:
             import traceback as tb
             print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Method {method} failed: {str(e)}"}}), file=sys.stderr, flush=True)

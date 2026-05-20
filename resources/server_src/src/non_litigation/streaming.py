@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Callable, Dict, List, Optional, Any
 
 from core.paths import ROOT, USER_DATA_DIR
-from core.task_cancel import CancelledError
 from core.task_state import TaskStateManager, Task
 from core.region_extractor import RegionExtractor, REGIONS
 from core.text_postprocessor import TextPostProcessor
@@ -123,7 +122,7 @@ class StreamingBatchProcessor:
         while True:
             if cancel_check and cancel_check():
                 _log("收到取消信号，优雅退出")
-                raise CancelledError("用户取消")
+                break
 
             batch = self.state.get_pending(
                 batch_size=self.batch_size,
@@ -158,7 +157,7 @@ class StreamingBatchProcessor:
         for task in tasks:
             if cancel_check and cancel_check():
                 _log("收到取消信号，停止处理")
-                raise CancelledError("用户取消")
+                break
             try:
                 result = self._execute_task(task, cancel_check)
                 self.state.update_status(

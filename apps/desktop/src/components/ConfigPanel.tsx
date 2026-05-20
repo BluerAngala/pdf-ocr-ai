@@ -12,6 +12,7 @@ interface Props {
   outputDir: string;
 
   running: boolean;
+  cancelling: boolean;
   printerName: string;
   printCopies: number;
   printers: PrinterInfo[];
@@ -58,6 +59,7 @@ export default function ConfigPanel({
   outputDir,
 
   running,
+  cancelling,
   printerName,
   printCopies,
   printers,
@@ -103,6 +105,7 @@ export default function ConfigPanel({
           excelFile={excelFile}
           outputDir={outputDir}
           running={running}
+          cancelling={cancelling}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
           onPreset={onPreset}
@@ -121,6 +124,7 @@ export default function ConfigPanel({
           excelFile={excelFile}
           outputDir={outputDir}
           running={running}
+          cancelling={cancelling}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
           onPreset={onPreset}
@@ -138,6 +142,7 @@ export default function ConfigPanel({
           excelFile={excelFile}
           outputDir={outputDir}
           running={running}
+          cancelling={cancelling}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
           onExcelFileChange={onExcelFileChange}
@@ -164,6 +169,7 @@ export default function ConfigPanel({
           printCopies={printCopies}
           printers={printers}
           running={running}
+          cancelling={cancelling}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
           columnName={printCompanyNameColumn}

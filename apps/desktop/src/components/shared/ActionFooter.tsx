@@ -1,5 +1,6 @@
 interface Props {
   running: boolean;
+  cancelling?: boolean;
   onRun: () => void;
   onCancel: () => void;
   runLabel: string;
@@ -39,6 +40,7 @@ const CancelIcon = (
 
 export default function ActionFooter({
   running,
+  cancelling = false,
   onRun,
   onCancel,
   runLabel,
@@ -49,10 +51,11 @@ export default function ActionFooter({
     return (
       <button
         onClick={onCancel}
-        className="shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white bg-red-500 hover:bg-red-600 active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2"
+        disabled={cancelling}
+        className={`shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2 ${cancelling ? "bg-slate-400 cursor-not-allowed" : "bg-red-500 hover:bg-red-600"}`}
       >
         {CancelIcon}
-        取消任务
+        {cancelling ? "正在取消..." : "取消任务"}
       </button>
     );
   }

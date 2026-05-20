@@ -39,6 +39,7 @@ export async function setupJsonRpcListeners(
   onProgress: (params: ProgressParams) => void,
   onLog: (params: { level: string; message: string }) => void,
   onTaskComplete: (params: { success: boolean; result?: unknown }) => void,
+  onTaskCancelled?: (params: { task_id: string; cancelled: boolean }) => void,
 ) {
   if (!isTauri()) return () => {};
 
@@ -66,6 +67,8 @@ export async function setupJsonRpcListeners(
       onLog(notification.params as { level: string; message: string });
     else if (notification.method === "notify.task_complete")
       onTaskComplete(notification.params as { success: boolean; result?: unknown });
+    else if (notification.method === "notify.task_cancelled" && onTaskCancelled)
+      onTaskCancelled(notification.params as { task_id: string; cancelled: boolean });
   });
 
   return () => {

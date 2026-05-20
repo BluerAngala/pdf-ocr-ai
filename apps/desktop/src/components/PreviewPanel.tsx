@@ -40,6 +40,10 @@ const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = 
     text: "运行中",
     className: "text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded",
   },
+  cancelling: {
+    text: "正在取消...",
+    className: "text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded",
+  },
   result: {
     text: "完成",
     className: "text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded",
@@ -160,8 +164,28 @@ export default function PreviewPanel({
             </div>
           )}
 
-          {previewState === "progress" && (
+          {(previewState === "progress" || previewState === "cancelling") && (
             <div className="flex flex-col gap-3">
+              {previewState === "cancelling" && (
+                <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <svg
+                    className="w-4 h-4 text-amber-500 shrink-0 animate-spin"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
+                  </svg>
+                  <span className="text-xs font-medium text-amber-700">
+                    正在停止任务，等待当前操作完成...
+                  </span>
+                </div>
+              )}
               <div className="space-y-2">
                 {/* 第一行：阶段名 + 文件进度 */}
                 <div className="flex items-center justify-between">

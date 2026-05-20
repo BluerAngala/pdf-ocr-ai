@@ -5,6 +5,7 @@ interface Props {
   sampleRoot: string;
   excelFile: string;
   running: boolean;
+  cancelling?: boolean;
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
   onPreset: () => void;
@@ -21,6 +22,7 @@ export default function EnforcementConfig({
   sampleRoot,
   excelFile,
   running,
+  cancelling = false,
   onSampleRootChange,
   onExcelFileChange,
   outputDir,
@@ -85,6 +87,7 @@ export default function EnforcementConfig({
       </div>
       <ActionFooter
         running={running}
+        cancelling={cancelling}
         onRun={onRun}
         onCancel={onCancel}
         runLabel="开始提取"

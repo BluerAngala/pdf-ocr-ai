@@ -5,6 +5,7 @@ import NumberCombo from "../shared/NumberCombo";
 interface Props {
   excelFile: string;
   running: boolean;
+  cancelling?: boolean;
   rangeStart: number;
   rangeEnd: number;
   cacheTtlDays: number;
@@ -35,6 +36,7 @@ const CACHE_TTL_OPTIONS = [
 export default function CompanyQueryConfig({
   excelFile,
   running,
+  cancelling = false,
   rangeStart,
   rangeEnd,
   cacheTtlDays,
@@ -174,6 +176,7 @@ export default function CompanyQueryConfig({
 
       <ActionFooter
         running={running}
+        cancelling={cancelling}
         onRun={onRun}
         onCancel={onCancel}
         runLabel="开始查询"

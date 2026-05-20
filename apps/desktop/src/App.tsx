@@ -64,6 +64,7 @@ export default function App() {
   const [logsExpanded, setLogsExpanded] = useState(true);
 
   const [running, setRunning] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
 
   const [statusInfo, setStatusInfo] = useState<{
     status: SystemStatus | null;
@@ -114,6 +115,13 @@ export default function App() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
+  const resetTaskState = useCallback(() => {
+    setRunning(false);
+    setCancelling(false);
+    currentTaskIdRef.current = null;
+    setPreviewState("empty");
+  }, []);
+
   useEffect(() => {
     if (previewState === "result") {
       setLogsExpanded(false);
@@ -142,6 +150,7 @@ export default function App() {
 
   const handleProgressRef = useRef(handleProgress);
   const addLogRef = useRef(addLog);
+  const resetTaskStateRef = useRef(resetTaskState);
 
   useEffect(() => {
     handleProgressRef.current = handleProgress;
@@ -150,6 +159,10 @@ export default function App() {
   useEffect(() => {
     addLogRef.current = addLog;
   }, [addLog]);
+
+  useEffect(() => {
+    resetTaskStateRef.current = resetTaskState;
+  }, [resetTaskState]);
 
   const runningRef = useRef(false);
   useEffect(() => {
@@ -252,6 +265,13 @@ export default function App() {
         if (params.success && params.result) {
           setPreviewState("result");
           setResult(params.result as ProcessingResult);
+        }
+      },
+      (params) => {
+        const taskId = currentTaskIdRef.current;
+        if (taskId && params.task_id === taskId) {
+          resetTaskStateRef.current();
+          addLogRef.current("warn", `任务 ${params.task_id} 已取消`);
         }
       },
     ).then((cleanup) => {
@@ -443,17 +463,16 @@ export default function App() {
 
   const cancelPrintProcessing = useCallback(async () => {
     const taskId = currentTaskIdRef.current;
-    if (!taskId) return;
+    if (!taskId || cancelling) return;
+    setCancelling(true);
     addLog("warn", `正在中止打印任务 ${taskId}...`);
-    setRunning(false);
-    currentTaskIdRef.current = null;
     try {
-      await sendRequest("print.cancel", { task_id: taskId });
-      addLog("warn", "打印已中止");
+      await sendRequest("task.cancel", { task_id: taskId });
+      addLog("warn", "取消请求已发送");
     } catch (err) {
       addLog("error", `中止打印请求发送失败: ${err}`);
     }
-  }, [addLog]);
+  }, [addLog, cancelling]);
 
   const printOrders = useCallback(
     async (orders: number[]) => {
@@ -497,6 +516,7 @@ export default function App() {
           }[];
         };
         const printTaskId = rawResult.task_id || taskId;
+        if (currentTaskIdRef.current !== taskId) return;
         setPrintTaskStatus({
           task_id: printTaskId,
           status: "completed",
@@ -528,10 +548,14 @@ export default function App() {
         setPreviewState("result");
         addLog("info", `打印完成: ${rawResult.submitted || 0} 成功, ${rawResult.failed || 0} 失败`);
       } catch (err) {
+        if (currentTaskIdRef.current !== taskId) return;
         const msg = err instanceof Error ? err.message : String(err);
         addLog("error", `打印失败: ${msg}`);
       } finally {
-        setRunning(false);
+        if (currentTaskIdRef.current === taskId) {
+          setRunning(false);
+          setCancelling(false);
+        }
       }
     },
     [
@@ -576,18 +600,23 @@ export default function App() {
 
   const cancelProcessing = useCallback(async () => {
     const taskId = currentTaskIdRef.current;
-    if (!taskId) return;
+    if (!taskId || cancelling) return;
+    setCancelling(true);
     addLog("warn", `正在取消任务 ${taskId}...`);
-    setRunning(false);
-    setPreviewState("empty");
-    currentTaskIdRef.current = null;
+    setPreviewState("cancelling");
     try {
       await sendRequest("task.cancel", { task_id: taskId });
-      addLog("warn", "任务已取消");
+      addLog("warn", "取消请求已发送");
     } catch (err) {
       addLog("error", `取消请求发送失败: ${err}`);
     }
-  }, [addLog]);
+    setTimeout(() => {
+      if (currentTaskIdRef.current === taskId) {
+        addLog("warn", "取消超时，强制重置状态");
+        resetTaskState();
+      }
+    }, 10000);
+  }, [addLog, cancelling, resetTaskState]);
 
   const startProcessing = useCallback(async () => {
     if (!sampleRoot && currentModule !== "company-query") {
@@ -603,6 +632,7 @@ export default function App() {
     currentTaskIdRef.current = taskId;
     flushLogs();
     setRunning(true);
+    setCancelling(false);
     setLogsExpanded(true);
     setPreviewState("progress");
     setResult(null);
@@ -724,6 +754,7 @@ export default function App() {
           }[];
         };
         const printTaskId = rawResult.task_id || taskId;
+        if (currentTaskIdRef.current !== taskId) return;
         setPrintTaskStatus({
           task_id: printTaskId,
           status:
@@ -760,25 +791,26 @@ export default function App() {
           summary: { result_root: sampleRoot },
         };
       }
-      if (!currentTaskIdRef.current) {
-        addLog("warn", "任务已取消，忽略后续结果");
-        return;
-      }
+      if (currentTaskIdRef.current !== taskId) return;
       setPreviewState("result");
       setResult(res);
       addLog("info", "处理完成！");
     } catch (err) {
-      if (!currentTaskIdRef.current) {
-        addLog("warn", "任务已取消，忽略后续响应");
-        return;
-      }
+      if (currentTaskIdRef.current !== taskId) return;
       const error = err as Error | string;
       const msg = typeof error === "string" ? error : (error as Error)?.message || String(error);
-      addLog("error", `处理失败: ${msg}`);
-      alert(`处理失败: ${msg}`);
+      if (msg.includes("已取消") || msg.includes("cancel")) {
+        addLog("warn", "任务已取消");
+      } else {
+        addLog("error", `处理失败: ${msg}`);
+        alert(`处理失败: ${msg}`);
+      }
       setPreviewState("empty");
     } finally {
-      setRunning(false);
+      if (currentTaskIdRef.current === taskId) {
+        setRunning(false);
+        setCancelling(false);
+      }
     }
   }, [
     currentModule,
@@ -931,6 +963,7 @@ export default function App() {
           onSelectedOrdersChange={setSelectedOrders}
           onPrintOrders={printOrders}
           running={running}
+          cancelling={cancelling}
           previewState={previewState}
           phase={phase}
           progressCurrent={progressCurrent}

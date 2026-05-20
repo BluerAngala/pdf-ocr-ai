@@ -11,6 +11,7 @@ interface Props {
   printCopies: number;
   printers: PrinterInfo[];
   running: boolean;
+  cancelling?: boolean;
   rangeStart: number;
   rangeEnd: number;
   columnName: string;
@@ -92,6 +93,7 @@ export default function PrintConfig({
   printCopies,
   printers,
   running,
+  cancelling = false,
   rangeStart,
   rangeEnd,
   columnName,
@@ -296,6 +298,7 @@ export default function PrintConfig({
 
       <ActionFooter
         running={running}
+        cancelling={cancelling}
         onRun={onRun}
         onCancel={onCancel}
         runLabel={selectedPrintCount > 0 ? `开始打印 (${selectedPrintCount} 项)` : "开始打印"}

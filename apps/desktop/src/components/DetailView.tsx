@@ -63,6 +63,7 @@ interface Props {
   onSelectedOrdersChange: (orders: Set<number>) => void;
   onPrintOrders: (orders: number[]) => void;
   running: boolean;
+  cancelling: boolean;
   previewState: PreviewState;
   phase: string;
   progressCurrent: number;
@@ -130,6 +131,7 @@ export default function DetailView({
   onSelectedOrdersChange,
   onPrintOrders,
   running,
+  cancelling,
   previewState,
   phase,
   progressCurrent,
@@ -237,6 +239,7 @@ export default function DetailView({
             mockMode={mockMode}
             outputDir={outputDir}
             running={running}
+            cancelling={cancelling}
             printerName={printerName}
             printCopies={printCopies}
             printers={printers}

@@ -12,6 +12,7 @@ use tokio::sync::mpsc;
 #[allow(dead_code)]
 struct PythonService {
     child: Arc<Mutex<Option<Child>>>,
+    pid: Option<u32>,
     request_tx: Option<mpsc::UnboundedSender<String>>,
     initialized: bool,
     error_message: Option<String>,
@@ -141,8 +142,10 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
         }
     }
 
+    let pid: u32 = child.id().ok_or("Failed to get Python PID")?;
     Ok(PythonService {
         child: Arc::new(Mutex::new(Some(child))),
+        pid: Some(pid),
         request_tx: Some(request_tx),
         initialized: true,
         error_message: None,
@@ -280,6 +283,29 @@ async fn send_jsonrpc_request(
     Ok(())
 }
 
+// Tauri 命令：强制终止 Python 进程
+#[tauri::command]
+async fn kill_python(service: State<'_, PythonService>) -> Result<(), String> {
+    if let Some(pid) = service.pid {
+        #[cfg(target_os = "windows")]
+        {
+            std::process::Command::new("taskkill")
+                .args(["/F", "/T", "/PID", &pid.to_string()])
+                .spawn()
+                .map_err(|e| format!("Failed to kill Python (PID {}): {}", pid, e))?;
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::process::Command::new("kill")
+                .args(["-9", &pid.to_string()])
+                .spawn()
+                .map_err(|e| format!("Failed to kill Python (PID {}): {}", pid, e))?;
+        }
+        eprintln!("[kill_python] Python process (PID {}) killed", pid);
+    }
+    Ok(())
+}
+
 // Tauri 命令：选择文件夹
 #[tauri::command]
 async fn select_folder(window: Window) -> Result<Option<String>, String> {
@@ -399,6 +425,7 @@ fn main() {
                         // 返回一个未初始化的服务状态，避免 state not managed 错误
                         PythonService {
                             child: Arc::new(Mutex::new(None)),
+                            pid: None,
                             request_tx: None,
                             initialized: false,
                             error_message: Some(e),
@@ -414,6 +441,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             send_jsonrpc_request,
+            kill_python,
             select_folder,
             select_files,
             open_path,

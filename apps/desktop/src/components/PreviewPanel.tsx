@@ -26,6 +26,9 @@ interface Props {
   onOpenOutput: () => void;
   onClearResult: () => void;
   onCancelPrint: () => void;
+  selectedOrders: Set<number>;
+  onSelectedOrdersChange: (orders: Set<number>) => void;
+  onPrintOrders: (orders: number[]) => void;
 }
 
 const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = {
@@ -74,6 +77,9 @@ export default function PreviewPanel({
   onOpenOutput,
   onClearResult,
   onCancelPrint,
+  selectedOrders,
+  onSelectedOrdersChange,
+  onPrintOrders,
 }: Props) {
   const badge = STATUS_BADGE[previewState];
   // 是否有文件级进度
@@ -110,12 +116,30 @@ export default function PreviewPanel({
     <div className="flex-1 bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col overflow-hidden">
       <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">预览</h3>
-        <span className={badge.className}>{badge.text}</span>
+        <div className="flex items-center gap-2">
+          {previewState === "result" && result && moduleType !== "print" && (
+            <button
+              onClick={onOpenOutput}
+              className="h-6 px-2.5 text-[10px] font-medium text-slate-500 bg-white border border-slate-200 rounded hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer"
+            >
+              输出结果
+            </button>
+          )}
+          {previewState === "result" && result && (
+            <button
+              onClick={onClearResult}
+              className="h-6 px-2.5 text-[10px] font-medium text-slate-400 bg-white border border-slate-200 rounded hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition-colors cursor-pointer"
+            >
+              清空
+            </button>
+          )}
+          <span className={badge.className}>{badge.text}</span>
+        </div>
       </div>
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 h-full">
           {previewState === "empty" && (
-            <div className="flex-1 flex items-center justify-center">
+            <div className="h-full flex items-center justify-center">
               <div className="text-center space-y-2">
                 <svg
                   className="w-10 h-10 text-slate-200 mx-auto"
@@ -199,30 +223,14 @@ export default function PreviewPanel({
                 result={result}
                 taskStatus={printTaskStatus}
                 onCancel={onCancelPrint}
+                selectedOrders={selectedOrders}
+                onSelectedOrdersChange={onSelectedOrdersChange}
+                onPrintOrders={onPrintOrders}
               />
             ) : ResultComponent ? (
               <ResultComponent result={result} />
             ) : null)}
         </div>
-
-        {previewState === "result" && result && (
-          <div className="shrink-0 px-4 py-3 border-t border-slate-100">
-            <div className="flex gap-2 justify-center">
-              <button
-                onClick={onOpenOutput}
-                className="h-9 px-5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 transition-colors cursor-pointer"
-              >
-                📂 输出结果
-              </button>
-              <button
-                onClick={onClearResult}
-                className="h-9 px-5 text-sm font-medium text-slate-500 bg-white border border-slate-200 rounded-md hover:text-red-600 hover:border-red-300 hover:bg-red-50 transition-colors cursor-pointer"
-              >
-                🗑 清空当前
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

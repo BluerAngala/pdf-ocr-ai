@@ -1,5 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect } from "react";
 import type { PrinterInfo, PrintExcelColumn } from "../../types";
+import PathSelector from "../shared/PathSelector";
+import ActionFooter from "../shared/ActionFooter";
+import NumberCombo from "../shared/NumberCombo";
 
 interface Props {
   sampleRoot: string;
@@ -29,7 +32,9 @@ interface Props {
   onSelectFolder: () => void;
   onSelectExcel: () => void;
   onRun: () => void;
+  onCancel: () => void;
   onLoadExcelColumns: () => void;
+  selectedPrintCount: number;
 }
 
 function AccordionSection({
@@ -108,21 +113,19 @@ export default function PrintConfig({
   onSelectFolder,
   onSelectExcel,
   onRun,
+  onCancel,
   onLoadExcelColumns,
+  selectedPrintCount,
 }: Props) {
   const [openSections, setOpenSections] = useState({ excel: true, print: true });
   const toggle = (s: keyof typeof openSections) => setOpenSections((p) => ({ ...p, [s]: !p[s] }));
 
-  const handleExcelSelect = useCallback(() => {
-    onSelectExcel();
-  }, [onSelectExcel]);
-
-  const handleExcelChange = useCallback(
-    (v: string) => {
-      onExcelFileChange(v);
-    },
-    [onExcelFileChange],
-  );
+  useEffect(() => {
+    if (excelFile) {
+      onLoadExcelColumns();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [excelFile]);
 
   return (
     <div className="h-full flex flex-col gap-3 overflow-hidden">
@@ -144,135 +147,75 @@ export default function PrintConfig({
             </button>
           }
         >
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">材料文件夹</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={sampleRoot}
-                  onChange={(e) => onSampleRootChange(e.target.value)}
-                  placeholder="选择材料所在文件夹..."
-                  className="flex-1 h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                />
-                <button
-                  onClick={onSelectFolder}
-                  className="h-8 w-8 flex items-center justify-center rounded-md text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-700 transition-all cursor-pointer"
-                  title="选择文件夹"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
+          <PathSelector
+            label="材料文件夹"
+            value={sampleRoot}
+            onChange={onSampleRootChange}
+            onSelect={onSelectFolder}
+            placeholder="选择材料所在文件夹..."
+            accent="slate"
+            compact
+          />
+          <PathSelector
+            label="台账 Excel"
+            value={excelFile}
+            onChange={onExcelFileChange}
+            onSelect={onSelectExcel}
+            placeholder="选择台账表格（可选）..."
+            accent="slate"
+            compact
+          />
 
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-500">台账 Excel</label>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value={excelFile}
-                  onChange={(e) => handleExcelChange(e.target.value)}
-                  placeholder="选择台账表格（可选）..."
-                  className="flex-1 h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                />
-                <button
-                  onClick={handleExcelSelect}
-                  className="h-8 w-8 flex items-center justify-center rounded-md text-slate-600 bg-slate-50 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 hover:text-slate-700 transition-all cursor-pointer"
-                  title="选择Excel文件"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {excelFile && (
-              <>
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-slate-500">匹配字段</label>
-                    <button
-                      onClick={onLoadExcelColumns}
-                      className="text-[10px] text-blue-500 hover:text-blue-600 cursor-pointer"
-                    >
-                      读取列名
-                    </button>
-                  </div>
-                  {excelColumns.length > 0 ? (
-                    <select
-                      value={columnName}
-                      onChange={(e) => onColumnNameChange(e.target.value)}
-                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all cursor-pointer"
-                    >
-                      <option value="">-- 选择匹配列 --</option>
-                      {excelColumns.map((col) => (
-                        <option key={col.column} value={col.column}>
-                          {col.column} - {col.name}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={columnName}
-                      onChange={(e) => onColumnNameChange(e.target.value.toUpperCase())}
-                      placeholder="输入列字母，如 A、B、C..."
-                      maxLength={3}
-                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                    />
-                  )}
-                  <p className="text-[10px] text-slate-400">
-                    {columnName
-                      ? `按「列${columnName}」的值匹配文件夹中文件名`
-                      : "选择列后，按该列值自动匹配材料文件"}
+          {excelFile && (
+            <>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-slate-500">匹配字段</label>
+                {excelColumns.length > 0 ? (
+                  <select
+                    value={columnName}
+                    onChange={(e) => onColumnNameChange(e.target.value)}
+                    className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all cursor-pointer"
+                  >
+                    <option value="">-- 选择匹配列 --</option>
+                    {excelColumns.map((col) => (
+                      <option key={col.column} value={col.column}>
+                        {col.column} - {col.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-[11px] text-slate-400 h-8 flex items-center">
+                    正在读取列名...
                   </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-500">Excel 起始行</label>
-                    <input
-                      type="number"
-                      min={2}
-                      value={rangeStart}
-                      onChange={(e) =>
-                        onRangeStartChange(Math.max(2, parseInt(e.target.value) || 2))
-                      }
-                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-slate-500">Excel 结束行</label>
-                    <input
-                      type="number"
-                      min={2}
-                      value={rangeEnd}
-                      onChange={(e) => onRangeEndChange(Math.max(2, parseInt(e.target.value) || 2))}
-                      className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                    />
-                  </div>
-                </div>
+                )}
                 <p className="text-[10px] text-slate-400">
-                  行范围决定打印顺序（第1行是表头，从第2行开始）
+                  {columnName
+                    ? `按「列${columnName}」的值匹配文件夹中文件名`
+                    : "选择列后，按该列值自动匹配材料文件"}
                 </p>
-              </>
-            )}
-          </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <NumberCombo
+                  label="Excel 起始行"
+                  value={rangeStart}
+                  onChange={onRangeStartChange}
+                  min={2}
+                  shortcuts={[2, 5, 10, 20]}
+                />
+                <NumberCombo
+                  label="Excel 结束行"
+                  value={rangeEnd}
+                  onChange={onRangeEndChange}
+                  min={2}
+                  shortcuts={[5, 30, 50, 100, 200]}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400">
+                行范围决定打印顺序（第1行是表头，从第2行开始）
+              </p>
+            </>
+          )}
         </AccordionSection>
 
         <AccordionSection
@@ -327,30 +270,20 @@ export default function PrintConfig({
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-500">打印页码范围（材料页码）</label>
               <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={customStartPage}
-                    onChange={(e) =>
-                      onCustomStartPageChange(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    placeholder="起始页"
-                    className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                  />
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    min={1}
-                    value={customEndPage}
-                    onChange={(e) =>
-                      onCustomEndPageChange(Math.max(1, parseInt(e.target.value) || 1))
-                    }
-                    placeholder="结束页"
-                    className="w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-500/20 focus:border-slate-400 transition-all"
-                  />
-                </div>
+                <NumberCombo
+                  value={customStartPage}
+                  onChange={onCustomStartPageChange}
+                  min={1}
+                  shortcuts={[1, 2, 3]}
+                  placeholder="起始页"
+                />
+                <NumberCombo
+                  value={customEndPage}
+                  onChange={onCustomEndPageChange}
+                  min={1}
+                  shortcuts={[1, 2, 5, 10]}
+                  placeholder="结束页"
+                />
               </div>
               <p className="text-[10px] text-slate-400">留 1 表示打印全部页面</p>
             </div>
@@ -358,21 +291,23 @@ export default function PrintConfig({
         </AccordionSection>
       </div>
 
-      <button
-        onClick={onRun}
-        disabled={running}
-        className="shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white bg-slate-700 hover:bg-slate-800 active:scale-[0.98] transition-all shadow-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
-          />
-        </svg>
-        {running ? "打印中..." : "开始打印"}
-      </button>
+      <ActionFooter
+        running={running}
+        onRun={onRun}
+        onCancel={onCancel}
+        runLabel={selectedPrintCount > 0 ? `开始打印 (${selectedPrintCount} 项)` : "开始打印"}
+        runIcon={
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"
+            />
+          </svg>
+        }
+        accent="slate"
+      />
     </div>
   );
 }

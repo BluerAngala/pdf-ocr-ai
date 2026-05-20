@@ -387,7 +387,8 @@ def process_company_query(
     cancelled = is_cancelled(task_id)
 
     if output_dir is None:
-        output_dir = Path("output") / "company-query"
+        from core.paths import USER_DATA_DIR
+        output_dir = USER_DATA_DIR / "output" / "company-query"
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_excel_path = output_dir / f"企业查询结果_{timestamp}.xlsx"

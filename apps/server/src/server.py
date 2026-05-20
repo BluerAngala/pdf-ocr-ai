@@ -95,17 +95,15 @@ PRESET_EXCEL_PATHS = {
 
 
 def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "") -> Path:
-    if user_dir:
-        d = Path(user_dir)
-        d.mkdir(parents=True, exist_ok=True)
-        return d
     ts = _datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     parts = [ts]
     if module:
         parts.append(module)
     if task_id:
         parts.append(task_id)
-    d = USER_DATA_DIR / "output" / "_".join(parts)
+    subfolder = "_".join(parts)
+    base = Path(user_dir) if user_dir else USER_DATA_DIR / "output"
+    d = base / subfolder
     d.mkdir(parents=True, exist_ok=True)
     return d
 
@@ -168,9 +166,17 @@ class ProgressEmitter:
 
 
 class JsonRpcServer:
+    _LONG_METHODS = frozenset([
+        'non_litigation.process',
+        'enforcement.extract',
+        'company_query.process',
+        'print.start',
+    ])
+
     def __init__(self):
         self.methods = {}
         self.request_id = 0
+        self._stdout_lock = threading.Lock()
         self._register_methods()
 
     def _register_methods(self):
@@ -215,11 +221,13 @@ class JsonRpcServer:
 
     def _send_response(self, result: Any, id: Any):
         response = {"jsonrpc": "2.0", "result": result, "id": id}
-        print(_safe_json_dumps(response), flush=True)
+        with self._stdout_lock:
+            print(_safe_json_dumps(response), flush=True)
 
     def _send_error(self, code: int, message: str, id: Any, data: Optional[Dict] = None):
         error = {"jsonrpc": "2.0", "error": {"code": code, "message": message, "data": data}, "id": id}
-        print(_safe_json_dumps(error), flush=True)
+        with self._stdout_lock:
+            print(_safe_json_dumps(error), flush=True)
 
     # ============ OCR 模块 ============
 
@@ -557,14 +565,19 @@ class JsonRpcServer:
 
     def _enforcement_extract(self, params: Dict, id: Any) -> Dict:
         """从裁定书提取信息"""
+        from core.task_cancel import is_cancelled as _is_task_cancelled, clear as _clear_task
         preset_id = params.get('preset_id')
         input_dir = params.get('input_dir')
         excel_path = params.get('excel_path')
         force_ocr = params.get('force_ocr', False)
         mock_mode = params.get('mock_mode', False)
         user_output_dir = params.get('output_dir')
+        task_id = params.get('task_id', f'enf-{id}')
+        cancel_check = lambda: _is_task_cancelled(task_id)
         try:
             from enforcement.extractor import process_enforcement_cases
+            import pickle as _pickle
+            import time as _time
             if input_dir:
                 input_dir = Path(input_dir)
                 if not input_dir.is_absolute():
@@ -600,8 +613,42 @@ class JsonRpcServer:
 
             print(f"[INFO] 强制执行提取: input_dir={input_dir}, excel_path={excel_path}, pdf_count={pdf_count}")
 
-            task_output_dir = _make_task_output_dir("", "强制执行提取", user_output_dir)
-            result = process_enforcement_cases(input_dir=input_dir, excel_path=excel_path, use_ocr=force_ocr, mock_mode=mock_mode, output_dir=task_output_dir)
+            task_output_dir = _make_task_output_dir(task_id, "强制执行提取", user_output_dir)
+
+            enf_cache_path = USER_DATA_DIR / 'output' / 'enf-ocr-cache.pkl'
+            cached_results = None
+            if enf_cache_path.exists():
+                try:
+                    with open(enf_cache_path, 'rb') as f:
+                        cached_results = _pickle.load(f)
+                    if cached_results:
+                        print(f"[INFO] 加载强制执行OCR缓存: {len(cached_results)} 个文件")
+                except Exception:
+                    cached_results = None
+
+            def _save_enf_cache(cache):
+                try:
+                    enf_cache_path.parent.mkdir(parents=True, exist_ok=True)
+                    with open(enf_cache_path, 'wb') as f:
+                        _pickle.dump(cache, f)
+                except Exception:
+                    pass
+
+            def _on_enf_result(stem, info_dict, cache):
+                _save_enf_cache(cache)
+
+            result = process_enforcement_cases(
+                input_dir=input_dir, excel_path=excel_path,
+                use_ocr=force_ocr, mock_mode=mock_mode,
+                output_dir=task_output_dir, cancel_check=cancel_check,
+                cached_results=cached_results, result_callback=_on_enf_result,
+            )
+
+            _save_enf_cache(cached_results or {})
+
+            if _is_task_cancelled(task_id):
+                _clear_task(task_id)
+                raise Exception("任务已取消")
 
             stats = result.get('stats', {})
             unmatched = stats.get('unmatched_details', [])
@@ -770,6 +817,8 @@ class JsonRpcServer:
                 page_start=page_start,
                 page_end=page_end,
                 print_mode=print_mode,
+                dry_run=params.get('dry_run', False),
+                selected_orders=params.get('selected_orders'),
                 task_id=task_id,
                 emitter=emitter,
             )
@@ -996,8 +1045,8 @@ class JsonRpcServer:
 
     # ============ 主循环 ============
 
-    def handle_request(self, request: Dict):
-        """处理单个请求"""
+    def handle_request(self, request: Dict, *, background: bool = False):
+        """处理单个请求。background=True 表示在后台线程中调用，需 stdout_lock 保护输出"""
         method = request.get('method')
         params = request.get('params', {})
         id = request.get('id')
@@ -1016,30 +1065,53 @@ class JsonRpcServer:
 
     def run(self):
         """运行服务器主循环"""
+        import queue as _queue
         print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"}}), file=sys.stderr, flush=True)
-        stdin_reader = sys.stdin
+
+        input_queue = _queue.Queue()
+
+        def _stdin_reader():
+            while True:
+                try:
+                    line = sys.stdin.readline()
+                    if not line:
+                        input_queue.put(None)
+                        break
+                    line = line.strip()
+                    if line:
+                        input_queue.put(line)
+                except Exception:
+                    input_queue.put(None)
+                    break
+
+        reader_thread = threading.Thread(target=_stdin_reader, daemon=True)
+        reader_thread.start()
 
         while True:
             try:
-                line = stdin_reader.readline()
-                if not line:
+                line = input_queue.get(timeout=0.2)
+                if line is None:
                     break
-                line = line.strip()
-                if not line:
-                    continue
                 try:
                     request = json.loads(line)
                 except json.JSONDecodeError as e:
                     self._send_error(-32700, f"Parse error: {str(e)}", None)
                     continue
-                # 直接处理请求，不使用多线程（避免 GIL 问题）
-                self.handle_request(request)
+
+                method = request.get('method', '')
+                if method in self._LONG_METHODS:
+                    def _run_long(req=request):
+                        self.handle_request(req, background=True)
+                    threading.Thread(target=_run_long, daemon=True).start()
+                else:
+                    self.handle_request(request)
+            except _queue.Empty:
+                continue
             except KeyboardInterrupt:
                 break
             except Exception as e:
                 print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Server error: {str(e)}"}}), file=sys.stderr, flush=True)
 
-        stdin_reader.close()
         print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "info", "message": "Python JSON-RPC 服务已停止"}}), file=sys.stderr, flush=True)
 
 

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type {
   ModuleType,
   LogEntry,
@@ -36,7 +36,7 @@ export default function App() {
   const [printerName, setPrinterName] = useState("");
   const [printCopies, setPrintCopies] = useState(1);
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
-  const [rangeStart, setRangeStart] = useState(1);
+  const [rangeStart, setRangeStart] = useState(2);
   const [rangeEnd, setRangeEnd] = useState(99999);
   const [cacheTtlDays, setCacheTtlDays] = useState(7);
   const [liveCompanies, setLiveCompanies] = useState<CompanyQueryItem[]>([]);
@@ -48,6 +48,8 @@ export default function App() {
   const [printCustomEndPage, setPrintCustomEndPage] = useState(1);
   const [printExcelColumns, setPrintExcelColumns] = useState<PrintExcelColumn[]>([]);
   const [printTaskStatus, setPrintTaskStatus] = useState<PrintTaskStatus | null>(null);
+  const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
+  const autoPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [previewState, setPreviewState] = useState<PreviewState>("empty");
   const [phase, setPhase] = useState("");
@@ -58,7 +60,7 @@ export default function App() {
   const [progressMessage, setProgressMessage] = useState("");
   const [result, setResult] = useState<ProcessingResult | null>(null);
 
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [logsByModule, setLogsByModule] = useState<Record<string, LogEntry[]>>({});
   const [logsExpanded, setLogsExpanded] = useState(true);
 
   const [running, setRunning] = useState(false);
@@ -73,7 +75,7 @@ export default function App() {
   const logIdRef = useRef(0);
   const currentTaskIdRef = useRef<string | null>(null);
   const logsEndRef = useRef<HTMLDivElement>(null!);
-  const pendingLogsRef = useRef<LogEntry[]>([]);
+  const pendingLogsRef = useRef<{ module: string; entry: LogEntry }[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const MAX_LOGS = 500;
 
@@ -81,16 +83,21 @@ export default function App() {
     const pending = pendingLogsRef.current;
     if (pending.length === 0) return;
     pendingLogsRef.current = [];
-    setLogs((prev) => {
-      const merged = [...prev, ...pending];
-      return merged.length > MAX_LOGS ? merged.slice(merged.length - MAX_LOGS) : merged;
+    setLogsByModule((prev) => {
+      const next = { ...prev };
+      for (const { module, entry } of pending) {
+        const arr = next[module] ? [...next[module], entry] : [entry];
+        next[module] = arr.length > MAX_LOGS ? arr.slice(arr.length - MAX_LOGS) : arr;
+      }
+      return next;
     });
   }, []);
 
   const addLog = useCallback(
     (level: string, message: string) => {
       const time = new Date().toLocaleTimeString();
-      pendingLogsRef.current.push({ id: ++logIdRef.current, level, message, time });
+      const entry = { id: ++logIdRef.current, level, message, time };
+      pendingLogsRef.current.push({ module: currentModule, entry });
       if (!flushTimerRef.current) {
         flushTimerRef.current = setTimeout(() => {
           flushTimerRef.current = null;
@@ -98,8 +105,10 @@ export default function App() {
         }, 100);
       }
     },
-    [flushLogs],
+    [currentModule, flushLogs],
   );
+
+  const logs = useMemo(() => logsByModule[currentModule] || [], [logsByModule, currentModule]);
 
   useEffect(() => {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -141,6 +150,96 @@ export default function App() {
   useEffect(() => {
     addLogRef.current = addLog;
   }, [addLog]);
+
+  const runningRef = useRef(false);
+  useEffect(() => {
+    runningRef.current = running;
+  }, [running]);
+
+  const autoPreviewPrint = useCallback(async () => {
+    if (runningRef.current || !sampleRoot) return;
+    if (excelFile && !printCompanyNameColumn) return;
+    try {
+      const rawResult = (await sendRequest("print.start", {
+        folder_path: sampleRoot,
+        excel_path: excelFile || undefined,
+        column_name: printCompanyNameColumn || undefined,
+        range_start: excelFile ? rangeStart : undefined,
+        range_end: excelFile ? rangeEnd : undefined,
+        printer_name: printerName,
+        dry_run: true,
+        task_id: `preview-${Date.now()}`,
+      })) as {
+        task_id?: string;
+        dry_run?: boolean;
+        total_jobs?: number;
+        submitted?: number;
+        failed?: number;
+        printer_used?: string;
+        errors?: { company: string; error: string }[];
+        match_results?: {
+          order: number;
+          company: string;
+          row: number;
+          files: { name: string; path: string }[];
+          status: string;
+        }[];
+      };
+      const mr = rawResult.match_results || [];
+      setSelectedOrders(new Set(mr.map((m) => m.order)));
+      setPrintTaskStatus({
+        task_id: rawResult.task_id || "",
+        status: "completed",
+        total_jobs: rawResult.total_jobs || 0,
+        completed_jobs: rawResult.submitted || 0,
+        failed_jobs: rawResult.failed || 0,
+        current_file: "",
+        current_company: "",
+        printer_name: rawResult.printer_used || printerName,
+        started_at: null,
+        finished_at: null,
+        error_count: (rawResult.errors || []).length,
+      });
+      setResult({
+        print_stats: rawResult.total_jobs
+          ? {
+              total_jobs: rawResult.total_jobs,
+              submitted: rawResult.submitted || 0,
+              failed: rawResult.failed || 0,
+            }
+          : undefined,
+        printer_used: rawResult.printer_used || "",
+        print_dry_run: true,
+        print_errors: rawResult.errors || [],
+        print_match_results: mr,
+        summary: { result_root: sampleRoot },
+      });
+      setPreviewState("result");
+    } catch {
+      // auto-preview silently fails
+    }
+  }, [sampleRoot, excelFile, printCompanyNameColumn, rangeStart, rangeEnd, printerName]);
+
+  useEffect(() => {
+    if (currentModule !== "print" || !sampleRoot) return;
+    if (excelFile && !printCompanyNameColumn) return;
+    if (autoPreviewTimerRef.current) clearTimeout(autoPreviewTimerRef.current);
+    autoPreviewTimerRef.current = setTimeout(() => {
+      if (!runningRef.current) autoPreviewPrint();
+    }, 800);
+    return () => {
+      if (autoPreviewTimerRef.current) clearTimeout(autoPreviewTimerRef.current);
+    };
+  }, [
+    currentModule,
+    sampleRoot,
+    excelFile,
+    printCompanyNameColumn,
+    rangeStart,
+    rangeEnd,
+    printerName,
+    autoPreviewPrint,
+  ]);
 
   useEffect(() => {
     let unlistenFn: (() => void) | null = null;
@@ -353,7 +452,106 @@ export default function App() {
     }
   }, [addLog]);
 
+  const printOrders = useCallback(
+    async (orders: number[]) => {
+      if (running || !sampleRoot) return;
+      const taskId = `print-${Date.now()}`;
+      currentTaskIdRef.current = taskId;
+      setRunning(true);
+      setPreviewState("progress");
+      setResult(null);
+      addLog("info", `开始打印 ${orders.length} 条...`);
+      try {
+        const rawResult = (await sendRequest("print.start", {
+          folder_path: sampleRoot,
+          excel_path: excelFile || undefined,
+          column_name: printCompanyNameColumn || undefined,
+          range_start: excelFile ? rangeStart : undefined,
+          range_end: excelFile ? rangeEnd : undefined,
+          printer_name: printerName,
+          copies: printCopies,
+          print_mode: printMode,
+          page_start: printCustomStartPage > 1 ? printCustomStartPage : undefined,
+          page_end: printCustomEndPage > 1 ? printCustomEndPage : undefined,
+          dry_run: false,
+          selected_orders: orders,
+          task_id: taskId,
+        })) as {
+          task_id?: string;
+          status?: string;
+          dry_run?: boolean;
+          total_jobs?: number;
+          submitted?: number;
+          failed?: number;
+          printer_used?: string;
+          errors?: { company: string; file?: string; error: string }[];
+          match_results?: {
+            order: number;
+            company: string;
+            row: number;
+            files: { name: string; path: string }[];
+            status: string;
+          }[];
+        };
+        const printTaskId = rawResult.task_id || taskId;
+        setPrintTaskStatus({
+          task_id: printTaskId,
+          status: "completed",
+          total_jobs: rawResult.total_jobs || 0,
+          completed_jobs: rawResult.submitted || 0,
+          failed_jobs: rawResult.failed || 0,
+          current_file: "",
+          current_company: "",
+          printer_name: rawResult.printer_used || printerName,
+          started_at: null,
+          finished_at: null,
+          error_count: (rawResult.errors || []).length,
+        });
+        setResult((prev) => ({
+          ...prev,
+          print_stats: rawResult.total_jobs
+            ? {
+                total_jobs: rawResult.total_jobs,
+                submitted: rawResult.submitted || 0,
+                failed: rawResult.failed || 0,
+              }
+            : undefined,
+          printer_used: rawResult.printer_used || "",
+          print_dry_run: false,
+          print_errors: rawResult.errors || [],
+          print_match_results: prev?.print_match_results || rawResult.match_results || [],
+          summary: { result_root: sampleRoot },
+        }));
+        setPreviewState("result");
+        addLog("info", `打印完成: ${rawResult.submitted || 0} 成功, ${rawResult.failed || 0} 失败`);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        addLog("error", `打印失败: ${msg}`);
+      } finally {
+        setRunning(false);
+      }
+    },
+    [
+      running,
+      sampleRoot,
+      excelFile,
+      printCompanyNameColumn,
+      rangeStart,
+      rangeEnd,
+      printerName,
+      printCopies,
+      printMode,
+      printCustomStartPage,
+      printCustomEndPage,
+      addLog,
+    ],
+  );
+
   const pollPrintStatusRef = useRef<((taskId: string) => Promise<void>) | null>(null);
+  const resultRef = useRef(result);
+  useEffect(() => {
+    resultRef.current = result;
+  }, [result]);
 
   const pollPrintStatus = useCallback(async (taskId: string) => {
     try {
@@ -424,6 +622,7 @@ export default function App() {
           excel_path: excelFile || null,
           force_ocr: forceOcr,
           mock_mode: mockMode,
+          task_id: taskId,
           output_dir: outputDir || null,
         })) as {
           processed?: number;
@@ -491,21 +690,31 @@ export default function App() {
           excel_path: excelFile || undefined,
           range_start: excelFile ? rangeStart : undefined,
           range_end: excelFile ? rangeEnd : undefined,
-          column_name: excelFile ? printCompanyNameColumn : undefined,
+          column_name: printCompanyNameColumn || undefined,
           printer_name: printerName,
           copies: printCopies,
           print_mode: printMode,
           page_start: printCustomStartPage > 1 ? printCustomStartPage : undefined,
           page_end: printCustomEndPage > 1 ? printCustomEndPage : undefined,
+          dry_run: false,
+          selected_orders: selectedOrders.size > 0 ? Array.from(selectedOrders) : undefined,
           task_id: taskId,
         })) as {
           task_id?: string;
           status?: string;
+          dry_run?: boolean;
           total_jobs?: number;
           submitted?: number;
           failed?: number;
           printer_used?: string;
           errors?: { company: string; file?: string; error: string }[];
+          match_results?: {
+            order: number;
+            company: string;
+            row: number;
+            files: { name: string; path: string }[];
+            status: string;
+          }[];
         };
         const printTaskId = rawResult.task_id || taskId;
         setPrintTaskStatus({
@@ -537,6 +746,10 @@ export default function App() {
               : undefined,
           printer_used: rawResult.printer_used || "",
           print_task_id: printTaskId,
+          print_errors: rawResult.errors || [],
+          print_match_results:
+            resultRef.current?.print_match_results || rawResult.match_results || [],
+          print_dry_run: rawResult.dry_run || false,
           summary: { result_root: sampleRoot },
         };
       }
@@ -570,6 +783,7 @@ export default function App() {
     printMode,
     printCustomStartPage,
     printCustomEndPage,
+    selectedOrders,
   ]);
 
   const openOutput = useCallback(async () => {
@@ -588,20 +802,27 @@ export default function App() {
   }, [result, currentModule, addLog]);
 
   const copyLogs = useCallback(() => {
-    if (logs.length === 0) {
+    const currentLogs = logsByModule[currentModule] || [];
+    if (currentLogs.length === 0) {
       addLog("warn", "没有日志可复制");
       return;
     }
-    const text = logs.map((l) => `${l.time} [${l.level.toUpperCase()}] ${l.message}`).join("\n");
+    const text = currentLogs
+      .map((l) => `${l.time} [${l.level.toUpperCase()}] ${l.message}`)
+      .join("\n");
     navigator.clipboard
       .writeText(text)
       .then(() => addLog("info", "日志已复制到剪贴板"))
       .catch(() => addLog("error", "复制日志失败"));
-  }, [logs, addLog]);
+  }, [logsByModule, currentModule, addLog]);
 
   const clearLogs = useCallback(() => {
-    setLogs([]);
-  }, []);
+    setLogsByModule((prev) => {
+      const next = { ...prev };
+      delete next[currentModule];
+      return next;
+    });
+  }, [currentModule]);
 
   const loadStatus = useCallback(async () => {
     const info = await fetchSystemStatus();
@@ -691,6 +912,9 @@ export default function App() {
           onLoadExcelColumns={loadExcelColumns}
           printTaskStatus={printTaskStatus}
           onCancelPrint={cancelPrintProcessing}
+          selectedOrders={selectedOrders}
+          onSelectedOrdersChange={setSelectedOrders}
+          onPrintOrders={printOrders}
           running={running}
           previewState={previewState}
           phase={phase}

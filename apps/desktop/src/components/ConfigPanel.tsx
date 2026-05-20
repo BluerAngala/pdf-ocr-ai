@@ -47,6 +47,7 @@ interface Props {
   onPrintCustomEndPageChange: (v: number) => void;
   printExcelColumns: PrintExcelColumn[];
   onLoadExcelColumns: () => void;
+  selectedPrintCount: number;
 }
 
 export default function ConfigPanel({
@@ -92,6 +93,7 @@ export default function ConfigPanel({
   onPrintCustomEndPageChange,
   printExcelColumns,
   onLoadExcelColumns,
+  selectedPrintCount,
 }: Props) {
   switch (moduleType) {
     case "non-litigation":
@@ -127,6 +129,7 @@ export default function ConfigPanel({
           onSelectOutputDir={onSelectOutputDir}
           onOutputDirChange={onOutputDirChange}
           onRun={onRun}
+          onCancel={onCancel}
         />
       );
     case "company-query":
@@ -182,7 +185,9 @@ export default function ConfigPanel({
           onSelectFolder={onSelectFolder}
           onSelectExcel={onSelectExcel}
           onRun={onRun}
+          onCancel={onCancel}
           onLoadExcelColumns={onLoadExcelColumns}
+          selectedPrintCount={selectedPrintCount}
         />
       );
   }

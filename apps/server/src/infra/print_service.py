@@ -137,15 +137,13 @@ def _print_pdf_silent(pdf_path: Path, printer_name: str, copies: int = 1,
         except Exception as e:
             return {"filename": pdf_path.name, "status": "failed", "error": f"打印机不可用: {str(e)}"}
 
-        params = f'"{printer_name}"'
-        if copies > 1:
-            params += f" /c:{copies}"
+        abs_path = str(pdf_path.resolve())
 
         result = win32api.ShellExecute(
             0,
-            "printto",
-            str(pdf_path),
-            params,
+            "print",
+            abs_path,
+            f'/d:"{printer_name}"',
             ".",
             0,
         )
@@ -153,7 +151,12 @@ def _print_pdf_silent(pdf_path: Path, printer_name: str, copies: int = 1,
         if result > 32:
             return {"filename": pdf_path.name, "status": "submitted", "message": "已提交"}
         else:
-            return {"filename": pdf_path.name, "status": "failed", "error": f"提交失败 (错误码: {result})"}
+            error_map = {
+                0: "内存不足", 2: "文件未找到", 3: "路径未找到",
+                5: "访问拒绝", 31: "无关联程序", 32: "DLL未找到",
+            }
+            error_msg = error_map.get(result, f"未知错误码: {result}")
+            return {"filename": pdf_path.name, "status": "failed", "error": error_msg}
     except Exception as e:
         return {"filename": pdf_path.name, "status": "failed", "error": str(e)}
 
@@ -237,6 +240,8 @@ def process_print_v2(
     page_start: Optional[int] = None,
     page_end: Optional[int] = None,
     print_mode: str = "single",
+    dry_run: bool = False,
+    selected_orders: Optional[List[int]] = None,
     task_id: str = "print-0",
     emitter=None,
 ) -> dict:
@@ -250,61 +255,107 @@ def process_print_v2(
         if not folder.exists():
             raise FileNotFoundError(f"文件夹不存在: {folder}")
 
+        if not dry_run and _is_virtual_printer(printer_name):
+            dry_run = True
+            if emitter:
+                emitter.log("warn", f"检测到虚拟打印机「{printer_name}」，自动切换为匹配预览模式")
+
         if not printer_name:
             default = get_default_printer()
             if default:
                 printer_name = default
                 task.printer_name = printer_name
-            else:
-                raise Exception("未指定打印机且无默认打印机")
 
         company_entries = []
         if excel_path and column_name:
             col_data = read_excel_column_values(excel_path, column_name, range_start, range_end)
             company_entries = col_data.get("values", [])
-            if not company_entries:
-                raise Exception(f"Excel 指定列 {column_name} (行 {range_start}-{range_end}) 无数据")
+
+        match_results: List[dict] = []
+        order = 0
 
         if not company_entries:
             all_pdfs = sorted([p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() == ".pdf"],
                               key=lambda p: p.name)
             if not all_pdfs:
                 raise Exception(f"文件夹中无 PDF 文件: {folder}")
-            company_entries = [{"row": 0, "value": ""}]
-            task.total_jobs = len(all_pdfs)
+
+            for pdf_path in all_pdfs:
+                order += 1
+                match_results.append({
+                    "order": order,
+                    "company": "",
+                    "row": 0,
+                    "files": [{"name": pdf_path.name, "path": str(pdf_path.relative_to(folder))}],
+                    "status": "matched",
+                })
         else:
-            job_count = 0
             for entry in company_entries:
-                matched = _match_files_by_keyword(folder, entry["value"])
-                job_count += len(matched)
-            task.total_jobs = job_count
+                company_name = entry["value"]
+                row_idx = entry["row"]
+                matched = _match_files_by_keyword(folder, company_name)
+                order += 1
+                if matched:
+                    match_results.append({
+                        "order": order,
+                        "company": company_name,
+                        "row": row_idx,
+                        "files": [{"name": p.name, "path": str(p.relative_to(folder))} for p in matched],
+                        "status": "matched",
+                    })
+                else:
+                    match_results.append({
+                        "order": order,
+                        "company": company_name,
+                        "row": row_idx,
+                        "files": [],
+                        "status": "no_match",
+                    })
+                    task.errors.append({"company": company_name, "error": "未找到匹配文件"})
+                    if emitter:
+                        emitter.log("warn", f"行{row_idx}: 「{company_name}」未找到匹配PDF")
+
+        total_matched = sum(len(m["files"]) for m in match_results if m["status"] == "matched")
+        total_unmatched = sum(1 for m in match_results if m["status"] == "no_match")
+
+        if selected_orders:
+            order_set = set(selected_orders)
+            match_results = [m for m in match_results if m["order"] in order_set]
+            total_matched = sum(len(m["files"]) for m in match_results if m["status"] == "matched")
+            total_unmatched = sum(1 for m in match_results if m["status"] == "no_match")
 
         if emitter:
-            emitter.log("info", f"打印任务开始: {task.total_jobs} 个PDF, 打印机={printer_name}")
+            mode_label = "匹配预览" if dry_run else "打印"
+            emitter.log("info", f"{mode_label}: {total_matched} 个PDF已匹配, {total_unmatched} 条记录无匹配, 打印机={printer_name}")
 
+        if dry_run:
+            _mgr.finish_task(task_id, "completed")
+            return {
+                "task_id": task_id,
+                "status": "completed",
+                "dry_run": True,
+                "total_jobs": total_matched,
+                "submitted": total_matched,
+                "failed": total_unmatched,
+                "printer_used": printer_name,
+                "errors": task.errors[:50],
+                "match_results": match_results,
+            }
+
+        task.total_jobs = total_matched
         submitted = 0
         failed = 0
 
-        for entry in company_entries:
-            if task.cancel_event.is_set():
-                task.status = "cancelled"
-                if emitter:
-                    emitter.log("warn", "打印任务已取消")
-                break
+        for match_entry in match_results:
+            if match_entry["status"] != "matched":
+                continue
+            company_name = match_entry["company"]
 
-            company_name = entry["value"]
-            if company_name:
-                matched = _match_files_by_keyword(folder, company_name)
-            else:
-                matched = sorted([p for p in folder.rglob("*") if p.is_file() and p.suffix.lower() == ".pdf"],
-                                 key=lambda p: p.name)
+            for file_info in match_entry["files"]:
+                pdf_path = folder / file_info["path"]
+                if not pdf_path.exists():
+                    continue
 
-            if company_name and not matched:
-                task.errors.append({"company": company_name, "error": "未找到匹配文件"})
-                if emitter:
-                    emitter.log("warn", f"公司 '{company_name}' 未找到匹配PDF")
-
-            for pdf_path in matched:
                 if task.cancel_event.is_set():
                     task.status = "cancelled"
                     break
@@ -314,7 +365,7 @@ def process_print_v2(
 
                 if emitter:
                     detail = {"company": company_name, "file": pdf_path.name}
-                    emitter.progress("printing", task.completed_jobs + task.failed_jobs + 1,
+                    emitter.progress("printing", submitted + failed + 1,
                                      task.total_jobs, f"打印: {pdf_path.name}", detail=detail)
 
                 result = _print_pdf_silent(pdf_path, printer_name, copies, page_start, page_end)
@@ -329,6 +380,9 @@ def process_print_v2(
 
                 time.sleep(0.3)
 
+            if task.cancel_event.is_set():
+                break
+
         _mgr.finish_task(task_id, "cancelled" if task.cancel_event.is_set() else "completed")
 
         if emitter:
@@ -340,11 +394,13 @@ def process_print_v2(
         return {
             "task_id": task_id,
             "status": task.status,
+            "dry_run": False,
             "total_jobs": task.total_jobs,
             "submitted": submitted,
             "failed": failed,
             "printer_used": printer_name,
             "errors": task.errors[:50],
+            "match_results": match_results,
         }
     except Exception as e:
         _mgr.finish_task(task_id, "failed")

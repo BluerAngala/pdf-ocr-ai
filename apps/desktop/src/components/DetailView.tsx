@@ -59,6 +59,9 @@ interface Props {
   onLoadExcelColumns: () => void;
   printTaskStatus: PrintTaskStatus | null;
   onCancelPrint: () => void;
+  selectedOrders: Set<number>;
+  onSelectedOrdersChange: (orders: Set<number>) => void;
+  onPrintOrders: (orders: number[]) => void;
   running: boolean;
   previewState: PreviewState;
   phase: string;
@@ -123,6 +126,9 @@ export default function DetailView({
   onLoadExcelColumns,
   printTaskStatus,
   onCancelPrint,
+  selectedOrders,
+  onSelectedOrdersChange,
+  onPrintOrders,
   running,
   previewState,
   phase,
@@ -264,6 +270,7 @@ export default function DetailView({
             onPrintCustomEndPageChange={onPrintCustomEndPageChange}
             printExcelColumns={printExcelColumns}
             onLoadExcelColumns={onLoadExcelColumns}
+            selectedPrintCount={selectedOrders.size}
           />
         </div>
 
@@ -292,6 +299,9 @@ export default function DetailView({
               onOpenOutput={onOpenOutput}
               onClearResult={onClearResult}
               onCancelPrint={onCancelPrint}
+              selectedOrders={selectedOrders}
+              onSelectedOrdersChange={onSelectedOrdersChange}
+              onPrintOrders={onPrintOrders}
             />
           </div>
 

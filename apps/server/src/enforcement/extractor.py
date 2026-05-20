@@ -156,6 +156,22 @@ class RulingInfo:
             'is_withdraw': self.is_withdraw,
         }
 
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "RulingInfo":
+        return cls(
+            court_case_number=d.get('court_case_number', ''),
+            notice_numbers=d.get('notice_numbers', []),
+            applicants=d.get('applicants', []),
+            respondents=d.get('respondents', []),
+            execution_amount=d.get('execution_amount'),
+            ruling_date=d.get('ruling_date'),
+            judge=d.get('judge', ''),
+            clerk=d.get('clerk', ''),
+            court_name=d.get('court_name', '广州铁路运输法院'),
+            ruling_result=d.get('ruling_result', '准予强制执行'),
+            is_withdraw=d.get('is_withdraw', False),
+        )
+
 
 @dataclass
 class ExtractionResult:
@@ -588,23 +604,42 @@ def extract_ruling_from_pdf(pdf_path: Path, use_ocr: bool = True) -> RulingInfo:
     return extractor.extract_from_pdf(pdf_path)
 
 
-def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True) -> Dict[str, RulingInfo]:
+def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True, cancel_check=None, cached_results: dict = None, result_callback=None) -> Dict[str, RulingInfo]:
     results = {}
     extractor = RulingPDFExtractor(use_ocr=use_ocr)
+    cache = dict(cached_results) if cached_results else {}
 
     for pdf_file in sorted(pdf_dir.glob("*.pdf")):
+        if cancel_check and cancel_check():
+            print("INFO: 任务已取消，停止处理")
+            break
+        stem = pdf_file.stem
+        if stem in cache:
+            print(f"INFO: 跳过已缓存: {pdf_file.name}")
+            try:
+                info = RulingInfo.from_dict(cache[stem])
+                key = info.court_case_number if info.court_case_number else stem
+                results[key] = info
+            except Exception:
+                del cache[stem]
+                continue
+            else:
+                continue
         print(f"INFO: 处理: {pdf_file.name}")
         try:
             info = extractor.extract_from_pdf(pdf_file)
-            key = info.court_case_number if info.court_case_number else pdf_file.stem
+            key = info.court_case_number if info.court_case_number else stem
             results[key] = info
+            cache[stem] = info.to_dict()
+            if result_callback:
+                result_callback(stem, info.to_dict(), cache)
         except Exception as e:
             print(f"ERROR: 处理 {pdf_file.name} 失败: {e}")
 
     return results
 
 
-def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool = True, mock_mode: bool = False, output_dir: Path = None) -> Dict[str, Any]:
+def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool = True, mock_mode: bool = False, output_dir: Path = None, cancel_check=None, cached_results: dict = None, result_callback=None) -> Dict[str, Any]:
     """
     强制执行组完整处理流程（供 server.py 调用）
 
@@ -615,12 +650,15 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
     """
     from enforcement.product import load_enforcement_cases
 
+    if cancel_check and cancel_check():
+        raise Exception("任务已取消")
+
     if mock_mode:
         print(f"INFO: Mock 模式：使用模拟数据")
         mock_results = _build_mock_rulings(input_dir)
         pdf_results = mock_results
     else:
-        pdf_results = batch_extract_rulings(input_dir, use_ocr=use_ocr)
+        pdf_results = batch_extract_rulings(input_dir, use_ocr=use_ocr, cancel_check=cancel_check, cached_results=cached_results, result_callback=result_callback)
     processed = len(pdf_results)
 
     extracted = []

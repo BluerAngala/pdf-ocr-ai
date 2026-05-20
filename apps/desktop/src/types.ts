@@ -102,6 +102,14 @@ export interface CompanyQueryStats {
   fail_count: number;
 }
 
+export interface PrintMatchItem {
+  order: number;
+  company: string;
+  row: number;
+  files: { name: string; path: string }[];
+  status: "matched" | "no_match";
+}
+
 export interface PrintFileItem {
   filename: string;
   status: "printed" | "failed" | "pending" | "printing" | "submitted";
@@ -168,6 +176,9 @@ export interface ProcessingResult {
   print_files?: PrintFileItem[];
   print_stats?: { total_jobs: number; submitted: number; failed: number };
   print_task_id?: string;
+  print_errors?: { company: string; file?: string; error: string }[];
+  print_match_results?: PrintMatchItem[];
+  print_dry_run?: boolean;
   printer_used?: string;
 }
 

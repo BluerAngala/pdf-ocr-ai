@@ -31,16 +31,24 @@ def get_server_src() -> Path:
 
 
 def get_resources_dir() -> Path:
+    env = os.environ.get("GJJ_OCR_RESOURCES")
+    if env:
+        return Path(env).resolve()
+
     if getattr(sys, "frozen", False):
-        env = os.environ.get("GJJ_OCR_RESOURCES")
-        if env:
-            return Path(env).resolve()
         exe_dir = Path(sys.executable).resolve().parent
         if exe_dir.name == "gjj-ocr-server":
             return exe_dir.parent
         return exe_dir
-    
-    return Path(__file__).resolve().parents[2]
+
+    root = get_project_root()
+    bundled = root / "sample-data"
+    if bundled.is_dir():
+        return root.resolve()
+    project_resources = root / "resources"
+    if project_resources.is_dir():
+        return project_resources.resolve()
+    return root.resolve()
 
 
 def get_user_data_dir() -> Path:

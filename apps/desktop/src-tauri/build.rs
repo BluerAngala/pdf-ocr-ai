@@ -1,5 +1,5 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     if !dst.exists() {
@@ -18,6 +18,62 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
             }
             fs::copy(entry.path(), target)?;
         }
+    }
+
+    Ok(())
+}
+
+/// 将仓库 样本材料/ 同步为 sample-data/ 布局，供打包 exe 与开发 resources 共用。
+fn sync_sample_data(project_root: &Path, dst_sample_data: &Path) -> std::io::Result<()> {
+    let samples_root = project_root.join("样本材料");
+    if !samples_root.is_dir() {
+        eprintln!(
+            "[build] skip sample-data sync: not found {:?}",
+            samples_root
+        );
+        return Ok(());
+    }
+
+    let mappings: &[(&[&str], &str)] = &[
+        (
+            &["非诉组自动化样本材料"],
+            "non-litigation-batch1",
+        ),
+        (
+            &["非诉组自动化样本材料（第2批）"],
+            "non-litigation-batch2",
+        ),
+        (
+            &["强制组-自动化", "提取信息"],
+            "enforcement/extract",
+        ),
+        (
+            &["强制组-自动化", "自动打印"],
+            "enforcement/print",
+        ),
+        (&["企业信息查询"], "company-query"),
+    ];
+
+    if dst_sample_data.exists() {
+        fs::remove_dir_all(dst_sample_data)?;
+    }
+    fs::create_dir_all(dst_sample_data)?;
+
+    for (src_parts, dst_rel) in mappings {
+        let mut src = samples_root.to_path_buf();
+        for part in *src_parts {
+            src.push(part);
+        }
+        if !src.is_dir() {
+            eprintln!("[build] skip missing sample source {:?}", src);
+            continue;
+        }
+        let target = dst_sample_data.join(dst_rel);
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        copy_dir_all(&src, &target)?;
+        eprintln!("[build] synced {:?} -> {:?}", src, target);
     }
 
     Ok(())
@@ -45,6 +101,18 @@ fn sync_resources() -> std::io::Result<()> {
         fs::create_dir_all(parent)?;
     }
     fs::copy(config_src, config_dst)?;
+
+    // Tauri 打包资源 + 仓库 resources/（开发时 Python ROOT/resources）
+    let targets: [PathBuf; 2] = [
+        resources_dir.join("sample-data"),
+        project_root.join("resources").join("sample-data"),
+    ];
+    for dst in &targets {
+        if let Some(parent) = dst.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        sync_sample_data(project_root, dst)?;
+    }
 
     Ok(())
 }

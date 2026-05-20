@@ -216,3 +216,33 @@ export interface JsonRpcNotification {
 }
 
 export type PreviewState = "empty" | "progress" | "cancelling" | "paused" | "result";
+
+/** 各功能模块独立的任务 UI 状态（运行/取消/进度/结果互不串台） */
+export interface ModuleTaskUiState {
+  previewState: PreviewState;
+  phase: string;
+  progressCurrent: number;
+  progressTotal: number;
+  progressFileCurrent: number;
+  progressFileTotal: number;
+  progressMessage: string;
+  result: ProcessingResult | null;
+  running: boolean;
+  cancelling: boolean;
+  taskId: string | null;
+  liveCompanies: CompanyQueryItem[];
+}
+
+/** 暂停任务会话：离开模块/返回主页后仍可恢复 */
+export interface PausedTaskSession {
+  taskId: string;
+  phase: string;
+  progressCurrent: number;
+  progressTotal: number;
+  progressFileCurrent: number;
+  progressFileTotal: number;
+  progressMessage: string;
+  sampleRoot: string;
+  excelFile: string;
+  outputDir: string;
+}

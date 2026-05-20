@@ -1,4 +1,11 @@
-import type { ModuleConfig } from "./types";
+import type { ModuleConfig, ModuleType } from "./types";
+
+export const ALL_MODULE_TYPES: ModuleType[] = [
+  "non-litigation",
+  "enforcement",
+  "company-query",
+  "print",
+];
 
 export const MODULE_CONFIG: Record<string, ModuleConfig> = {
   "non-litigation": { title: "非诉审查", presetId: "non-litigation-batch1" },

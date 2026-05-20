@@ -33,8 +33,12 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
     let server_script = get_server_script_path(&app_handle)?;
 
     let project_root = get_project_root()?;
+    let resources_dir = resolve_resources_dir(&project_root, is_bundled())?;
     let bundled = is_bundled();
-    eprintln!("[init_python_service] Starting Python, bundled={}, dir={:?}", bundled, project_root);
+    eprintln!(
+        "[init_python_service] Starting Python, bundled={}, root={:?}, resources={:?}",
+        bundled, project_root, resources_dir
+    );
     eprintln!("[init_python_service] python_path={:?}", python_path);
     eprintln!("[init_python_service] server_script={:?}", server_script);
     
@@ -51,7 +55,7 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .env("GJJ_OCR_ROOT", &project_root)
-        .env("GJJ_OCR_RESOURCES", &project_root)
+        .env("GJJ_OCR_RESOURCES", &resources_dir)
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8");
 
@@ -162,6 +166,28 @@ fn get_app_dir() -> Result<std::path::PathBuf, String> {
 
 fn get_resources_dir() -> Result<std::path::PathBuf, String> {
     Ok(get_app_dir()?.join("resources"))
+}
+
+/// 与 Python paths.get_resources_dir 一致：打包态=resources 根；开发态=仓库 resources/（含 sample-data）
+fn resolve_resources_dir(
+    project_root: &std::path::Path,
+    bundled: bool,
+) -> Result<std::path::PathBuf, String> {
+    if bundled {
+        return Ok(project_root.to_path_buf());
+    }
+    let bundled_layout = project_root.join("sample-data");
+    if bundled_layout.is_dir() {
+        return Ok(project_root.to_path_buf());
+    }
+    let project_resources = project_root.join("resources");
+    if project_resources.join("sample-data").is_dir() {
+        return Ok(project_resources);
+    }
+    if project_resources.is_dir() {
+        return Ok(project_resources);
+    }
+    Ok(project_root.to_path_buf())
 }
 
 fn is_bundled() -> bool {
@@ -282,11 +308,50 @@ fn resolve_data_path(relative: String) -> Result<String, String> {
             candidates.push(root.join("样本材料").join("非诉组自动化样本材料（第2批）"));
         }
     } else if rel.contains("enforcement/extract") {
-        candidates.push(root.join("样本材料").join("强制组-自动化").join("提取信息"));
+        if rel.ends_with(".xlsx") {
+            candidates.push(
+                root.join("样本材料")
+                    .join("强制组-自动化")
+                    .join("提取信息")
+                    .join("非诉表格.xlsx"),
+            );
+        } else {
+            candidates.push(root.join("样本材料").join("强制组-自动化").join("提取信息"));
+        }
     } else if rel.contains("enforcement/print") {
-        candidates.push(root.join("样本材料").join("强制组-自动化").join("自动打印"));
+        if rel.ends_with(".xlsx") {
+            candidates.push(
+                root.join("样本材料")
+                    .join("强制组-自动化")
+                    .join("自动打印")
+                    .join("AOL网上网立台账.xlsx"),
+            );
+            candidates.push(
+                root.join("样本材料")
+                    .join("强制组-自动化")
+                    .join("自动打印")
+                    .join("AOL强制执行台账.xlsx"),
+            );
+        } else {
+            candidates.push(root.join("样本材料").join("强制组-自动化").join("自动打印"));
+        }
     } else if rel.contains("company-query") {
-        candidates.push(root.join("样本材料").join("企业信息查询"));
+        if rel.ends_with(".xlsx") {
+            candidates.push(root.join("样本材料").join("企业信息查询").join("001.xlsx"));
+            if let Ok(entries) = std::fs::read_dir(root.join("样本材料")) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|s| s.to_str()) == Some("xlsx") {
+                        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
+                        if name.contains("被执行人") {
+                            candidates.push(path);
+                        }
+                    }
+                }
+            }
+        } else {
+            candidates.push(root.join("样本材料").join("企业信息查询"));
+        }
     }
     for candidate in &candidates {
         if candidate.exists() {

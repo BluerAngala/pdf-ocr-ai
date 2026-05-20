@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import type {
   ModuleType,
   LogEntry,
-  PreviewState,
   ProcessingResult,
   ProgressParams,
   SystemStatus,
@@ -13,8 +12,14 @@ import type {
   EnforcementExtracted,
   PrintExcelColumn,
   PrintTaskStatus,
+  PausedTaskSession,
+  ModuleTaskUiState,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
+import {
+  createInitialModuleTaskState,
+  resolveTaskModule,
+} from "./moduleTaskState";
 import { getPresetById, getPresets, invalidatePresetCache } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus, setupPoppler } from "./services/system";
@@ -39,7 +44,8 @@ export default function App() {
   const [rangeStart, setRangeStart] = useState(2);
   const [rangeEnd, setRangeEnd] = useState(0);
   const [cacheTtlDays, setCacheTtlDays] = useState(7);
-  const [liveCompanies, setLiveCompanies] = useState<CompanyQueryItem[]>([]);
+
+  const [moduleTaskState, setModuleTaskState] = useState(createInitialModuleTaskState);
 
   // Print module specific states
   const [printCompanyNameColumn, setPrintCompanyNameColumn] = useState("");
@@ -51,20 +57,8 @@ export default function App() {
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
   const autoPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [previewState, setPreviewState] = useState<PreviewState>("empty");
-  const [phase, setPhase] = useState("");
-  const [progressCurrent, setProgressCurrent] = useState(0);
-  const [progressTotal, setProgressTotal] = useState(0);
-  const [progressFileCurrent, setProgressFileCurrent] = useState(0);
-  const [progressFileTotal, setProgressFileTotal] = useState(0);
-  const [progressMessage, setProgressMessage] = useState("");
-  const [result, setResult] = useState<ProcessingResult | null>(null);
-
   const [logsByModule, setLogsByModule] = useState<Record<string, LogEntry[]>>({});
   const [logsExpanded, setLogsExpanded] = useState(true);
-
-  const [running, setRunning] = useState(false);
-  const [cancelling, setCancelling] = useState(false);
 
   const [statusInfo, setStatusInfo] = useState<{
     status: SystemStatus | null;
@@ -74,7 +68,34 @@ export default function App() {
   const [showChangelogModal, setShowChangelogModal] = useState(false);
 
   const logIdRef = useRef(0);
-  const currentTaskIdRef = useRef<string | null>(null);
+  const taskIdToModuleRef = useRef<Record<string, ModuleType>>({});
+  const taskConfigRef = useRef<
+    Record<string, { sampleRoot: string; excelFile: string; outputDir: string }>
+  >({});
+  const moduleTaskStateRef = useRef(moduleTaskState);
+  const pausedSessionsRef = useRef<Partial<Record<ModuleType, PausedTaskSession>>>({});
+
+  const currentTask = moduleTaskState[currentModule];
+
+  useEffect(() => {
+    moduleTaskStateRef.current = moduleTaskState;
+  }, [moduleTaskState]);
+
+  const patchModuleTask = useCallback(
+    (
+      module: ModuleType,
+      patch:
+        | Partial<ModuleTaskUiState>
+        | ((prev: ModuleTaskUiState) => Partial<ModuleTaskUiState>),
+    ) => {
+      setModuleTaskState((prev) => {
+        const cur = prev[module];
+        const nextPatch = typeof patch === "function" ? patch(cur) : patch;
+        return { ...prev, [module]: { ...cur, ...nextPatch } };
+      });
+    },
+    [],
+  );
   const logsEndRef = useRef<HTMLDivElement>(null!);
   const pendingLogsRef = useRef<{ module: string; entry: LogEntry }[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -95,10 +116,10 @@ export default function App() {
   }, []);
 
   const addLog = useCallback(
-    (level: string, message: string) => {
+    (level: string, message: string, module?: ModuleType) => {
       const time = new Date().toLocaleTimeString();
       const entry = { id: ++logIdRef.current, level, message, time };
-      pendingLogsRef.current.push({ module: currentModule, entry });
+      pendingLogsRef.current.push({ module: module ?? currentModule, entry });
       if (!flushTimerRef.current) {
         flushTimerRef.current = setTimeout(() => {
           flushTimerRef.current = null;
@@ -115,45 +136,110 @@ export default function App() {
     logsEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [logs]);
 
-  const resetTaskState = useCallback(() => {
-    setRunning(false);
-    setCancelling(false);
-    currentTaskIdRef.current = null;
-    setPreviewState("empty");
+  const clearPausedSession = useCallback((module: ModuleType) => {
+    delete pausedSessionsRef.current[module];
   }, []);
 
-  const pauseTaskState = useCallback(() => {
-    setRunning(false);
-    setCancelling(false);
-    setPreviewState("paused");
-  }, []);
+  const savePausedSession = useCallback((module: ModuleType) => {
+    const task = moduleTaskStateRef.current[module];
+    if (!task.taskId) return;
+    const cfg = taskConfigRef.current[task.taskId];
+    pausedSessionsRef.current[module] = {
+      taskId: task.taskId,
+      phase: task.phase,
+      progressCurrent: task.progressCurrent,
+      progressTotal: task.progressTotal,
+      progressFileCurrent: task.progressFileCurrent,
+      progressFileTotal: task.progressFileTotal,
+      progressMessage: task.progressMessage,
+      sampleRoot: cfg?.sampleRoot ?? sampleRoot,
+      excelFile: cfg?.excelFile ?? excelFile,
+      outputDir: cfg?.outputDir ?? outputDir,
+    };
+  }, [sampleRoot, excelFile, outputDir]);
+
+  const restorePausedSession = useCallback(
+    (module: ModuleType, session: PausedTaskSession) => {
+      taskIdToModuleRef.current[session.taskId] = module;
+      patchModuleTask(module, {
+        taskId: session.taskId,
+        previewState: "paused",
+        phase: session.phase,
+        progressCurrent: session.progressCurrent,
+        progressTotal: session.progressTotal,
+        progressFileCurrent: session.progressFileCurrent,
+        progressFileTotal: session.progressFileTotal,
+        progressMessage: session.progressMessage,
+        result: null,
+        running: false,
+        cancelling: false,
+      });
+      setSampleRoot(session.sampleRoot);
+      setExcelFile(session.excelFile);
+      setOutputDir(session.outputDir);
+    },
+    [patchModuleTask],
+  );
+
+  const resetTaskState = useCallback(
+    (module: ModuleType = currentModule) => {
+      patchModuleTask(module, {
+        running: false,
+        cancelling: false,
+        taskId: null,
+        previewState: "empty",
+      });
+      clearPausedSession(module);
+    },
+    [currentModule, clearPausedSession, patchModuleTask],
+  );
+
+  const pauseTaskState = useCallback(
+    (module: ModuleType) => {
+      patchModuleTask(module, {
+        running: false,
+        cancelling: false,
+        previewState: "paused",
+      });
+      savePausedSession(module);
+    },
+    [savePausedSession, patchModuleTask],
+  );
 
   useEffect(() => {
-    if (previewState === "result") {
+    if (currentTask.previewState === "result") {
       setLogsExpanded(false);
     }
-  }, [previewState]);
+  }, [currentTask.previewState]);
 
   const handleProgress = useCallback(
     (params: ProgressParams) => {
-      if (params.task_id !== currentTaskIdRef.current) return;
-      if (previewState !== "cancelling" && previewState !== "paused") {
-        setPreviewState("progress");
-      }
-      setPhase(PHASE_NAMES[params.phase] || params.phase);
-      setProgressCurrent(params.current);
-      setProgressTotal(params.total);
-      setProgressFileCurrent(params.file_current || 0);
-      setProgressFileTotal(params.file_total || 0);
-      setProgressMessage(params.message);
-      if (currentModule === "company-query" && params.detail) {
-        const detail = params.detail as { item?: CompanyQueryItem };
-        if (detail.item) {
-          setLiveCompanies((prev) => [...prev, detail.item!]);
-        }
-      }
+      const module = resolveTaskModule(params.task_id, taskIdToModuleRef.current);
+      if (!module) return;
+      const task = moduleTaskStateRef.current[module];
+      if (params.task_id !== task.taskId) return;
+      patchModuleTask(module, (cur) => ({
+        previewState:
+          cur.previewState === "cancelling" || cur.previewState === "paused"
+            ? cur.previewState
+            : "progress",
+        phase: PHASE_NAMES[params.phase] || params.phase,
+        progressCurrent: params.current,
+        progressTotal: params.total,
+        progressFileCurrent: params.file_current || 0,
+        progressFileTotal: params.file_total || 0,
+        progressMessage: params.message,
+        ...(module === "company-query" && params.detail
+          ? {
+              liveCompanies: (() => {
+                const detail = params.detail as { item?: CompanyQueryItem };
+                return detail.item ? [...cur.liveCompanies, detail.item] : cur.liveCompanies;
+              })(),
+            }
+          : {}),
+      }));
     },
-    [currentModule, previewState],
+    [patchModuleTask],
   );
 
   const handleProgressRef = useRef(handleProgress);
@@ -179,11 +265,11 @@ export default function App() {
 
   const runningRef = useRef(false);
   useEffect(() => {
-    runningRef.current = running;
-  }, [running]);
+    runningRef.current = moduleTaskState.print.running;
+  }, [moduleTaskState.print.running]);
 
   const autoPreviewPrint = useCallback(async () => {
-    if (runningRef.current || !sampleRoot) return;
+    if (moduleTaskStateRef.current.print.running || !sampleRoot) return;
     if (excelFile && !printCompanyNameColumn) return;
     try {
       const rawResult = (await sendRequest("print.start", {
@@ -226,25 +312,27 @@ export default function App() {
         finished_at: null,
         error_count: (rawResult.errors || []).length,
       });
-      setResult({
-        print_stats: rawResult.total_jobs
-          ? {
-              total_jobs: rawResult.total_jobs,
-              submitted: rawResult.submitted || 0,
-              failed: rawResult.failed || 0,
-            }
-          : undefined,
-        printer_used: rawResult.printer_used || "",
-        print_dry_run: true,
-        print_errors: rawResult.errors || [],
-        print_match_results: mr,
-        summary: { result_root: sampleRoot },
+      patchModuleTask("print", {
+        result: {
+          print_stats: rawResult.total_jobs
+            ? {
+                total_jobs: rawResult.total_jobs,
+                submitted: rawResult.submitted || 0,
+                failed: rawResult.failed || 0,
+              }
+            : undefined,
+          printer_used: rawResult.printer_used || "",
+          print_dry_run: true,
+          print_errors: rawResult.errors || [],
+          print_match_results: mr,
+          summary: { result_root: sampleRoot },
+        },
+        previewState: "result",
       });
-      setPreviewState("result");
     } catch {
       // auto-preview silently fails
     }
-  }, [sampleRoot, excelFile, printCompanyNameColumn, rangeStart, rangeEnd, printerName]);
+  }, [sampleRoot, excelFile, printCompanyNameColumn, rangeStart, rangeEnd, printerName, patchModuleTask]);
 
   useEffect(() => {
     if (currentModule !== "print" || !sampleRoot) return;
@@ -276,16 +364,31 @@ export default function App() {
       (params) => addLogRef.current(params.level, params.message),
       (params) => {
         if (params.success && params.result) {
-          setPreviewState("result");
-          setResult(params.result as ProcessingResult);
+          const module = resolveTaskModule(
+            params.task_id || "",
+            taskIdToModuleRef.current,
+          );
+          if (module) {
+            patchModuleTask(module, {
+              previewState: "result",
+              result: params.result as ProcessingResult,
+              running: false,
+              cancelling: false,
+            });
+          }
         }
       },
       (params) => {
-        const taskId = currentTaskIdRef.current;
-        if (taskId && params.task_id === taskId) {
-          pauseTaskStateRef.current();
-          addLogRef.current("warn", `任务 ${params.task_id} 已暂停，可点击继续任务`);
-        }
+        const module = resolveTaskModule(params.task_id, taskIdToModuleRef.current);
+        if (!module) return;
+        const task = moduleTaskStateRef.current[module];
+        if (params.task_id !== task.taskId) return;
+        pauseTaskStateRef.current(module);
+        addLogRef.current(
+          "warn",
+          `任务 ${params.task_id} 已暂停，可点击继续任务`,
+          module,
+        );
       },
     ).then((cleanup) => {
       if (mounted) {
@@ -294,29 +397,38 @@ export default function App() {
         cleanup();
       }
     });
-    invalidatePresetCache();
-    getPresets().then(() => {
+    const bootstrap = async () => {
       if (initialized) return;
       initialized = true;
       addLogRef.current("info", "应用已启动");
-      sendRequest("ocr.clear_cache", {})
-        .then(() => {
-          addLogRef.current("debug", "OCR 缓存已清除");
-        })
-        .catch(() => {});
-      sendRequest("ocr.warmup", {})
-        .then((res) => {
-          const r = res as { status?: string; duration_seconds?: number };
-          if (r.status === "warm") {
-            addLogRef.current("info", `OCR 引擎预热完成 (${r.duration_seconds}s)`);
-          } else if (r.status === "already_warm") {
-            addLogRef.current("debug", "OCR 引擎已预热");
-          }
-        })
-        .catch(() => {
-          addLogRef.current("warn", "OCR 引擎预热失败，首次识别可能较慢");
-        });
-    });
+      try {
+        await sendRequest("ocr.clear_cache", {});
+        addLogRef.current("debug", "OCR 缓存已清除");
+      } catch {
+        /* Python 尚未就绪 */
+      }
+      try {
+        const res = (await sendRequest("ocr.warmup", {})) as {
+          status?: string;
+          duration_seconds?: number;
+        };
+        if (res.status === "warm") {
+          addLogRef.current("info", `OCR 引擎预热完成 (${res.duration_seconds}s)`);
+        } else if (res.status === "already_warm") {
+          addLogRef.current("debug", "OCR 引擎已预热");
+        }
+      } catch {
+        addLogRef.current("warn", "OCR 引擎预热失败，首次识别可能较慢");
+      }
+      invalidatePresetCache();
+      try {
+        await getPresets();
+        addLogRef.current("debug", "预设路径已从服务端解析");
+      } catch {
+        addLogRef.current("warn", "预设路径解析失败，进入模块后将重试");
+      }
+    };
+    void bootstrap();
     return () => {
       mounted = false;
       if (unlistenFn) unlistenFn();
@@ -324,20 +436,45 @@ export default function App() {
   }, []);
 
   const navigateToModule = useCallback(
-    (module: ModuleType) => {
+    async (module: ModuleType) => {
+      const leavingModule = currentModule;
+      const leavingTask = moduleTaskStateRef.current[leavingModule];
+      if (currentView === "detail" && leavingTask.previewState === "paused") {
+        savePausedSession(leavingModule);
+      }
+
       setCurrentModule(module);
       setCurrentView("detail");
-      setPreviewState("empty");
-      setResult(null);
-      setOutputDir("");
-      const config = MODULE_CONFIG[module];
-      const preset = getPresetById(config.presetId);
-      if (preset) {
-        setSampleRoot(preset.sampleRoot);
-        setExcelFile(preset.excelPath);
-        setMockMode(preset.mode === "mock");
-        addLog("info", `已加载预设: ${preset.name}`);
+
+      const saved = pausedSessionsRef.current[module];
+      const enteringTask = moduleTaskStateRef.current[module];
+      if (saved) {
+        restorePausedSession(module, saved);
+        addLog("info", "已恢复暂停的任务，可点击「继续处理」从断点续跑", module);
+      } else if (
+        enteringTask.previewState === "empty" &&
+        !enteringTask.running &&
+        !enteringTask.taskId
+      ) {
+        setOutputDir("");
+        const config = MODULE_CONFIG[module];
+        let preset = getPresetById(config.presetId);
+        if (!preset?.sampleRoot) {
+          invalidatePresetCache();
+          await getPresets();
+          preset = getPresetById(config.presetId);
+        }
+        if (preset?.sampleRoot) {
+          setSampleRoot(preset.sampleRoot);
+          setExcelFile(preset.excelPath);
+          setMockMode(preset.mode === "mock");
+          addLog("info", `已加载预设: ${preset.name}`, module);
+        } else {
+          addLog("warn", "预设路径未就绪，请稍后点击「加载预设」", module);
+        }
       }
+
+      const config = MODULE_CONFIG[module];
       if (module === "print") {
         sendRequest("print.list_printers", {})
           .then((res) => {
@@ -350,28 +487,40 @@ export default function App() {
           })
           .catch(() => addLog("warn", "获取打印机列表失败"));
       }
-      addLog("info", `切换到模块: ${config.title}`);
+      addLog("info", `切换到模块: ${config.title}`, module);
     },
-    [addLog],
+    [addLog, currentView, currentModule, savePausedSession, restorePausedSession],
   );
 
   const navigateHome = useCallback(() => {
+    const task = moduleTaskStateRef.current[currentModule];
+    if (task.previewState === "paused") {
+      savePausedSession(currentModule);
+    }
     setCurrentView("home");
-  }, []);
+  }, [currentModule, savePausedSession]);
 
   const clearResult = useCallback(() => {
-    setPreviewState("empty");
-    setResult(null);
-  }, []);
+    patchModuleTask(currentModule, {
+      previewState: "empty",
+      result: null,
+      taskId: null,
+    });
+    clearPausedSession(currentModule);
+  }, [currentModule, clearPausedSession, patchModuleTask]);
 
-  const loadPreset = useCallback(() => {
+  const loadPreset = useCallback(async () => {
     const config = MODULE_CONFIG[currentModule];
+    invalidatePresetCache();
+    await getPresets();
     const preset = getPresetById(config.presetId);
-    if (preset) {
+    if (preset?.sampleRoot) {
       setSampleRoot(preset.sampleRoot);
       setExcelFile(preset.excelPath);
       setMockMode(preset.mode === "mock");
       addLog("info", `已加载预设: ${preset.name}`);
+    } else {
+      addLog("warn", "预设路径解析失败，请确认 样本材料 或 resources/sample-data 存在");
     }
   }, [currentModule, addLog]);
 
@@ -424,18 +573,20 @@ export default function App() {
         warning_count: companies.filter((c) => c.status === "warning").length,
         fail_count: companies.filter((c) => c.status === "failed").length,
       };
-      setResult({
-        companies,
-        company_stats: stats,
-        output_excel_path: "",
+      patchModuleTask("company-query", {
+        result: {
+          companies,
+          company_stats: stats,
+          output_excel_path: "",
+        },
+        previewState: "result",
       });
-      setPreviewState("result");
       addLog("info", `已加载 ${companies.length} 条缓存记录`);
     } catch (e) {
       const err = e as Error;
       addLog("error", `加载缓存记录失败: ${err?.message || e}`);
     }
-  }, [excelFile, cacheTtlDays, addLog]);
+  }, [excelFile, cacheTtlDays, addLog, patchModuleTask]);
 
   const clearCache = useCallback(async () => {
     if (!excelFile) return;
@@ -448,13 +599,12 @@ export default function App() {
         return;
       }
       addLog("info", "缓存已清除");
-      setResult(null);
-      setPreviewState("empty");
+      patchModuleTask("company-query", { result: null, previewState: "empty" });
     } catch (e) {
       const err = e as Error;
       addLog("error", `清除缓存失败: ${err?.message || e}`);
     }
-  }, [excelFile, addLog]);
+  }, [excelFile, addLog, patchModuleTask]);
 
   const loadExcelColumns = useCallback(async () => {
     if (!excelFile) return;
@@ -476,27 +626,33 @@ export default function App() {
   }, [excelFile, addLog]);
 
   const cancelPrintProcessing = useCallback(async () => {
-    const taskId = currentTaskIdRef.current;
-    if (!taskId || cancelling) return;
-    setCancelling(true);
-    addLog("warn", `正在中止打印任务 ${taskId}...`);
+    const task = moduleTaskStateRef.current.print;
+    if (!task.taskId || task.cancelling) return;
+    patchModuleTask("print", { cancelling: true, previewState: "cancelling" });
+    addLog("warn", `正在中止打印任务 ${task.taskId}...`, "print");
     try {
-      await sendRequest("task.cancel", { task_id: taskId });
-      addLog("warn", "取消请求已发送");
+      await sendRequest("task.cancel", { task_id: task.taskId });
+      addLog("warn", "取消请求已发送", "print");
     } catch (err) {
-      addLog("error", `中止打印请求发送失败: ${err}`);
+      addLog("error", `中止打印请求发送失败: ${err}`, "print");
     }
-  }, [addLog, cancelling]);
+  }, [addLog, patchModuleTask]);
 
   const printOrders = useCallback(
     async (orders: number[]) => {
-      if (running || !sampleRoot) return;
+      const printTask = moduleTaskStateRef.current.print;
+      if (printTask.running || !sampleRoot) return;
       const taskId = `print-${Date.now()}`;
-      currentTaskIdRef.current = taskId;
-      setRunning(true);
-      setPreviewState("progress");
-      setResult(null);
-      addLog("info", `开始打印 ${orders.length} 条...`);
+      taskIdToModuleRef.current[taskId] = "print";
+      taskConfigRef.current[taskId] = { sampleRoot, excelFile, outputDir };
+      patchModuleTask("print", {
+        taskId,
+        running: true,
+        cancelling: false,
+        previewState: "progress",
+        result: null,
+      });
+      addLog("info", `开始打印 ${orders.length} 条...`, "print");
       try {
         const rawResult = (await sendRequest("print.start", {
           folder_path: sampleRoot,
@@ -530,7 +686,7 @@ export default function App() {
           }[];
         };
         const printTaskId = rawResult.task_id || taskId;
-        if (currentTaskIdRef.current !== taskId) return;
+        if (moduleTaskStateRef.current.print.taskId !== taskId) return;
         setPrintTaskStatus({
           task_id: printTaskId,
           status: "completed",
@@ -544,36 +700,37 @@ export default function App() {
           finished_at: null,
           error_count: (rawResult.errors || []).length,
         });
-        setResult((prev) => ({
-          ...prev,
-          print_stats: rawResult.total_jobs
-            ? {
-                total_jobs: rawResult.total_jobs,
-                submitted: rawResult.submitted || 0,
-                failed: rawResult.failed || 0,
-              }
-            : undefined,
-          printer_used: rawResult.printer_used || "",
-          print_dry_run: false,
-          print_errors: rawResult.errors || [],
-          print_match_results: prev?.print_match_results || rawResult.match_results || [],
-          summary: { result_root: sampleRoot },
+        patchModuleTask("print", (prev) => ({
+          result: {
+            ...prev.result,
+            print_stats: rawResult.total_jobs
+              ? {
+                  total_jobs: rawResult.total_jobs,
+                  submitted: rawResult.submitted || 0,
+                  failed: rawResult.failed || 0,
+                }
+              : undefined,
+            printer_used: rawResult.printer_used || "",
+            print_dry_run: false,
+            print_errors: rawResult.errors || [],
+            print_match_results:
+              prev.result?.print_match_results || rawResult.match_results || [],
+            summary: { result_root: sampleRoot },
+          },
+          previewState: "result",
         }));
-        setPreviewState("result");
-        addLog("info", `打印完成: ${rawResult.submitted || 0} 成功, ${rawResult.failed || 0} 失败`);
+        addLog("info", `打印完成: ${rawResult.submitted || 0} 成功, ${rawResult.failed || 0} 失败`, "print");
       } catch (err) {
-        if (currentTaskIdRef.current !== taskId) return;
+        if (moduleTaskStateRef.current.print.taskId !== taskId) return;
         const msg = err instanceof Error ? err.message : String(err);
-        addLog("error", `打印失败: ${msg}`);
+        addLog("error", `打印失败: ${msg}`, "print");
       } finally {
-        if (currentTaskIdRef.current === taskId) {
-          setRunning(false);
-          setCancelling(false);
+        if (moduleTaskStateRef.current.print.taskId === taskId) {
+          patchModuleTask("print", { running: false, cancelling: false });
         }
       }
     },
     [
-      running,
       sampleRoot,
       excelFile,
       printCompanyNameColumn,
@@ -585,14 +742,12 @@ export default function App() {
       printCustomStartPage,
       printCustomEndPage,
       addLog,
+      patchModuleTask,
+      outputDir,
     ],
   );
 
   const pollPrintStatusRef = useRef<((taskId: string) => Promise<void>) | null>(null);
-  const resultRef = useRef(result);
-  useEffect(() => {
-    resultRef.current = result;
-  }, [result]);
 
   const pollPrintStatus = useCallback(async (taskId: string) => {
     try {
@@ -613,21 +768,23 @@ export default function App() {
   }, [pollPrintStatus]);
 
   const cancelProcessing = useCallback(async () => {
-    const taskId = currentTaskIdRef.current;
-    if (!taskId || cancelling) return;
-    setCancelling(true);
-    addLog("warn", `正在取消任务 ${taskId}...`);
-    setPreviewState("cancelling");
+    const module = currentModule;
+    const task = moduleTaskStateRef.current[module];
+    if (!task.taskId || task.cancelling) return;
+    patchModuleTask(module, { cancelling: true, previewState: "cancelling" });
+    addLog("warn", `正在取消任务 ${task.taskId}...`, module);
     try {
-      await sendRequest("task.cancel", { task_id: taskId });
-      addLog("warn", "取消信号已发送，等待后端停止...");
+      await sendRequest("task.cancel", { task_id: task.taskId });
+      addLog("warn", "取消信号已发送，等待后端停止...", module);
     } catch (err) {
-      addLog("error", `取消请求发送失败: ${err}`);
+      addLog("error", `取消请求发送失败: ${err}`, module);
     }
-  }, [addLog, cancelling]);
+  }, [addLog, currentModule, patchModuleTask]);
 
   const startProcessing = useCallback(async () => {
-    if (running) return;
+    const module = currentModule;
+    const task = moduleTaskStateRef.current[module];
+    if (task.running) return;
     if (!sampleRoot && currentModule !== "company-query") {
       alert("请选择样本材料文件夹");
       return;
@@ -637,29 +794,29 @@ export default function App() {
       return;
     }
 
-    const isResume = previewState === "paused" && !!currentTaskIdRef.current;
-    const taskId = isResume ? currentTaskIdRef.current! : `${currentModule}-${Date.now()}`;
-    if (!isResume) {
-      currentTaskIdRef.current = taskId;
-    }
+    const isResume = task.previewState === "paused" && !!task.taskId;
+    const taskId = isResume ? task.taskId! : `${module}-${Date.now()}`;
+    taskIdToModuleRef.current[taskId] = module;
+    taskConfigRef.current[taskId] = { sampleRoot, excelFile, outputDir };
     flushLogs();
-    setRunning(true);
-    setCancelling(false);
+    patchModuleTask(module, {
+      taskId,
+      running: true,
+      cancelling: false,
+      previewState: "progress",
+      result: isResume ? task.result : null,
+      liveCompanies: isResume ? task.liveCompanies : [],
+    });
     setLogsExpanded(true);
-    setPreviewState("progress");
-    if (!isResume) {
-      setResult(null);
-      setLiveCompanies([]);
-    }
     if (isResume) {
       try {
         await sendRequest("task.clear_cancel", { task_id: taskId });
       } catch {
         // ignore
       }
-      addLog("info", `继续${MODULE_CONFIG[currentModule].title}处理（断点续跑）...`);
+      addLog("info", `继续${MODULE_CONFIG[module].title}处理（断点续跑）...`, module);
     } else {
-      addLog("info", `开始${MODULE_CONFIG[currentModule].title}处理...`);
+      addLog("info", `开始${MODULE_CONFIG[module].title}处理...`, module);
     }
 
     try {
@@ -701,11 +858,10 @@ export default function App() {
             result_root: rawResult.output_dir || undefined,
           },
         };
-      } else if (currentModule === "company-query") {
+      } else if (module === "company-query") {
         if (!excelFile) {
           alert("请选择企业信息数据 Excel 文件");
-          setRunning(false);
-          setPreviewState("empty");
+          patchModuleTask(module, { running: false, previewState: "empty" });
           return;
         }
         const rawResult = (await sendRequest("company_query.process", {
@@ -738,11 +894,10 @@ export default function App() {
           output_excel_path: rawResult.output_excel_path || "",
           summary: { result_root: rawResult.output_excel_path || undefined },
         };
-      } else if (currentModule === "print") {
+      } else if (module === "print") {
         if (!sampleRoot) {
           alert("请选择材料文件夹");
-          setRunning(false);
-          setPreviewState("empty");
+          patchModuleTask(module, { running: false, previewState: "empty" });
           return;
         }
         const rawResult = (await sendRequest("print.start", {
@@ -777,7 +932,7 @@ export default function App() {
           }[];
         };
         const printTaskId = rawResult.task_id || taskId;
-        if (currentTaskIdRef.current !== taskId) return;
+        if (moduleTaskStateRef.current.print.taskId !== taskId) return;
         setPrintTaskStatus({
           task_id: printTaskId,
           status:
@@ -796,6 +951,7 @@ export default function App() {
           finished_at: null,
           error_count: (rawResult.errors || []).length,
         });
+        const printPrev = moduleTaskStateRef.current.print.result;
         res = {
           print_stats:
             rawResult.total_jobs !== undefined
@@ -809,43 +965,46 @@ export default function App() {
           print_task_id: printTaskId,
           print_errors: rawResult.errors || [],
           print_match_results:
-            resultRef.current?.print_match_results || rawResult.match_results || [],
+            printPrev?.print_match_results || rawResult.match_results || [],
           print_dry_run: rawResult.dry_run || false,
           summary: { result_root: sampleRoot },
         };
       }
-      if (currentTaskIdRef.current !== taskId) return;
+      if (moduleTaskStateRef.current[module].taskId !== taskId) return;
       const cancelled =
         (res as { cancelled?: boolean }).cancelled === true ||
         (res as { success?: boolean }).success === false &&
           String((res as { error?: string }).error || "").includes("取消");
       if (cancelled) {
-        pauseTaskState();
-        addLog("warn", "任务已暂停，可点击继续任务");
+        pauseTaskState(module);
+        addLog("warn", "任务已暂停，可点击继续任务", module);
         return;
       }
-      setPreviewState("result");
-      setResult(res);
-      currentTaskIdRef.current = null;
-      addLog("info", "处理完成！");
+      patchModuleTask(module, {
+        previewState: "result",
+        result: res,
+        taskId: null,
+        running: false,
+        cancelling: false,
+      });
+      clearPausedSession(module);
+      addLog("info", "处理完成！", module);
     } catch (err) {
       const error = err as Error | string;
       const msg = typeof error === "string" ? error : (error as Error)?.message || String(error);
-      if (currentTaskIdRef.current === taskId) {
+      if (moduleTaskStateRef.current[module].taskId === taskId) {
         if (msg.includes("已取消") || msg.includes("cancel") || msg.includes("Cancelled")) {
-          pauseTaskState();
-          addLog("warn", "任务已暂停，可点击继续任务");
+          pauseTaskState(module);
+          addLog("warn", "任务已暂停，可点击继续任务", module);
         } else {
-          addLog("error", `处理失败: ${msg}`);
+          addLog("error", `处理失败: ${msg}`, module);
           alert(`处理失败: ${msg}`);
-          setPreviewState("empty");
-          currentTaskIdRef.current = null;
+          patchModuleTask(module, { previewState: "empty", taskId: null });
         }
       }
     } finally {
-      if (currentTaskIdRef.current === taskId) {
-        setRunning(false);
-        setCancelling(false);
+      if (moduleTaskStateRef.current[module].taskId === taskId) {
+        patchModuleTask(module, { running: false, cancelling: false });
       }
     }
   }, [
@@ -860,9 +1019,9 @@ export default function App() {
     rangeStart,
     rangeEnd,
     cacheTtlDays,
-    previewState,
-    running,
     pauseTaskState,
+    clearPausedSession,
+    patchModuleTask,
     addLog,
     flushLogs,
     printCompanyNameColumn,
@@ -873,8 +1032,11 @@ export default function App() {
   ]);
 
   const openOutput = useCallback(async () => {
+    const taskResult = moduleTaskStateRef.current[currentModule].result;
     const path =
-      currentModule === "company-query" ? result?.output_excel_path : result?.summary?.result_root;
+      currentModule === "company-query"
+        ? taskResult?.output_excel_path
+        : taskResult?.summary?.result_root;
     if (!path) {
       alert("输出尚未生成");
       return;
@@ -885,7 +1047,7 @@ export default function App() {
     } catch (err) {
       addLog("error", `打开输出失败: ${err}`);
     }
-  }, [result, currentModule, addLog]);
+  }, [currentModule, addLog]);
 
   const copyLogs = useCallback(() => {
     const currentLogs = logsByModule[currentModule] || [];
@@ -1001,18 +1163,18 @@ export default function App() {
           selectedOrders={selectedOrders}
           onSelectedOrdersChange={setSelectedOrders}
           onPrintOrders={printOrders}
-          running={running}
-          cancelling={cancelling}
-          taskPaused={previewState === "paused"}
-          previewState={previewState}
-          phase={phase}
-          progressCurrent={progressCurrent}
-          progressTotal={progressTotal}
-          progressFileCurrent={progressFileCurrent}
-          progressFileTotal={progressFileTotal}
-          progressMessage={progressMessage}
-          result={result}
-          liveCompanies={liveCompanies}
+          running={currentTask.running}
+          cancelling={currentTask.cancelling}
+          taskPaused={currentTask.previewState === "paused"}
+          previewState={currentTask.previewState}
+          phase={currentTask.phase}
+          progressCurrent={currentTask.progressCurrent}
+          progressTotal={currentTask.progressTotal}
+          progressFileCurrent={currentTask.progressFileCurrent}
+          progressFileTotal={currentTask.progressFileTotal}
+          progressMessage={currentTask.progressMessage}
+          result={currentTask.result}
+          liveCompanies={currentTask.liveCompanies}
           onOpenOutput={openOutput}
           onClearResult={clearResult}
           logs={logs}

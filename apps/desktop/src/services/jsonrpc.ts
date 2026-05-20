@@ -79,6 +79,14 @@ export async function setupJsonRpcListeners(
 
 function mockResponse(method: string, params: Record<string, unknown>): unknown {
   switch (method) {
+    case "system.get_presets":
+      return {
+        presets: [],
+        root: ".",
+        resources: ".",
+      };
+    case "system.resolve_data_path":
+      return { path: params.relative as string, exists: false };
     case "system.get_status":
       return {
         python_version: "3.12.0",

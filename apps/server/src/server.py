@@ -75,62 +75,15 @@ if str(_server_src) not in sys.path:
 
 from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR, RESOURCES_DIR
 from core.task_cancel import CancelledError
+from core.preset_paths import (
+    PRESET_EXCEL_PATHS,
+    PRESET_SAMPLE_PATHS,
+    get_resolved_presets,
+    resolve_data_path as resolve_data_path_rel,
+    resolve_path_candidates as _resolve_preset_path,
+)
 
 print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"ROOT={ROOT}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}, stdin_encoding={getattr(sys.stdin, 'encoding', '?')}"}}), file=sys.stderr, flush=True)
-
-PRESET_SAMPLE_PATHS = {
-    "non-litigation-batch1": [
-        "resources/sample-data/non-litigation-batch1",
-        "sample-data/non-litigation-batch1",
-        "样本材料/非诉组自动化样本材料",
-    ],
-    "non-litigation-batch2": [
-        "resources/sample-data/non-litigation-batch2",
-        "sample-data/non-litigation-batch2",
-        "样本材料/非诉组自动化样本材料（第2批）",
-    ],
-    "enforcement-extract": [
-        "resources/sample-data/enforcement/extract",
-        "sample-data/enforcement/extract",
-        "样本材料/强制组-自动化/提取信息",
-    ],
-    "enforcement-print": [
-        "resources/sample-data/enforcement/print",
-        "sample-data/enforcement/print",
-        "样本材料/强制组-自动化/自动打印",
-    ],
-    "company-query": [
-        "resources/sample-data/company-query",
-        "sample-data/company-query",
-        "样本材料/企业信息查询",
-    ],
-}
-
-PRESET_EXCEL_PATHS = {
-    "non-litigation-batch1": [
-        "resources/sample-data/non-litigation-batch1/台账及命名规则.xlsx",
-        "sample-data/non-litigation-batch1/台账及命名规则.xlsx",
-        "样本材料/非诉组自动化样本材料/台账及命名规则.xlsx",
-    ],
-    "non-litigation-batch2": [
-        "resources/sample-data/non-litigation-batch2/台账及命名规则.xlsx",
-        "sample-data/non-litigation-batch2/台账及命名规则.xlsx",
-        "样本材料/非诉组自动化样本材料（第2批）/台账及命名规则.xlsx",
-    ],
-    "enforcement-extract": [
-        "resources/sample-data/enforcement/extract/cases.xlsx",
-        "sample-data/enforcement/extract/cases.xlsx",
-    ],
-    "enforcement-print": [
-        "resources/sample-data/enforcement/print/aol-ledger.xlsx",
-        "sample-data/enforcement/print/aol-ledger.xlsx",
-    ],
-    "company-query": [
-        "resources/sample-data/company-query/companies.xlsx",
-        "sample-data/company-query/companies.xlsx",
-    ],
-}
-
 
 def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "") -> Path:
     ts = _datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -144,28 +97,6 @@ def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "
     d = base / subfolder
     d.mkdir(parents=True, exist_ok=True)
     return d
-
-
-def _iter_preset_candidates(rel: str):
-    rel_path = Path(rel)
-    seen: set[str] = set()
-    for base in (ROOT, ROOT / "resources", RESOURCES_DIR):
-        candidate = (base / rel_path).resolve()
-        key = str(candidate)
-        if key in seen:
-            continue
-        seen.add(key)
-        yield candidate
-
-
-def _resolve_preset_path(path_list):
-    tried = []
-    for p in path_list:
-        for candidate in _iter_preset_candidates(p):
-            tried.append(str(candidate))
-            if candidate.exists():
-                return candidate.resolve()
-    raise FileNotFoundError(f"所有预设路径均不存在: {path_list} (ROOT={ROOT}, tried={tried[:8]})")
 
 
 def _dir_has_pdfs(dir_path: Path) -> bool:
@@ -271,6 +202,8 @@ class JsonRpcServer:
         self.methods['system.get_status'] = self._system_get_status
         self.methods['system.check_dependencies'] = self._system_check_dependencies
         self.methods['system.setup_poppler'] = self._system_setup_poppler
+        self.methods['system.get_presets'] = self._system_get_presets
+        self.methods['system.resolve_data_path'] = self._system_resolve_data_path
 
     def _send_response(self, result: Any, id: Any):
         response = {"jsonrpc": "2.0", "result": result, "id": id}
@@ -1005,6 +938,24 @@ class JsonRpcServer:
             raise Exception(f"重新加载配置失败: {str(e)}")
 
     # ============ 系统模块 ============
+
+    def _system_get_presets(self, params: Dict, id: Any) -> Dict:
+        """返回已解析绝对路径的预设列表（开发/打包共用 preset_paths）。"""
+        try:
+            presets = get_resolved_presets()
+            return {"presets": presets, "root": str(ROOT), "resources": str(RESOURCES_DIR)}
+        except Exception as e:
+            raise Exception(f"解析预设路径失败: {e}")
+
+    def _system_resolve_data_path(self, params: Dict, id: Any) -> Dict:
+        relative = params.get("relative", "")
+        if not relative:
+            raise Exception("缺少 relative 参数")
+        try:
+            path = resolve_data_path_rel(relative)
+            return {"path": str(path), "exists": path.exists()}
+        except Exception as e:
+            raise Exception(f"路径解析失败: {e}")
 
     def _system_get_status(self, params: Dict, id: Any) -> Dict:
         """获取系统状态"""

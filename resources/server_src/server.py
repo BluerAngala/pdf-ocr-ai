@@ -725,9 +725,8 @@ class JsonRpcServer:
 
     def _task_cancel(self, params: Dict, id: Any) -> Dict:
         task_id = params.get('task_id', '')
-        from core.task_cancel import request_cancel, is_cancelled
+        from core.task_cancel import request_cancel
         request_cancel(task_id)
-        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": f"收到取消请求: task_id={task_id}, 已设置标志={is_cancelled(task_id)}"}}), file=sys.stderr, flush=True)
         return {"cancelled": True, "task_id": task_id}
 
     def _company_query_load_cache(self, params: Dict, id: Any) -> Dict:

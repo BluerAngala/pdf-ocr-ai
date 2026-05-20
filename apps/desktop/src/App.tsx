@@ -37,15 +37,15 @@ export default function App() {
   const [printCopies, setPrintCopies] = useState(1);
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [rangeStart, setRangeStart] = useState(2);
-  const [rangeEnd, setRangeEnd] = useState(99999);
+  const [rangeEnd, setRangeEnd] = useState(0);
   const [cacheTtlDays, setCacheTtlDays] = useState(7);
   const [liveCompanies, setLiveCompanies] = useState<CompanyQueryItem[]>([]);
 
   // Print module specific states
   const [printCompanyNameColumn, setPrintCompanyNameColumn] = useState("");
   const [printMode, setPrintMode] = useState<"single" | "double">("single");
-  const [printCustomStartPage, setPrintCustomStartPage] = useState(1);
-  const [printCustomEndPage, setPrintCustomEndPage] = useState(1);
+  const [printCustomStartPage, setPrintCustomStartPage] = useState(0);
+  const [printCustomEndPage, setPrintCustomEndPage] = useState(0);
   const [printExcelColumns, setPrintExcelColumns] = useState<PrintExcelColumn[]>([]);
   const [printTaskStatus, setPrintTaskStatus] = useState<PrintTaskStatus | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
@@ -182,7 +182,7 @@ export default function App() {
           company: string;
           row: number;
           files: { name: string; path: string }[];
-          status: string;
+          status: "matched" | "no_match";
         }[];
       };
       const mr = rawResult.match_results || [];
@@ -445,10 +445,11 @@ export default function App() {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
     try {
-      await sendRequest("print.cancel", { task_id: taskId });
-      addLog("warn", "已发送打印中止请求...");
-    } catch {
-      addLog("error", "中止打印请求失败");
+      addLog("warn", `正在中止打印任务 ${taskId}...`);
+      const res = await sendRequest("print.cancel", { task_id: taskId });
+      addLog("warn", `中止打印已响应: ${JSON.stringify(res)}`);
+    } catch (err) {
+      addLog("error", `中止打印请求失败: ${err}`);
     }
   }, [addLog]);
 
@@ -467,12 +468,12 @@ export default function App() {
           excel_path: excelFile || undefined,
           column_name: printCompanyNameColumn || undefined,
           range_start: excelFile ? rangeStart : undefined,
-          range_end: excelFile ? rangeEnd : undefined,
+          range_end: excelFile && rangeEnd ? rangeEnd : undefined,
           printer_name: printerName,
           copies: printCopies,
           print_mode: printMode,
-          page_start: printCustomStartPage > 1 ? printCustomStartPage : undefined,
-          page_end: printCustomEndPage > 1 ? printCustomEndPage : undefined,
+          page_start: printCustomStartPage || undefined,
+          page_end: printCustomEndPage || undefined,
           dry_run: false,
           selected_orders: orders,
           task_id: taskId,
@@ -490,7 +491,7 @@ export default function App() {
             company: string;
             row: number;
             files: { name: string; path: string }[];
-            status: string;
+            status: "matched" | "no_match";
           }[];
         };
         const printTaskId = rawResult.task_id || taskId;
@@ -575,10 +576,11 @@ export default function App() {
     const taskId = currentTaskIdRef.current;
     if (!taskId) return;
     try {
-      await sendRequest("task.cancel", { task_id: taskId });
-      addLog("warn", "已发送取消请求...");
-    } catch {
-      addLog("error", "取消请求失败");
+      addLog("warn", `正在取消任务 ${taskId}...`);
+      const res = await sendRequest("task.cancel", { task_id: taskId });
+      addLog("warn", `取消请求已响应: ${JSON.stringify(res)}`);
+    } catch (err) {
+      addLog("error", `取消请求失败: ${err}`);
     }
   }, [addLog]);
 
@@ -652,7 +654,7 @@ export default function App() {
           preset_id: MODULE_CONFIG["company-query"]?.presetId || null,
           excel_path: excelFile,
           range_start: rangeStart,
-          range_end: rangeEnd,
+          range_end: rangeEnd || undefined,
           cache_ttl_days: cacheTtlDays,
           task_id: taskId,
           output_dir: outputDir || null,
@@ -689,13 +691,13 @@ export default function App() {
           folder_path: sampleRoot,
           excel_path: excelFile || undefined,
           range_start: excelFile ? rangeStart : undefined,
-          range_end: excelFile ? rangeEnd : undefined,
+          range_end: excelFile && rangeEnd ? rangeEnd : undefined,
           column_name: printCompanyNameColumn || undefined,
           printer_name: printerName,
           copies: printCopies,
           print_mode: printMode,
-          page_start: printCustomStartPage > 1 ? printCustomStartPage : undefined,
-          page_end: printCustomEndPage > 1 ? printCustomEndPage : undefined,
+          page_start: printCustomStartPage || undefined,
+          page_end: printCustomEndPage || undefined,
           dry_run: false,
           selected_orders: selectedOrders.size > 0 ? Array.from(selectedOrders) : undefined,
           task_id: taskId,
@@ -713,7 +715,7 @@ export default function App() {
             company: string;
             row: number;
             files: { name: string; path: string }[];
-            status: string;
+            status: "matched" | "no_match";
           }[];
         };
         const printTaskId = rawResult.task_id || taskId;

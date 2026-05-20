@@ -75,10 +75,10 @@ export default function NumberCombo({
             type="number"
             min={min}
             max={max}
-            value={value}
+            value={min === 0 && value === 0 ? "" : value}
             onChange={(e) => {
               const v = parseInt(e.target.value);
-              onChange(isNaN(v) ? min : Math.max(min, max ? Math.min(v, max) : v));
+              onChange(isNaN(v) ? 0 : Math.max(min, max ? Math.min(v, max) : v));
             }}
             disabled={disabled}
             placeholder={placeholder}

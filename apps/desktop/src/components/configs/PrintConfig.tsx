@@ -207,12 +207,13 @@ export default function PrintConfig({
                   label="Excel 结束行"
                   value={rangeEnd}
                   onChange={onRangeEndChange}
-                  min={2}
+                  min={0}
                   shortcuts={[5, 30, 50, 100, 200]}
+                  placeholder="全部"
                 />
               </div>
               <p className="text-[10px] text-slate-400">
-                行范围决定打印顺序（第1行是表头，从第2行开始）
+                行范围决定打印顺序（第1行是表头，从第2行开始，结束行留空=全部）
               </p>
             </>
           )}
@@ -271,21 +272,23 @@ export default function PrintConfig({
               <label className="text-xs font-medium text-slate-500">打印页码范围（材料页码）</label>
               <div className="grid grid-cols-2 gap-3">
                 <NumberCombo
+                  label="起始页"
                   value={customStartPage}
                   onChange={onCustomStartPageChange}
-                  min={1}
+                  min={0}
                   shortcuts={[1, 2, 3]}
-                  placeholder="起始页"
+                  placeholder="全部"
                 />
                 <NumberCombo
+                  label="结束页"
                   value={customEndPage}
                   onChange={onCustomEndPageChange}
-                  min={1}
+                  min={0}
                   shortcuts={[1, 2, 5, 10]}
-                  placeholder="结束页"
+                  placeholder="全部"
                 />
               </div>
-              <p className="text-[10px] text-slate-400">留 1 表示打印全部页面</p>
+              <p className="text-[10px] text-slate-400">不填写则打印全部页面</p>
             </div>
           </div>
         </AccordionSection>

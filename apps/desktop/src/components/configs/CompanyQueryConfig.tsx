@@ -104,11 +104,11 @@ export default function CompanyQueryConfig({
               label="到第几行"
               value={rangeEnd}
               onChange={onRangeEndChange}
-              min={1}
+              min={0}
               shortcuts={[5, 10, 30, 50, 100, 200]}
-              placeholder="99999=全部"
+              placeholder="全部"
             />
-            <p className="text-[10px] text-slate-400">99999 视为查询全部，支持断点续查</p>
+            <p className="text-[10px] text-slate-400">结束行留空为查询全部，支持断点续查</p>
 
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-slate-500">💾 缓存有效期</label>

@@ -12,21 +12,25 @@ const ACCENT_MAP: Record<string, { ring: string; border: string; hover: string; 
   blue: {
     ring: "focus:ring-blue-500/20 focus:border-blue-400",
     border: "hover:bg-blue-50 hover:border-blue-200 hover:text-blue-700",
+    hover: "hover:bg-blue-50",
     text: "",
   },
   amber: {
     ring: "focus:ring-amber-500/20 focus:border-amber-400",
     border: "hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700",
+    hover: "hover:bg-amber-50",
     text: "",
   },
   emerald: {
     ring: "focus:ring-emerald-500/20 focus:border-emerald-400",
     border: "hover:bg-emerald-50 hover:border-emerald-200 hover:text-emerald-700",
+    hover: "hover:bg-emerald-50",
     text: "",
   },
   slate: {
     ring: "focus:ring-slate-500/20 focus:border-slate-400",
     border: "hover:bg-slate-100 hover:border-slate-300 hover:text-slate-700",
+    hover: "hover:bg-slate-100",
     text: "",
   },
 };

@@ -15,7 +15,10 @@ struct PythonService {
     child: Arc<Mutex<Option<Child>>>,
     pid: Arc<Mutex<Option<u32>>>,
     request_tx: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
+    /// 进程已拉起且 stdin 通道可用
     initialized: Arc<Mutex<bool>>,
+    /// Python 已打印「JSON-RPC 服务已启动」，可安全收发 RPC
+    rpc_ready: Arc<Mutex<bool>>,
     error_message: Arc<Mutex<Option<String>>>,
 }
 
@@ -26,9 +29,28 @@ impl PythonService {
             pid: Arc::new(Mutex::new(None)),
             request_tx: Arc::new(Mutex::new(None)),
             initialized: Arc::new(Mutex::new(false)),
+            rpc_ready: Arc::new(Mutex::new(false)),
             error_message: Arc::new(Mutex::new(None)),
         }
     }
+}
+
+fn stderr_line_rpc_ready(line: &str) -> bool {
+    if line.contains("JSON-RPC 服务已启动") || line.contains("Python JSON-RPC") {
+        return true;
+    }
+    if let Ok(v) = serde_json::from_str::<serde_json::Value>(line) {
+        if v.get("method").and_then(|m| m.as_str()) == Some("notify.log") {
+            if let Some(msg) = v
+                .get("params")
+                .and_then(|p| p.get("message"))
+                .and_then(|m| m.as_str())
+            {
+                return msg.contains("JSON-RPC") && msg.contains("已启动");
+            }
+        }
+    }
+    false
 }
 
 // JSON-RPC 请求
@@ -43,6 +65,7 @@ struct JsonRpcRequest {
 // 初始化 Python 服务
 async fn init_python_service(
     app_handle: tauri::AppHandle,
+    service: PythonService,
 ) -> Result<(Child, u32, mpsc::UnboundedSender<String>), String> {
     let python_path = get_python_path(&app_handle)?;
     let server_script = get_server_script_path(&app_handle)?;
@@ -131,13 +154,22 @@ async fn init_python_service(
         }
     });
 
-    // 读取 stderr 线程（进度推送）
+    // 读取 stderr 线程（进度推送 + 检测 RPC 就绪）
     let app_handle_clone = app_handle.clone();
+    let rpc_ready_flag = service.rpc_ready.clone();
     tokio::spawn(async move {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
 
         while let Ok(Some(line)) = lines.next_line().await {
+            if stderr_line_rpc_ready(&line) {
+                let mut ready = rpc_ready_flag.lock().unwrap();
+                if !*ready {
+                    *ready = true;
+                    eprintln!("[init_python_service] Python RPC ready (stderr)");
+                    let _ = app_handle_clone.emit_all("python-service-ready", ());
+                }
+            }
             if let Ok(notification) = serde_json::from_str::<serde_json::Value>(&line) {
                 let _ = app_handle_clone.emit_all("jsonrpc-notification", notification);
             }
@@ -163,6 +195,34 @@ async fn init_python_service(
 
     let pid: u32 = child.id().ok_or("Failed to get Python PID")?;
     Ok((child, pid, request_tx))
+}
+
+async fn wait_for_python_rpc_ready(
+    service: &PythonService,
+    child: &mut Child,
+    timeout_secs: u64,
+) -> Result<(), String> {
+    let deadline =
+        std::time::Instant::now() + std::time::Duration::from_secs(timeout_secs);
+    loop {
+        if *service.rpc_ready.lock().map_err(|e| format!("Lock error: {}", e))? {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err(format!(
+                "Python RPC 启动超时（{}s）。打包版首次加载模型较慢，请稍后重试或检查杀毒软件是否拦截。",
+                timeout_secs
+            ));
+        }
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                return Err(format!("Python 进程已退出: {:?}", status));
+            }
+            Ok(None) => {}
+            Err(e) => return Err(format!("Failed to check Python process: {}", e)),
+        }
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+    }
 }
 
 /// 运行时路径（Rust / 前端 / Python 共用语义，由 Tauri PathResolver + 少量回退推导）
@@ -389,6 +449,14 @@ fn is_production_bundle() -> bool {
     is_bundled()
 }
 
+#[tauri::command]
+fn is_python_service_ready(service: State<'_, PythonService>) -> bool {
+    *service
+        .rpc_ready
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+}
+
 // Tauri 命令：发送 JSON-RPC 请求
 #[tauri::command]
 async fn send_jsonrpc_request(
@@ -397,18 +465,18 @@ async fn send_jsonrpc_request(
     params: serde_json::Value,
     id: u64,
 ) -> Result<(), String> {
-    let initialized = *service
-        .initialized
+    let rpc_ready = *service
+        .rpc_ready
         .lock()
         .map_err(|e| format!("Lock error: {}", e))?;
-    if !initialized {
+    if !rpc_ready {
         let err = service
             .error_message
             .lock()
             .ok()
             .and_then(|g| g.clone())
-            .unwrap_or_else(|| "后端正在启动，请稍候".to_string());
-        return Err(format!("Python service not initialized: {}", err));
+            .unwrap_or_else(|| "后端正在启动，请稍候（打包版首次启动可能需 1–3 分钟）".to_string());
+        return Err(format!("Python service not ready: {}", err));
     }
 
     let request = JsonRpcRequest {
@@ -462,6 +530,7 @@ async fn kill_python(service: State<'_, PythonService>) -> Result<(), String> {
         eprintln!("[kill_python] Python process (PID {}) killed", pid);
     }
     *service.initialized.lock().map_err(|e| format!("Lock error: {}", e))? = false;
+    *service.rpc_ready.lock().map_err(|e| format!("Lock error: {}", e))? = false;
     Ok(())
 }
 
@@ -579,15 +648,24 @@ fn main() {
                     "backend-init-progress",
                     serde_json::json!({ "step": "python" }),
                 );
-                match init_python_service(app_handle.clone()).await {
-                    Ok((child, pid, request_tx)) => {
-                        *service.child.lock().unwrap() = Some(child);
+                match init_python_service(app_handle.clone(), service.clone()).await {
+                    Ok((mut child, pid, request_tx)) => {
                         *service.pid.lock().unwrap() = Some(pid);
                         *service.request_tx.lock().unwrap() = Some(request_tx);
                         *service.initialized.lock().unwrap() = true;
                         *service.error_message.lock().unwrap() = None;
-                        println!("Python service initialized successfully");
-                        let _ = app_handle.emit_all("python-service-ready", ());
+                        let timeout_secs = if is_bundled() { 300 } else { 120 };
+                        if let Err(e) =
+                            wait_for_python_rpc_ready(&service, &mut child, timeout_secs).await
+                        {
+                            *service.error_message.lock().unwrap() = Some(e.clone());
+                            let _ = app_handle.emit_all("python-service-error", e);
+                        } else {
+                            *service.child.lock().unwrap() = Some(child);
+                            if !*service.rpc_ready.lock().unwrap() {
+                                let _ = app_handle.emit_all("python-service-ready", ());
+                            }
+                        }
                     }
                     Err(e) => {
                         eprintln!("Failed to initialize Python service: {}", e);
@@ -609,6 +687,7 @@ fn main() {
             get_runtime_paths,
             get_project_root_cmd,
             is_production_bundle,
+            is_python_service_ready,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

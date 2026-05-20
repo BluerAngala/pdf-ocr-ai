@@ -27,8 +27,22 @@ export async function isProductionBundle(): Promise<boolean> {
   }
 }
 
+async function pollPythonRpcReady(): Promise<boolean> {
+  if (!isTauri()) return true;
+  try {
+    return (await invoke("is_python_service_ready")) as boolean;
+  } catch {
+    return false;
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * 等待 Python JSON-RPC 就绪。轮询 + 事件双通道，避免事件早于前端 listen 注册而永远卡住。
+ */
 export function waitForPythonService(
-  onProgress?: (label: string) => void,
+  onProgress?: (label: string, detail?: string) => void,
 ): Promise<void> {
   if (!isTauri()) {
     return Promise.resolve();
@@ -38,13 +52,32 @@ export function waitForPythonService(
     const finish = (fn: () => void) => {
       if (settled) return;
       settled = true;
+      clearInterval(pollTimer);
+      clearTimeout(timer);
       unlistenReady.then((u) => u());
       unlistenErr.then((u) => u());
-      clearTimeout(timer);
       fn();
     };
 
-    onProgress?.("正在启动后端服务…");
+    onProgress?.("正在启动后端服务…", "打包版首次启动可能需 1–3 分钟，请稍候");
+
+    void (async () => {
+      for (let i = 0; i < 20; i++) {
+        if (await pollPythonRpcReady()) {
+          finish(resolve);
+          return;
+        }
+        await sleep(150);
+      }
+    })();
+
+    const pollTimer = setInterval(() => {
+      void (async () => {
+        if (await pollPythonRpcReady()) {
+          finish(resolve);
+        }
+      })();
+    }, 400);
 
     const unlistenReady = listen("python-service-ready", () => {
       finish(resolve);
@@ -54,8 +87,14 @@ export function waitForPythonService(
     });
 
     const timer = setTimeout(() => {
-      finish(() => reject(new Error("后端启动超时，请检查安装目录或杀毒软件拦截")));
-    }, 120_000);
+      finish(() =>
+        reject(
+          new Error(
+            "后端启动超时。请检查安装是否完整，或暂时关闭杀毒软件后重试。",
+          ),
+        ),
+      );
+    }, 320_000);
   });
 }
 
@@ -65,9 +104,10 @@ export async function runStartupWarmup(
   onProgress({
     phase: "waiting_backend",
     label: "正在启动后端服务…",
+    detail: "打包版首次启动可能需 1–3 分钟",
   });
-  await waitForPythonService((label) =>
-    onProgress({ phase: "waiting_backend", label }),
+  await waitForPythonService((label, detail) =>
+    onProgress({ phase: "waiting_backend", label, detail }),
   );
 
   const tauriPaths = await getRuntimePaths();
@@ -154,7 +194,12 @@ export async function runStartupWarmup(
         detail: presetError,
       });
       if (bundled) {
-        throw new Error(presetError);
+        onProgress({
+          phase: "ready",
+          label: "就绪（需手动选择样本目录）",
+          detail: presetError,
+        });
+        return;
       }
     }
   } catch (e) {
@@ -166,8 +211,12 @@ export async function runStartupWarmup(
       detail: msg,
     });
     if (bundled) {
-      onProgress({ phase: "error", label: "启动失败", error: msg });
-      throw e;
+      onProgress({
+        phase: "ready",
+        label: "就绪（预设未加载）",
+        detail: msg,
+      });
+      return;
     }
   }
 

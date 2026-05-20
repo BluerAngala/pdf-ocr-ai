@@ -31,6 +31,9 @@ pytest apps/server/tests/ --cov=apps/server/src --cov-report=html   # 覆盖率
 
 npm run desktop:dev          # 前端开发
 npm run desktop:tauri dev    # Tauri 桌面版开发
+npm run desktop:tauri build  # 发布打包（release 自动 PyInstaller onedir 后端；安装包仅内嵌 non-litigation-batch1 样本）
+# 仅重打 Python 后端: apps/server/scripts/build_server_bundle.ps1
+# 跳过自动打后端: $env:GJJ_SKIP_SERVER_BUNDLE="1"
 npm run lint                 # 前端 lint
 npm run lint:fix             # 前端 lint 自动修复
 npm run format               # 前端格式化
@@ -84,7 +87,7 @@ apps/
 ## 开发注意事项
 
 - **无包安装**：`apps/server/src/` 无 `__init__.py`，模块通过 `sys.path.insert` 互相导入。测试靠 `conftest.py` 注入 `sys.path`。改文件名或导入方式时要连带检查测试
-- **paths.py 是基石**：所有模块 `from paths import ROOT`。ROOT 解析顺序：`GJJ_OCR_ROOT` 环境变量 → PyInstaller frozen 路径 → `Path(__file__).parents[3]`
+- **paths.py 是唯一路径入口**：`get_app_root()` / `get_resources_dir()` / `get_user_data_dir()` / `get_config_path()` / `resolve_input_path()`；预设仅 `system.get_presets`（Python `preset_paths.py`），前端/Rust 不再维护平行路径表
 - **config_loader 全局缓存**：`_CONFIG_CACHE` 首次加载后不变，改了 `config.yaml` 需调 `reload_config()` 或重启进程才生效
 - **业务配置全在 config.yaml**：换案件材料只改配置不改代码。强制执行组配置在 `enforcement:` 键下
 - **OCR 纠错分两层**：通用（`text_postprocessor.py` 括号归一化、间距修复）+ 业务特定（`config.yaml` 的 `ocr_corrections`）

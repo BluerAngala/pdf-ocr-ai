@@ -2,7 +2,7 @@
 预设样本/台账路径解析 — 开发态与打包 exe 共用同一套逻辑。
 
 开发：ROOT=仓库根目录，优先 样本材料/，其次 resources/sample-data/
-打包：ROOT=exe 旁 resources/，使用 resources/sample-data/（由 build 从样本材料同步）
+打包：ROOT=exe 旁 resources/，内嵌 sample-data/non-litigation-batch1（安装包仅第 1 批样本）
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, TypedDict
 
-from core.paths import RESOURCES_DIR, ROOT
+from core.paths import get_data_roots
 
 PresetKind = Literal["sample", "excel"]
 
@@ -120,29 +120,7 @@ PRESET_EXCEL_PATHS: Dict[str, List[str]] = {
 }
 
 
-def get_data_roots() -> List[Path]:
-    """所有可能挂载 sample-data / 样本材料 的根目录。"""
-    roots: List[Path] = []
-    seen: set[str] = set()
-
-    def add(path: Path) -> None:
-        try:
-            resolved = path.resolve()
-        except OSError:
-            return
-        key = str(resolved)
-        if key in seen:
-            return
-        seen.add(key)
-        roots.append(resolved)
-
-    add(ROOT)
-    add(RESOURCES_DIR)
-    project_resources = ROOT / "resources"
-    if project_resources.is_dir():
-        add(project_resources)
-
-    return roots
+# get_data_roots 见 core.paths（唯一实现）
 
 
 def iter_path_candidates(rel: str):
@@ -184,8 +162,11 @@ def resolve_path_candidates(path_list: List[str]) -> Path:
                     tried.append(str(xlsx))
                     return xlsx.resolve()
                 break
+    from core.paths import get_app_root, get_resources_dir
+
     raise FileNotFoundError(
-        f"所有预设路径均不存在: {path_list} (ROOT={ROOT}, RESOURCES={RESOURCES_DIR}, tried={tried[:16]})"
+        f"所有预设路径均不存在: {path_list} "
+        f"(APP_ROOT={get_app_root()}, RESOURCES={get_resources_dir()}, tried={tried[:16]})"
     )
 
 
@@ -201,23 +182,27 @@ def resolve_data_path(relative: str) -> Path:
     return resolve_path_candidates([relative])
 
 
-def get_resolved_presets() -> List[dict]:
-    """供前端 system.get_presets 使用。"""
+def get_resolved_presets() -> tuple[List[dict], List[dict]]:
+    """供前端 system.get_presets 使用；单个预设失败不拖垮全部。"""
     out: List[dict] = []
+    errors: List[dict] = []
     for preset in PRESET_DEFINITIONS:
-        sample = resolve_path_candidates(preset["sample_paths"])
-        excel = resolve_path_candidates(preset["excel_paths"])
-        out.append(
-            {
-                "id": preset["id"],
-                "name": preset["name"],
-                "description": preset["description"],
-                "mode": preset["mode"],
-                "sampleRoot": str(sample),
-                "excelPath": str(excel),
-            }
-        )
-    return out
+        try:
+            sample = resolve_path_candidates(preset["sample_paths"])
+            excel = resolve_path_candidates(preset["excel_paths"])
+            out.append(
+                {
+                    "id": preset["id"],
+                    "name": preset["name"],
+                    "description": preset["description"],
+                    "mode": preset["mode"],
+                    "sampleRoot": str(sample),
+                    "excelPath": str(excel),
+                }
+            )
+        except Exception as e:
+            errors.append({"id": preset["id"], "error": str(e)})
+    return out, errors
 
 
 def get_preset_by_id(preset_id: str) -> Optional[PresetDefinition]:

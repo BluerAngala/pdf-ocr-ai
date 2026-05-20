@@ -65,25 +65,43 @@ sys.stdin = _force_utf8_stream(sys.stdin, mode='r')
 sys.stdout = _force_utf8_stream(sys.stdout, mode='w')
 sys.stderr = _force_utf8_stream(sys.stderr, mode='w')
 
+def _external_server_src_is_compatible(external: Path) -> bool:
+    """仅当外部 server_src 含新版 preset_paths 时才覆盖 PyInstaller 内嵌代码。"""
+    return (external / "core" / "preset_paths.py").is_file()
+
+
 if getattr(sys, "frozen", False):
     _exe_dir = Path(sys.executable).resolve().parent
-    _server_src = Path(os.environ.get("GJJ_OCR_RESOURCES", str(_exe_dir.parent))) / "server_src"
+    _resources = Path(os.environ.get("GJJ_OCR_RESOURCES", str(_exe_dir.parent)))
+    _external = _resources / "server_src"
+    if _external_server_src_is_compatible(_external):
+        _server_src = _external
+        if str(_server_src) not in sys.path:
+            sys.path.insert(0, str(_server_src))
+    # 否则使用 PyInstaller 内嵌模块，避免旧版 resources/server_src 覆盖新 RPC
 else:
     _server_src = Path(__file__).resolve().parent
-if str(_server_src) not in sys.path:
-    sys.path.insert(0, str(_server_src))
+    if str(_server_src) not in sys.path:
+        sys.path.insert(0, str(_server_src))
 
-from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR, RESOURCES_DIR
+from core.paths import (
+    ROOT,
+    SERVER_SRC,
+    USER_DATA_DIR,
+    RESOURCES_DIR,
+    get_app_root,
+    get_resources_dir,
+    get_user_data_dir,
+    resolve_input_path,
+    describe_runtime_paths,
+)
 from core.task_cancel import CancelledError
 from core.preset_paths import (
-    PRESET_EXCEL_PATHS,
-    PRESET_SAMPLE_PATHS,
     get_resolved_presets,
     resolve_data_path as resolve_data_path_rel,
-    resolve_path_candidates as _resolve_preset_path,
 )
 
-print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"ROOT={ROOT}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}, stdin_encoding={getattr(sys.stdin, 'encoding', '?')}"}}), file=sys.stderr, flush=True)
+print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"{describe_runtime_paths()}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}"}}), file=sys.stderr, flush=True)
 
 def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "") -> Path:
     ts = _datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -204,6 +222,7 @@ class JsonRpcServer:
         self.methods['system.setup_poppler'] = self._system_setup_poppler
         self.methods['system.get_presets'] = self._system_get_presets
         self.methods['system.resolve_data_path'] = self._system_resolve_data_path
+        self.methods['system.describe_paths'] = self._system_describe_paths
 
     def _send_response(self, result: Any, id: Any):
         response = {"jsonrpc": "2.0", "result": result, "id": id}
@@ -327,22 +346,15 @@ class JsonRpcServer:
             import non_litigation.export as non_litigation_export
             non_litigation_export._suppress_print = True
 
-            if sample_root:
-                sample_root_path = Path(sample_root)
-                if not sample_root_path.is_absolute():
-                    sample_root_path = (ROOT / sample_root_path).resolve()
-                if not sample_root_path.exists() and preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                    emitter.log("warn", f"路径不存在({sample_root_path})，回退到预设路径")
-                    sample_root_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-                else:
-                    emitter.log("info", f"使用用户指定路径: {sample_root_path}")
-            elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                sample_root_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-                emitter.log("info", f"通过预设 {preset_id} 解析路径: {sample_root_path}")
-            else:
-                sample_root_path = (ROOT / '样本材料' / '非诉组自动化样本材料').resolve()
+            sample_root_path = resolve_input_path(
+                sample_root,
+                preset_id=preset_id,
+                preset_kind="sample",
+                default_preset_id="non-litigation-batch1",
+            )
+            emitter.log("info", f"样本目录: {sample_root_path}")
 
-            input_root = ensure_non_litigation_input_structure(ROOT)
+            input_root = ensure_non_litigation_input_structure(get_app_root())
             original_files_dir = sample_root_path / '原始文件'
             sample_input_dir = sample_root_path / 'input'
             if original_files_dir.exists() and list(original_files_dir.glob('*.pdf')):
@@ -353,12 +365,9 @@ class JsonRpcServer:
                 input_root = sample_root_path
 
             if excel_path:
-                excel_file_path = Path(excel_path)
-                if not excel_file_path.is_absolute():
-                    excel_file_path = (ROOT / excel_file_path).resolve()
-                if not excel_file_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
-                    emitter.log("warn", f"Excel不存在({excel_file_path})，回退到预设路径")
-                    excel_file_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
+                excel_file_path = resolve_input_path(
+                    excel_path, preset_id=preset_id, preset_kind="excel"
+                )
             else:
                 from core.config_loader import load_config
                 _tmp_cfg = load_config()
@@ -471,7 +480,9 @@ class JsonRpcServer:
             emitter.progress("validation", _ocr_total + 2, _ocr_total + 2, "开始验证...")
             cases = load_non_litigation_cases(sample_root_path, excel_path=excel_file_path)
             validation_result = validate_ocr_results(cases, ocr_results, input_dir=input_root)
-            quality = evaluate_non_litigation_quality(ROOT, result_root, sample_root=sample_root_path, excel_path=excel_file_path)
+            quality = evaluate_non_litigation_quality(
+                get_app_root(), result_root, sample_root=sample_root_path, excel_path=excel_file_path
+            )
 
             total_elapsed = __import__('time').perf_counter() - total_t0
 
@@ -524,14 +535,12 @@ class JsonRpcServer:
         excel_path = params.get('excel_path')
         try:
             from non_litigation.product import load_non_litigation_cases
-            if sample_root:
-                sample_path = Path(sample_root)
-                if not sample_path.is_absolute():
-                    sample_path = (ROOT / sample_path).resolve()
-            elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                sample_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-            else:
-                sample_path = (ROOT / '样本材料' / '非诉组自动化样本材料').resolve()
+            sample_path = resolve_input_path(
+                sample_root,
+                preset_id=preset_id,
+                preset_kind="sample",
+                default_preset_id="non-litigation-batch1",
+            )
             excel_file = Path(excel_path) if excel_path else None
             cases = load_non_litigation_cases(sample_path, excel_path=excel_file)
             return {"cases": cases}
@@ -577,34 +586,29 @@ class JsonRpcServer:
             from enforcement.extractor import process_enforcement_cases
             import pickle as _pickle
             import time as _time
-            if input_dir:
-                input_dir = Path(input_dir)
-                if not input_dir.is_absolute():
-                    input_dir = (ROOT / input_dir).resolve()
-                if not input_dir.exists() and preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                    print(f"[WARN] input_dir 不存在({input_dir})，回退到预设路径")
-                    input_dir = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-            elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                input_dir = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-            else:
-                input_dir = Path('.')
-
+            input_dir = resolve_input_path(
+                input_dir, preset_id=preset_id, preset_kind="sample"
+            )
             if excel_path:
-                excel_path = Path(excel_path)
-                if not excel_path.is_absolute():
-                    excel_path = (ROOT / excel_path).resolve()
-                if not excel_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
-                    print(f"[WARN] excel_path 不存在({excel_path})，回退到预设路径")
-                    excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-            elif preset_id and preset_id in PRESET_EXCEL_PATHS:
-                excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-            else:
-                excel_path = Path('.')
+                excel_path = resolve_input_path(
+                    excel_path, preset_id=preset_id, preset_kind="excel"
+                )
+            elif preset_id:
+                try:
+                    excel_path = resolve_input_path(
+                        None, preset_id=preset_id, preset_kind="excel"
+                    )
+                except FileNotFoundError:
+                    excel_path = Path(".")
 
             if not input_dir.exists():
-                raise FileNotFoundError(f"输入文件夹不存在: {input_dir} (ROOT={ROOT})")
+                raise FileNotFoundError(
+                    f"输入文件夹不存在: {input_dir} ({describe_runtime_paths()})"
+                )
             if not excel_path.exists():
-                raise FileNotFoundError(f"台账文件不存在: {excel_path} (ROOT={ROOT})")
+                raise FileNotFoundError(
+                    f"台账文件不存在: {excel_path} ({describe_runtime_paths()})"
+                )
 
             pdf_count = len(list(input_dir.glob('*.pdf'))) if input_dir.is_dir() else 0
             if pdf_count == 0 and not mock_mode:
@@ -692,16 +696,12 @@ class JsonRpcServer:
 
         try:
             from infra.company_query import process_company_query
-            if excel_path:
-                excel_path = Path(excel_path)
-                if not excel_path.is_absolute():
-                    excel_path = (ROOT / excel_path).resolve()
-                if not excel_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
-                    excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-            elif preset_id and preset_id in PRESET_EXCEL_PATHS:
-                excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-            else:
-                excel_path = Path('.')
+            excel_path = resolve_input_path(
+                excel_path,
+                preset_id=preset_id,
+                preset_kind="excel",
+                default_preset_id="company-query",
+            )
 
             if not Path(excel_path).exists():
                 raise FileNotFoundError(f"Excel 文件不存在: {excel_path}")
@@ -941,11 +941,34 @@ class JsonRpcServer:
 
     def _system_get_presets(self, params: Dict, id: Any) -> Dict:
         """返回已解析绝对路径的预设列表（开发/打包共用 preset_paths）。"""
-        try:
-            presets = get_resolved_presets()
-            return {"presets": presets, "root": str(ROOT), "resources": str(RESOURCES_DIR)}
-        except Exception as e:
-            raise Exception(f"解析预设路径失败: {e}")
+        presets, errors = get_resolved_presets()
+        if not presets and errors:
+            raise Exception(
+                f"解析预设路径失败: {errors[0].get('error', errors)} "
+                f"({describe_runtime_paths()})"
+            )
+        return {
+            "presets": presets,
+            "errors": errors,
+            "appRoot": str(get_app_root()),
+            "resources": str(get_resources_dir()),
+            "userData": str(get_user_data_dir()),
+        }
+
+    def _system_describe_paths(self, params: Dict, id: Any) -> Dict:
+        """诊断运行时路径（前端启动自检）。"""
+        from core.paths import get_config_path
+
+        cfg = get_config_path()
+        batch1 = get_resources_dir() / "sample-data" / "non-litigation-batch1"
+        ledger = batch1 / "台账及命名规则.xlsx"
+        return {
+            "summary": describe_runtime_paths(),
+            "configExists": cfg.is_file(),
+            "configPath": str(cfg),
+            "batch1Exists": batch1.is_dir(),
+            "ledgerExists": ledger.is_file(),
+        }
 
     def _system_resolve_data_path(self, params: Dict, id: Any) -> Dict:
         relative = params.get("relative", "")

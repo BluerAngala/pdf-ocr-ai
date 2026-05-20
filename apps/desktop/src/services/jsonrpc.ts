@@ -38,7 +38,12 @@ export async function sendRequest(
 export async function setupJsonRpcListeners(
   onProgress: (params: ProgressParams) => void,
   onLog: (params: { level: string; message: string }) => void,
-  onTaskComplete: (params: { success: boolean; result?: unknown }) => void,
+  onTaskComplete: (params: {
+    task_id: string;
+    success: boolean;
+    result?: unknown;
+    error?: string;
+  }) => void,
   onTaskCancelled?: (params: { task_id: string; cancelled: boolean }) => void,
 ) {
   if (!isTauri()) return () => {};
@@ -66,7 +71,14 @@ export async function setupJsonRpcListeners(
     else if (notification.method === "notify.log")
       onLog(notification.params as { level: string; message: string });
     else if (notification.method === "notify.task_complete")
-      onTaskComplete(notification.params as { success: boolean; result?: unknown });
+      onTaskComplete(
+        notification.params as {
+          task_id: string;
+          success: boolean;
+          result?: unknown;
+          error?: string;
+        },
+      );
     else if (notification.method === "notify.task_cancelled" && onTaskCancelled)
       onTaskCancelled(notification.params as { task_id: string; cancelled: boolean });
   });
@@ -82,11 +94,16 @@ function mockResponse(method: string, params: Record<string, unknown>): unknown 
     case "system.get_presets":
       return {
         presets: [],
-        root: ".",
+        appRoot: ".",
         resources: ".",
       };
-    case "system.resolve_data_path":
-      return { path: params.relative as string, exists: false };
+    case "system.describe_paths":
+      return {
+        summary: "mock",
+        configExists: true,
+        batch1Exists: true,
+        ledgerExists: true,
+      };
     case "system.get_status":
       return {
         python_version: "3.12.0",

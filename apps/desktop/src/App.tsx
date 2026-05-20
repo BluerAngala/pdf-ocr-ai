@@ -20,7 +20,7 @@ import {
   createInitialModuleTaskState,
   resolveTaskModule,
 } from "./moduleTaskState";
-import { getPresetById, getPresets, invalidatePresetCache } from "./presets";
+import { ensurePresetById, invalidatePresetCache } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus, setupPoppler } from "./services/system";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -29,6 +29,8 @@ import DetailView from "./components/DetailView";
 import StatusBar from "./components/StatusBar";
 import SystemStatusModal from "./components/SystemStatusModal";
 import ChangelogModal from "./components/ChangelogModal";
+import StartupOverlay from "./components/StartupOverlay";
+import { runStartupWarmup, type StartupProgress } from "./services/startup";
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "detail">("home");
@@ -66,6 +68,11 @@ export default function App() {
   }>({ status: null, deps: null });
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showChangelogModal, setShowChangelogModal] = useState(false);
+  const [appReady, setAppReady] = useState(false);
+  const [startupProgress, setStartupProgress] = useState<StartupProgress>({
+    phase: "waiting_backend",
+    label: "正在启动…",
+  });
 
   const logIdRef = useRef(0);
   const taskIdToModuleRef = useRef<Record<string, ModuleType>>({});
@@ -364,10 +371,7 @@ export default function App() {
       (params) => addLogRef.current(params.level, params.message),
       (params) => {
         if (params.success && params.result) {
-          const module = resolveTaskModule(
-            params.task_id || "",
-            taskIdToModuleRef.current,
-          );
+          const module = resolveTaskModule(params.task_id, taskIdToModuleRef.current);
           if (module) {
             patchModuleTask(module, {
               previewState: "result",
@@ -402,30 +406,20 @@ export default function App() {
       initialized = true;
       addLogRef.current("info", "应用已启动");
       try {
-        await sendRequest("ocr.clear_cache", {});
-        addLogRef.current("debug", "OCR 缓存已清除");
-      } catch {
-        /* Python 尚未就绪 */
-      }
-      try {
-        const res = (await sendRequest("ocr.warmup", {})) as {
-          status?: string;
-          duration_seconds?: number;
-        };
-        if (res.status === "warm") {
-          addLogRef.current("info", `OCR 引擎预热完成 (${res.duration_seconds}s)`);
-        } else if (res.status === "already_warm") {
-          addLogRef.current("debug", "OCR 引擎已预热");
-        }
-      } catch {
-        addLogRef.current("warn", "OCR 引擎预热失败，首次识别可能较慢");
-      }
-      invalidatePresetCache();
-      try {
-        await getPresets();
-        addLogRef.current("debug", "预设路径已从服务端解析");
-      } catch {
-        addLogRef.current("warn", "预设路径解析失败，进入模块后将重试");
+        await runStartupWarmup((p) => {
+          setStartupProgress(p);
+          if (p.phase === "ready") {
+            setAppReady(true);
+          }
+          if (p.phase === "warming_ocr" && p.detail) {
+            addLogRef.current("debug", p.detail);
+          }
+        });
+        addLogRef.current("info", "初始化完成，可以开始使用");
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setStartupProgress({ phase: "error", label: "启动失败", error: msg });
+        addLogRef.current("error", `启动失败: ${msg}`);
       }
     };
     void bootstrap();
@@ -434,6 +428,27 @@ export default function App() {
       if (unlistenFn) unlistenFn();
     };
   }, []);
+
+  const applyModulePreset = useCallback(
+    async (module: ModuleType, logModule?: ModuleType) => {
+      const config = MODULE_CONFIG[module];
+      const preset = await ensurePresetById(config.presetId);
+      if (preset?.sampleRoot) {
+        setSampleRoot(preset.sampleRoot);
+        setExcelFile(preset.excelPath);
+        setMockMode(preset.mode === "mock");
+        addLog("info", `已加载预设: ${preset.name}`, logModule ?? module);
+        return true;
+      }
+      addLog(
+        "warn",
+        "预设路径未就绪，请点击「加载预设」或手动选择样本文件夹",
+        logModule ?? module,
+      );
+      return false;
+    },
+    [addLog],
+  );
 
   const navigateToModule = useCallback(
     async (module: ModuleType) => {
@@ -457,21 +472,7 @@ export default function App() {
         !enteringTask.taskId
       ) {
         setOutputDir("");
-        const config = MODULE_CONFIG[module];
-        let preset = getPresetById(config.presetId);
-        if (!preset?.sampleRoot) {
-          invalidatePresetCache();
-          await getPresets();
-          preset = getPresetById(config.presetId);
-        }
-        if (preset?.sampleRoot) {
-          setSampleRoot(preset.sampleRoot);
-          setExcelFile(preset.excelPath);
-          setMockMode(preset.mode === "mock");
-          addLog("info", `已加载预设: ${preset.name}`, module);
-        } else {
-          addLog("warn", "预设路径未就绪，请稍后点击「加载预设」", module);
-        }
+        await applyModulePreset(module);
       }
 
       const config = MODULE_CONFIG[module];
@@ -489,7 +490,7 @@ export default function App() {
       }
       addLog("info", `切换到模块: ${config.title}`, module);
     },
-    [addLog, currentView, currentModule, savePausedSession, restorePausedSession],
+    [addLog, applyModulePreset, currentView, currentModule, savePausedSession, restorePausedSession],
   );
 
   const navigateHome = useCallback(() => {
@@ -510,19 +511,9 @@ export default function App() {
   }, [currentModule, clearPausedSession, patchModuleTask]);
 
   const loadPreset = useCallback(async () => {
-    const config = MODULE_CONFIG[currentModule];
     invalidatePresetCache();
-    await getPresets();
-    const preset = getPresetById(config.presetId);
-    if (preset?.sampleRoot) {
-      setSampleRoot(preset.sampleRoot);
-      setExcelFile(preset.excelPath);
-      setMockMode(preset.mode === "mock");
-      addLog("info", `已加载预设: ${preset.name}`);
-    } else {
-      addLog("warn", "预设路径解析失败，请确认 样本材料 或 resources/sample-data 存在");
-    }
-  }, [currentModule, addLog]);
+    await applyModulePreset(currentModule);
+  }, [currentModule, applyModulePreset]);
 
   const selectFolder = useCallback(async () => {
     try {
@@ -1102,15 +1093,28 @@ export default function App() {
   }, [loadStatus]);
 
   useEffect(() => {
+    if (!appReady) return;
     loadStatus();
     const timer = setInterval(loadStatus, 30000);
     return () => clearInterval(timer);
-  }, [loadStatus]);
+  }, [loadStatus, appReady]);
+
+  useEffect(() => {
+    if (!appReady) return;
+    void applyModulePreset("non-litigation");
+  }, [appReady, applyModulePreset]);
 
   const moduleTitle = MODULE_CONFIG[currentModule]?.title || "";
 
   return (
     <>
+      {!appReady && startupProgress.phase !== "ready" ? (
+        <StartupOverlay
+          phase={startupProgress.label}
+          detail={startupProgress.detail}
+          error={startupProgress.error}
+        />
+      ) : null}
       {currentView === "home" ? (
         <HomeView
           onNavigate={navigateToModule}

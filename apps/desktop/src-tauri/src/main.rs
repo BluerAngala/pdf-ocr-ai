@@ -1,21 +1,34 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
-use tauri::{Manager, State, Window};
+use tauri::{AppHandle, Manager, State, Window};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
 
-// Python 服务状态
-#[allow(dead_code)]
+// Python 服务状态（后台初始化，避免阻塞首屏）
+#[derive(Clone)]
 struct PythonService {
     child: Arc<Mutex<Option<Child>>>,
-    pid: Option<u32>,
-    request_tx: Option<mpsc::UnboundedSender<String>>,
-    initialized: bool,
-    error_message: Option<String>,
+    pid: Arc<Mutex<Option<u32>>>,
+    request_tx: Arc<Mutex<Option<mpsc::UnboundedSender<String>>>>,
+    initialized: Arc<Mutex<bool>>,
+    error_message: Arc<Mutex<Option<String>>>,
+}
+
+impl PythonService {
+    fn placeholder() -> Self {
+        Self {
+            child: Arc::new(Mutex::new(None)),
+            pid: Arc::new(Mutex::new(None)),
+            request_tx: Arc::new(Mutex::new(None)),
+            initialized: Arc::new(Mutex::new(false)),
+            error_message: Arc::new(Mutex::new(None)),
+        }
+    }
 }
 
 // JSON-RPC 请求
@@ -28,16 +41,17 @@ struct JsonRpcRequest {
 }
 
 // 初始化 Python 服务
-async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonService, String> {
+async fn init_python_service(
+    app_handle: tauri::AppHandle,
+) -> Result<(Child, u32, mpsc::UnboundedSender<String>), String> {
     let python_path = get_python_path(&app_handle)?;
     let server_script = get_server_script_path(&app_handle)?;
 
-    let project_root = get_project_root()?;
-    let resources_dir = resolve_resources_dir(&project_root, is_bundled())?;
-    let bundled = is_bundled();
+    let paths = compute_runtime_paths(&app_handle)?;
+    let bundled = paths.bundled;
     eprintln!(
         "[init_python_service] Starting Python, bundled={}, root={:?}, resources={:?}",
-        bundled, project_root, resources_dir
+        bundled, paths.app_root, paths.resources_dir
     );
     eprintln!("[init_python_service] python_path={:?}", python_path);
     eprintln!("[init_python_service] server_script={:?}", server_script);
@@ -50,12 +64,13 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
     if !bundled {
         cmd.arg(&server_script);
     }
-    cmd.current_dir(&project_root)
+    cmd.current_dir(&paths.app_root)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .env("GJJ_OCR_ROOT", &project_root)
-        .env("GJJ_OCR_RESOURCES", &resources_dir)
+        .env("GJJ_OCR_ROOT", paths.app_root.as_str())
+        .env("GJJ_OCR_RESOURCES", paths.resources_dir.as_str())
+        .env("GJJ_OCR_USER_DATA", paths.user_data_dir.as_str())
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8");
 
@@ -147,35 +162,57 @@ async fn init_python_service(app_handle: tauri::AppHandle) -> Result<PythonServi
     }
 
     let pid: u32 = child.id().ok_or("Failed to get Python PID")?;
-    Ok(PythonService {
-        child: Arc::new(Mutex::new(Some(child))),
-        pid: Some(pid),
-        request_tx: Some(request_tx),
-        initialized: true,
-        error_message: None,
-    })
+    Ok((child, pid, request_tx))
 }
 
-fn get_app_dir() -> Result<std::path::PathBuf, String> {
+/// 运行时路径（Rust / 前端 / Python 共用语义，由 Tauri PathResolver + 少量回退推导）
+#[derive(Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RuntimePathsDto {
+    app_root: String,
+    resources_dir: String,
+    user_data_dir: String,
+    bundled: bool,
+}
+
+fn get_app_dir() -> Result<PathBuf, String> {
     let exe_path = std::env::current_exe()
         .map_err(|e| format!("Failed to get current exe: {}", e))?;
-    Ok(exe_path.parent()
+    Ok(exe_path
+        .parent()
         .ok_or("Cannot determine app directory")?
         .to_path_buf())
 }
 
-fn get_resources_dir() -> Result<std::path::PathBuf, String> {
-    Ok(get_app_dir()?.join("resources"))
+/// 历史用户数据目录（升级安装时优先沿用，避免缓存丢失）
+fn legacy_user_data_dir() -> PathBuf {
+    if let Ok(local) = std::env::var("LOCALAPPDATA") {
+        return PathBuf::from(local).join("gjj-ocr-tool");
+    }
+    PathBuf::from("user-data")
 }
 
-/// 与 Python paths.get_resources_dir 一致：打包态=resources 根；开发态=仓库 resources/（含 sample-data）
-fn resolve_resources_dir(
-    project_root: &std::path::Path,
-    bundled: bool,
-) -> Result<std::path::PathBuf, String> {
-    if bundled {
-        return Ok(project_root.to_path_buf());
+/// 可写目录：优先 Tauri app_data_dir API，若已有 legacy 目录则继续沿用
+fn resolve_user_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    if let Ok(env) = std::env::var("GJJ_OCR_USER_DATA") {
+        let p = PathBuf::from(env);
+        std::fs::create_dir_all(&p).map_err(|e| format!("无法创建用户目录 {:?}: {}", p, e))?;
+        return Ok(p);
     }
+    let legacy = legacy_user_data_dir();
+    if legacy.exists() {
+        return Ok(legacy);
+    }
+    if let Some(dir) = app.path_resolver().app_data_dir() {
+        std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建用户目录 {:?}: {}", dir, e))?;
+        return Ok(dir);
+    }
+    std::fs::create_dir_all(&legacy).map_err(|e| format!("无法创建用户目录 {:?}: {}", legacy, e))?;
+    Ok(legacy)
+}
+
+/// 开发态 resources：仓库 resources/ 或 src-tauri/resources/
+fn resolve_dev_resources_dir(project_root: &Path) -> Result<PathBuf, String> {
     let bundled_layout = project_root.join("sample-data");
     if bundled_layout.is_dir() {
         return Ok(project_root.to_path_buf());
@@ -184,10 +221,28 @@ fn resolve_resources_dir(
     if project_resources.join("sample-data").is_dir() {
         return Ok(project_resources);
     }
+    let tauri_resources = project_root
+        .join("apps")
+        .join("desktop")
+        .join("src-tauri")
+        .join("resources");
+    if tauri_resources.join("sample-data").is_dir() {
+        return Ok(tauri_resources);
+    }
     if project_resources.is_dir() {
         return Ok(project_resources);
     }
     Ok(project_root.to_path_buf())
+}
+
+/// 生产态 resources：优先 Tauri resource_dir()，否则安装目录下 resources/
+fn resolve_bundled_resources_dir(app: &AppHandle, app_root: &Path) -> PathBuf {
+    if let Some(dir) = app.path_resolver().resource_dir() {
+        if dir.join("config.yaml").is_file() || dir.join("sample-data").is_dir() {
+            return dir;
+        }
+    }
+    app_root.join("resources")
 }
 
 fn is_bundled() -> bool {
@@ -200,9 +255,18 @@ fn is_bundled() -> bool {
     {
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
-                let marker = exe_dir.join("resources").join("gjj-ocr-server.exe");
-                if marker.exists() {
-                    eprintln!("[is_bundled] Detected by resources marker: {:?}", marker);
+                let onedir = exe_dir
+                    .join("resources")
+                    .join("gjj-ocr-server")
+                    .join("gjj-ocr-server.exe");
+                if onedir.exists() {
+                    eprintln!("[is_bundled] Detected onedir server: {:?}", onedir);
+                    return true;
+                }
+                // 兼容旧安装包中的 onefile 后端
+                let onefile = exe_dir.join("resources").join("gjj-ocr-server.exe");
+                if onefile.exists() {
+                    eprintln!("[is_bundled] Detected legacy onefile server: {:?}", onefile);
                     return true;
                 }
             }
@@ -211,20 +275,17 @@ fn is_bundled() -> bool {
     }
 }
 
-fn get_project_root() -> Result<std::path::PathBuf, String> {
-    if is_bundled() {
-        return get_resources_dir();
-    }
-
+fn get_dev_project_root() -> Result<PathBuf, String> {
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current dir: {}", e))?;
-    
+
     let mut check_dir = current_dir.clone();
     for _ in 0..5 {
         if let Some(parent) = check_dir.parent() {
             if check_dir.file_name() == Some(std::ffi::OsStr::new("debug"))
                 || check_dir.file_name() == Some(std::ffi::OsStr::new("release"))
-                || check_dir.file_name() == Some(std::ffi::OsStr::new("target")) {
+                || check_dir.file_name() == Some(std::ffi::OsStr::new("target"))
+            {
                 check_dir = parent.to_path_buf();
                 continue;
             }
@@ -240,18 +301,58 @@ fn get_project_root() -> Result<std::path::PathBuf, String> {
             break;
         }
     }
-    
+
     Ok(current_dir)
 }
 
-fn get_python_path(_app_handle: &tauri::AppHandle) -> Result<String, String> {
+/// 统一路径入口：前端 invoke、Python 环境变量注入均走此处
+fn compute_runtime_paths(app: &AppHandle) -> Result<RuntimePathsDto, String> {
+    let bundled = is_bundled();
+    let app_root = if bundled {
+        get_app_dir()?
+    } else {
+        get_dev_project_root()?
+    };
+    let resources_dir = if bundled {
+        resolve_bundled_resources_dir(app, &app_root)
+    } else {
+        resolve_dev_resources_dir(&app_root)?
+    };
+    let user_data_dir = resolve_user_data_dir(app)?;
+    Ok(RuntimePathsDto {
+        app_root: app_root.to_string_lossy().to_string(),
+        resources_dir: resources_dir.to_string_lossy().to_string(),
+        user_data_dir: user_data_dir.to_string_lossy().to_string(),
+        bundled,
+    })
+}
+
+fn bundled_server_exe(resources: &Path) -> Result<PathBuf, String> {
+    let onedir = resources
+        .join("gjj-ocr-server")
+        .join("gjj-ocr-server.exe");
+    if onedir.exists() {
+        return Ok(onedir);
+    }
+    let onefile = resources.join("gjj-ocr-server.exe");
+    if onefile.exists() {
+        return Ok(onefile);
+    }
+    Err(format!(
+        "Bundled server not found under {:?} (expected gjj-ocr-server/ or gjj-ocr-server.exe)",
+        resources
+    ))
+}
+
+fn get_python_path(app_handle: &AppHandle) -> Result<String, String> {
     if is_bundled() {
-        let exe_path = get_resources_dir()?.join("gjj-ocr-server.exe");
+        let paths = compute_runtime_paths(app_handle)?;
+        let exe_path = bundled_server_exe(Path::new(&paths.resources_dir))?;
         println!("Using bundled server exe: {:?}", exe_path);
         return Ok(exe_path.to_string_lossy().to_string());
     }
 
-    let project_root = get_project_root()?;
+    let project_root = get_dev_project_root()?;
     let venv_python = project_root.join(".venv312").join("Scripts").join("python.exe");
     if venv_python.exists() {
         println!("Using venv Python: {:?}", venv_python);
@@ -260,11 +361,11 @@ fn get_python_path(_app_handle: &tauri::AppHandle) -> Result<String, String> {
     Ok("python".to_string())
 }
 
-fn get_server_script_path(_app_handle: &tauri::AppHandle) -> Result<String, String> {
+fn get_server_script_path(_app_handle: &AppHandle) -> Result<String, String> {
     if is_bundled() {
         return Ok(String::new());
     }
-    let project_root = get_project_root()?;
+    let project_root = get_dev_project_root()?;
     let server_script = project_root.join("apps").join("server").join("src").join("server.py");
     if !server_script.exists() {
         return Err(format!("Server script not found: {:?}", server_script));
@@ -272,97 +373,20 @@ fn get_server_script_path(_app_handle: &tauri::AppHandle) -> Result<String, Stri
     Ok(server_script.to_string_lossy().to_string())
 }
 
+/// 运行时路径（安装目录 / 内嵌 resources / 用户数据）。前端与 Python 均不应硬编码路径。
 #[tauri::command]
-fn get_project_root_cmd() -> Result<String, String> {
-    let root = get_project_root()?;
-    Ok(root.to_string_lossy().to_string())
+fn get_runtime_paths(app: AppHandle) -> Result<RuntimePathsDto, String> {
+    compute_runtime_paths(&app)
 }
 
-/// 解析相对数据路径：开发态在 ROOT/resources 下，打包态在 resources 根下；并回退到 样本材料/
 #[tauri::command]
-fn resolve_data_path(relative: String) -> Result<String, String> {
-    let root = get_project_root()?;
-    let rel = relative.replace('/', std::path::MAIN_SEPARATOR_STR);
-    let mut candidates = vec![
-        root.join(&rel),
-        root.join("resources").join(&rel),
-    ];
-    if rel.contains("non-litigation-batch1") {
-        if rel.ends_with(".xlsx") {
-            candidates.push(
-                root.join("样本材料")
-                    .join("非诉组自动化样本材料")
-                    .join("台账及命名规则.xlsx"),
-            );
-        } else {
-            candidates.push(root.join("样本材料").join("非诉组自动化样本材料"));
-        }
-    } else if rel.contains("non-litigation-batch2") {
-        if rel.ends_with(".xlsx") {
-            candidates.push(
-                root.join("样本材料")
-                    .join("非诉组自动化样本材料（第2批）")
-                    .join("台账及命名规则.xlsx"),
-            );
-        } else {
-            candidates.push(root.join("样本材料").join("非诉组自动化样本材料（第2批）"));
-        }
-    } else if rel.contains("enforcement/extract") {
-        if rel.ends_with(".xlsx") {
-            candidates.push(
-                root.join("样本材料")
-                    .join("强制组-自动化")
-                    .join("提取信息")
-                    .join("非诉表格.xlsx"),
-            );
-        } else {
-            candidates.push(root.join("样本材料").join("强制组-自动化").join("提取信息"));
-        }
-    } else if rel.contains("enforcement/print") {
-        if rel.ends_with(".xlsx") {
-            candidates.push(
-                root.join("样本材料")
-                    .join("强制组-自动化")
-                    .join("自动打印")
-                    .join("AOL网上网立台账.xlsx"),
-            );
-            candidates.push(
-                root.join("样本材料")
-                    .join("强制组-自动化")
-                    .join("自动打印")
-                    .join("AOL强制执行台账.xlsx"),
-            );
-        } else {
-            candidates.push(root.join("样本材料").join("强制组-自动化").join("自动打印"));
-        }
-    } else if rel.contains("company-query") {
-        if rel.ends_with(".xlsx") {
-            candidates.push(root.join("样本材料").join("企业信息查询").join("001.xlsx"));
-            if let Ok(entries) = std::fs::read_dir(root.join("样本材料")) {
-                for entry in entries.flatten() {
-                    let path = entry.path();
-                    if path.extension().and_then(|s| s.to_str()) == Some("xlsx") {
-                        let name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-                        if name.contains("被执行人") {
-                            candidates.push(path);
-                        }
-                    }
-                }
-            }
-        } else {
-            candidates.push(root.join("样本材料").join("企业信息查询"));
-        }
-    }
-    for candidate in &candidates {
-        if candidate.exists() {
-            return Ok(candidate.to_string_lossy().to_string());
-        }
-    }
-    Err(format!(
-        "数据路径不存在: {} (ROOT={})",
-        relative,
-        root.display()
-    ))
+fn get_project_root_cmd(app: AppHandle) -> Result<String, String> {
+    Ok(compute_runtime_paths(&app)?.app_root)
+}
+
+#[tauri::command]
+fn is_production_bundle() -> bool {
+    is_bundled()
 }
 
 // Tauri 命令：发送 JSON-RPC 请求
@@ -373,12 +397,18 @@ async fn send_jsonrpc_request(
     params: serde_json::Value,
     id: u64,
 ) -> Result<(), String> {
-    // 检查服务是否已初始化
-    if !service.initialized {
-        return Err(format!(
-            "Python service not initialized: {}",
-            service.error_message.as_deref().unwrap_or("Unknown error")
-        ));
+    let initialized = *service
+        .initialized
+        .lock()
+        .map_err(|e| format!("Lock error: {}", e))?;
+    if !initialized {
+        let err = service
+            .error_message
+            .lock()
+            .ok()
+            .and_then(|g| g.clone())
+            .unwrap_or_else(|| "后端正在启动，请稍候".to_string());
+        return Err(format!("Python service not initialized: {}", err));
     }
 
     let request = JsonRpcRequest {
@@ -393,13 +423,15 @@ async fn send_jsonrpc_request(
 
     eprintln!("[send_jsonrpc_request] Sending request: {}", request_json);
 
-    if let Some(ref tx) = service.request_tx {
-        tx.send(request_json)
-            .map_err(|e| format!("Failed to send request: {}", e))?;
-        eprintln!("[send_jsonrpc_request] Request queued successfully");
-    } else {
-        return Err("Python service request channel not available".to_string());
-    }
+    let tx = service
+        .request_tx
+        .lock()
+        .map_err(|e| format!("Lock error: {}", e))?
+        .clone()
+        .ok_or("Python service request channel not available")?;
+    tx.send(request_json)
+        .map_err(|e| format!("Failed to send request: {}", e))?;
+    eprintln!("[send_jsonrpc_request] Request queued successfully");
 
     Ok(())
 }
@@ -407,7 +439,12 @@ async fn send_jsonrpc_request(
 // Tauri 命令：强制终止 Python 进程
 #[tauri::command]
 async fn kill_python(service: State<'_, PythonService>) -> Result<(), String> {
-    if let Some(pid) = service.pid {
+    let pid = service
+        .pid
+        .lock()
+        .map_err(|e| format!("Lock error: {}", e))?
+        .ok_or("Python process not running")?;
+    if pid != 0 {
         #[cfg(target_os = "windows")]
         {
             std::process::Command::new("taskkill")
@@ -424,6 +461,7 @@ async fn kill_python(service: State<'_, PythonService>) -> Result<(), String> {
         }
         eprintln!("[kill_python] Python process (PID {}) killed", pid);
     }
+    *service.initialized.lock().map_err(|e| format!("Lock error: {}", e))? = false;
     Ok(())
 }
 
@@ -532,31 +570,32 @@ async fn select_files(
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            let app_handle = app.handle();
+            let app_handle = app.handle().clone();
+            let service = PythonService::placeholder();
+            app.manage(service.clone());
 
-            // 初始化 Python 服务
-            let service = tauri::async_runtime::block_on(async {
-                match init_python_service(app_handle).await {
-                    Ok(service) => {
+            tauri::async_runtime::spawn(async move {
+                let _ = app_handle.emit_all(
+                    "backend-init-progress",
+                    serde_json::json!({ "step": "python" }),
+                );
+                match init_python_service(app_handle.clone()).await {
+                    Ok((child, pid, request_tx)) => {
+                        *service.child.lock().unwrap() = Some(child);
+                        *service.pid.lock().unwrap() = Some(pid);
+                        *service.request_tx.lock().unwrap() = Some(request_tx);
+                        *service.initialized.lock().unwrap() = true;
+                        *service.error_message.lock().unwrap() = None;
                         println!("Python service initialized successfully");
-                        service
+                        let _ = app_handle.emit_all("python-service-ready", ());
                     }
                     Err(e) => {
                         eprintln!("Failed to initialize Python service: {}", e);
-                        // 返回一个未初始化的服务状态，避免 state not managed 错误
-                        PythonService {
-                            child: Arc::new(Mutex::new(None)),
-                            pid: None,
-                            request_tx: None,
-                            initialized: false,
-                            error_message: Some(e),
-                        }
+                        *service.error_message.lock().unwrap() = Some(e.clone());
+                        let _ = app_handle.emit_all("python-service-error", e);
                     }
                 }
             });
-
-            // 始终注册服务状态
-            app.manage(service);
 
             Ok(())
         })
@@ -565,10 +604,11 @@ fn main() {
             kill_python,
             select_folder,
             select_files,
-            resolve_data_path,
             open_path,
             open_url,
+            get_runtime_paths,
             get_project_root_cmd,
+            is_production_bundle,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

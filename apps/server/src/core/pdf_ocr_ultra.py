@@ -63,6 +63,43 @@ _ocr_engine = None
 _ocr_lock = threading.Lock()
 _gpu_provider = None
 _gpu_info = ""
+_GPU_CACHE_VERSION = 1
+
+
+def _gpu_cache_path() -> Path:
+    from core.paths import USER_DATA_DIR
+    return USER_DATA_DIR / "ocr-gpu-cache.json"
+
+
+def _load_gpu_cache() -> Optional[Dict[str, str]]:
+    path = _gpu_cache_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("version") != _GPU_CACHE_VERSION:
+            return None
+        provider = data.get("provider")
+        if provider not in ("cuda", "dml_det", "cpu"):
+            return None
+        return {"provider": provider, "info": data.get("info", "")}
+    except Exception:
+        return None
+
+
+def _save_gpu_cache(provider: str, info: str) -> None:
+    try:
+        from core.paths import USER_DATA_DIR
+        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _gpu_cache_path().write_text(
+            json.dumps(
+                {"version": _GPU_CACHE_VERSION, "provider": provider, "info": info},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 
 def _generate_test_image():
@@ -159,6 +196,11 @@ def detect_gpu_provider():
     global _gpu_provider, _gpu_info
     if _gpu_provider is not None:
         return _gpu_provider, _gpu_info
+    cached = _load_gpu_cache()
+    if cached:
+        _gpu_provider = cached["provider"]
+        _gpu_info = cached.get("info", "")
+        return _gpu_provider, _gpu_info
     if not HAS_RAPIDOCR:
         _gpu_provider = 'cpu'
         _gpu_info = 'CPU only (RapidOCR 未安装)'
@@ -175,6 +217,7 @@ def detect_gpu_provider():
             if _validate_gpu_det_accuracy(**cuda_kwargs):
                 _gpu_provider = 'cuda'
                 _gpu_info = f'NVIDIA CUDA GPU (det+rec){f" [{hw_name}]" if hw_name else ""}'
+                _save_gpu_cache(_gpu_provider, _gpu_info)
                 return _gpu_provider, _gpu_info
 
         if 'DmlExecutionProvider' in providers:
@@ -184,6 +227,7 @@ def detect_gpu_provider():
                 if win_ver < 10:
                     _gpu_provider = 'cpu'
                     _gpu_info = f'CPU (Windows {win_ver} < 10, DirectML 不可用)'
+                    _save_gpu_cache(_gpu_provider, _gpu_info)
                     return _gpu_provider, _gpu_info
             except Exception:
                 pass
@@ -194,12 +238,14 @@ def detect_gpu_provider():
                 vendor_label = hw_vendor or 'GPU'
                 name_label = f" [{hw_name}]" if hw_name else ""
                 _gpu_info = f'DirectML {vendor_label} (det=GPU, rec=CPU){name_label}'
+                _save_gpu_cache(_gpu_provider, _gpu_info)
                 return _gpu_provider, _gpu_info
 
             dml_full_kwargs = dict(use_cls=False, det_use_dml=True, rec_use_dml=True)
             if _validate_gpu_det_accuracy(**dml_full_kwargs):
                 _gpu_provider = 'dml_det'
                 _gpu_info = f'DirectML GPU (det+rec){f" [{hw_name}]" if hw_name else ""}'
+                _save_gpu_cache(_gpu_provider, _gpu_info)
                 return _gpu_provider, _gpu_info
 
     except Exception:
@@ -210,6 +256,7 @@ def detect_gpu_provider():
         _gpu_info = f'CPU ({hw_name} 检测到但 GPU 加速不可用)'
     else:
         _gpu_info = 'CPU (无 GPU 或驱动未安装)'
+    _save_gpu_cache(_gpu_provider, _gpu_info)
     return _gpu_provider, _gpu_info
 
 
@@ -396,9 +443,9 @@ class OCRConfig:
 
     def __post_init__(self):
         import sys
-        from core.paths import ROOT, RESOURCES_DIR
+        from core.paths import RESOURCES_DIR, get_user_data_dir
         if self._base_dir is None:
-            self._base_dir = ROOT
+            self._base_dir = get_user_data_dir()
         if self._server_dir is None:
             if getattr(sys, "frozen", False):
                 self._server_dir = RESOURCES_DIR

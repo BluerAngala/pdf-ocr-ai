@@ -9,7 +9,8 @@ export interface PresetConfig {
   mode: "mock" | "real_ocr";
 }
 
-const PRESET_DEFS: Omit<PresetConfig, "sampleRoot" | "excelPath">[] = [
+/** 仅用于浏览器 mock；真实路径一律由 Python system.get_presets 解析 */
+const PRESET_STUBS: Omit<PresetConfig, "sampleRoot" | "excelPath">[] = [
   {
     id: "non-litigation-batch1",
     name: "非诉审查 - 第1批",
@@ -42,36 +43,62 @@ const PRESET_DEFS: Omit<PresetConfig, "sampleRoot" | "excelPath">[] = [
   },
 ];
 
-async function fetchPresetsFromPython(retries = 8, delayMs = 400): Promise<PresetConfig[] | null> {
+async function fetchPresetsFromPython(
+  retries = 12,
+  delayMs = 400,
+): Promise<PresetConfig[] | null> {
   if (!isTauri()) return null;
+  let lastError: unknown;
   for (let i = 0; i < retries; i++) {
     try {
       const raw = (await sendRequest("system.get_presets", {})) as {
         presets?: PresetConfig[];
+        errors?: { id: string; error: string }[];
       };
+      if (raw.errors?.length) {
+        console.warn("[presets] 部分预设未解析:", raw.errors);
+      }
       if (raw.presets?.length) {
         return raw.presets;
       }
-    } catch {
+    } catch (e) {
+      lastError = e;
       await new Promise((r) => setTimeout(r, delayMs));
     }
+  }
+  if (lastError) {
+    console.warn("[presets] system.get_presets 失败:", lastError);
   }
   return null;
 }
 
 let _cachedPresets: PresetConfig[] | null = null;
 
-export async function getPresets(): Promise<PresetConfig[]> {
-  if (_cachedPresets) return _cachedPresets;
+function hasResolvedPreset(presets: PresetConfig[]): boolean {
+  return presets.some((p) => Boolean(p.sampleRoot));
+}
 
-  const fromPython = await fetchPresetsFromPython();
-  if (fromPython) {
+export async function getPresets(forceRefresh = false): Promise<PresetConfig[]> {
+  if (_cachedPresets && !forceRefresh) {
+    if (!isTauri() || hasResolvedPreset(_cachedPresets)) {
+      return _cachedPresets;
+    }
+    invalidatePresetCache();
+  }
+
+  const fromPython = await fetchPresetsFromPython(forceRefresh ? 24 : 12, forceRefresh ? 500 : 400);
+  if (fromPython?.length) {
     _cachedPresets = fromPython;
     return fromPython;
   }
 
-  // 非 Tauri 或 Python 尚未就绪时的占位（浏览器 mock）
-  _cachedPresets = PRESET_DEFS.map((d) => ({
+  if (isTauri()) {
+    throw new Error(
+      "无法从后端加载预设路径（请重新安装最新版，或手动选择样本文件夹）",
+    );
+  }
+
+  _cachedPresets = PRESET_STUBS.map((d) => ({
     ...d,
     sampleRoot: "",
     excelPath: "",
@@ -84,6 +111,16 @@ export function invalidatePresetCache(): void {
 }
 
 export function getPresetById(id: string): PresetConfig | undefined {
-  if (_cachedPresets) return _cachedPresets.find((p) => p.id === id);
-  return undefined;
+  return _cachedPresets?.find((p) => p.id === id);
+}
+
+export async function ensurePresetById(
+  presetId: string,
+): Promise<PresetConfig | undefined> {
+  let preset = getPresetById(presetId);
+  if (preset?.sampleRoot) return preset;
+  invalidatePresetCache();
+  await getPresets(true);
+  preset = getPresetById(presetId);
+  return preset?.sampleRoot ? preset : undefined;
 }

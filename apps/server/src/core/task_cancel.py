@@ -31,8 +31,14 @@ def get_event(task_id: str) -> threading.Event:
 
 
 def clear(task_id: str):
+    """移除任务的取消状态（任务结束或用户继续前调用）。"""
     with _lock:
         _events.pop(task_id, None)
+
+
+def clear_cancel(task_id: str):
+    """用户点击「继续任务」时清除取消标志，保留 OCR 缓存断点。"""
+    clear(task_id)
 
 
 def clear_all():

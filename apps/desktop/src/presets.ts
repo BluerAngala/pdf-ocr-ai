@@ -50,16 +50,50 @@ const PRESET_DEFS = [
   },
 ];
 
-export function buildPresets(projectRoot: string): PresetConfig[] {
+function resolveLocalPath(projectRoot: string, rel: string): string {
   const root = projectRoot.replace(/[\\/]+$/, "");
-  return PRESET_DEFS.map((d) => ({
-    id: d.id,
-    name: d.name,
-    description: d.description,
-    sampleRoot: `${root}/${d.sampleRel}`,
-    excelPath: `${root}/${d.excelRel}`,
-    mode: d.mode,
-  }));
+  return `${root}/resources/${rel}`.replace(/\\/g, "/");
+}
+
+export async function buildPresets(projectRoot: string): Promise<PresetConfig[]> {
+  const root = projectRoot.replace(/[\\/]+$/, "");
+  let invokeResolve: ((rel: string) => Promise<string>) | null = null;
+  try {
+    const { invoke } = await import("@tauri-apps/api/tauri");
+    invokeResolve = (rel: string) => invoke<string>("resolve_data_path", { relative: rel });
+  } catch {
+    // 非 Tauri 环境
+  }
+
+  const presets: PresetConfig[] = [];
+  for (const d of PRESET_DEFS) {
+    let sampleRoot: string;
+    let excelPath: string;
+    if (invokeResolve) {
+      try {
+        sampleRoot = await invokeResolve(d.sampleRel);
+      } catch {
+        sampleRoot = resolveLocalPath(root, d.sampleRel);
+      }
+      try {
+        excelPath = await invokeResolve(d.excelRel);
+      } catch {
+        excelPath = resolveLocalPath(root, d.excelRel);
+      }
+    } else {
+      sampleRoot = resolveLocalPath(root, d.sampleRel);
+      excelPath = resolveLocalPath(root, d.excelRel);
+    }
+    presets.push({
+      id: d.id,
+      name: d.name,
+      description: d.description,
+      sampleRoot,
+      excelPath,
+      mode: d.mode,
+    });
+  }
+  return presets;
 }
 
 let _cachedPresets: PresetConfig[] | null = null;
@@ -73,8 +107,12 @@ export async function getPresets(): Promise<PresetConfig[]> {
   } catch {
     // not running in Tauri, use default
   }
-  _cachedPresets = buildPresets(root);
+  _cachedPresets = await buildPresets(root);
   return _cachedPresets;
+}
+
+export function invalidatePresetCache(): void {
+  _cachedPresets = null;
 }
 
 export function getPresetById(id: string): PresetConfig | undefined {

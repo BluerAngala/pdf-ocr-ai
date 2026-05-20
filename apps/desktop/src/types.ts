@@ -215,4 +215,4 @@ export interface JsonRpcNotification {
   params: unknown;
 }
 
-export type PreviewState = "empty" | "progress" | "cancelling" | "result";
+export type PreviewState = "empty" | "progress" | "cancelling" | "paused" | "result";

@@ -1,9 +1,11 @@
 interface Props {
   running: boolean;
   cancelling?: boolean;
+  taskPaused?: boolean;
   onRun: () => void;
   onCancel: () => void;
   runLabel: string;
+  resumeLabel?: string;
   runIcon?: React.ReactNode;
   accent?: string;
 }
@@ -41,9 +43,11 @@ const CancelIcon = (
 export default function ActionFooter({
   running,
   cancelling = false,
+  taskPaused = false,
   onRun,
   onCancel,
   runLabel,
+  resumeLabel = "继续任务",
   runIcon,
   accent = "blue",
 }: Props) {
@@ -56,6 +60,18 @@ export default function ActionFooter({
       >
         {CancelIcon}
         {cancelling ? "正在取消..." : "取消任务"}
+      </button>
+    );
+  }
+
+  if (taskPaused) {
+    return (
+      <button
+        onClick={onRun}
+        className={`shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white ${RUN_COLORS[accent] || RUN_COLORS.blue} active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2`}
+      >
+        {runIcon || DefaultRunIcon}
+        {resumeLabel}
       </button>
     );
   }

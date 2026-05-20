@@ -73,25 +73,62 @@ else:
 if str(_server_src) not in sys.path:
     sys.path.insert(0, str(_server_src))
 
-from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR
+from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR, RESOURCES_DIR
 from core.task_cancel import CancelledError
 
 print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"ROOT={ROOT}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}, stdin_encoding={getattr(sys.stdin, 'encoding', '?')}"}}), file=sys.stderr, flush=True)
 
 PRESET_SAMPLE_PATHS = {
-    "non-litigation-batch1": ["sample-data/non-litigation-batch1"],
-    "non-litigation-batch2": ["sample-data/non-litigation-batch2"],
-    "enforcement-extract": ["sample-data/enforcement/extract"],
-    "enforcement-print": ["sample-data/enforcement/print"],
-    "company-query": ["sample-data/company-query"],
+    "non-litigation-batch1": [
+        "resources/sample-data/non-litigation-batch1",
+        "sample-data/non-litigation-batch1",
+        "样本材料/非诉组自动化样本材料",
+    ],
+    "non-litigation-batch2": [
+        "resources/sample-data/non-litigation-batch2",
+        "sample-data/non-litigation-batch2",
+        "样本材料/非诉组自动化样本材料（第2批）",
+    ],
+    "enforcement-extract": [
+        "resources/sample-data/enforcement/extract",
+        "sample-data/enforcement/extract",
+        "样本材料/强制组-自动化/提取信息",
+    ],
+    "enforcement-print": [
+        "resources/sample-data/enforcement/print",
+        "sample-data/enforcement/print",
+        "样本材料/强制组-自动化/自动打印",
+    ],
+    "company-query": [
+        "resources/sample-data/company-query",
+        "sample-data/company-query",
+        "样本材料/企业信息查询",
+    ],
 }
 
 PRESET_EXCEL_PATHS = {
-    "non-litigation-batch1": ["sample-data/non-litigation-batch1/台账及命名规则.xlsx"],
-    "non-litigation-batch2": ["sample-data/non-litigation-batch2/台账及命名规则.xlsx"],
-    "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx"],
-    "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx"],
-    "company-query": ["sample-data/company-query/companies.xlsx"],
+    "non-litigation-batch1": [
+        "resources/sample-data/non-litigation-batch1/台账及命名规则.xlsx",
+        "sample-data/non-litigation-batch1/台账及命名规则.xlsx",
+        "样本材料/非诉组自动化样本材料/台账及命名规则.xlsx",
+    ],
+    "non-litigation-batch2": [
+        "resources/sample-data/non-litigation-batch2/台账及命名规则.xlsx",
+        "sample-data/non-litigation-batch2/台账及命名规则.xlsx",
+        "样本材料/非诉组自动化样本材料（第2批）/台账及命名规则.xlsx",
+    ],
+    "enforcement-extract": [
+        "resources/sample-data/enforcement/extract/cases.xlsx",
+        "sample-data/enforcement/extract/cases.xlsx",
+    ],
+    "enforcement-print": [
+        "resources/sample-data/enforcement/print/aol-ledger.xlsx",
+        "sample-data/enforcement/print/aol-ledger.xlsx",
+    ],
+    "company-query": [
+        "resources/sample-data/company-query/companies.xlsx",
+        "sample-data/company-query/companies.xlsx",
+    ],
 }
 
 
@@ -109,12 +146,26 @@ def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "
     return d
 
 
+def _iter_preset_candidates(rel: str):
+    rel_path = Path(rel)
+    seen: set[str] = set()
+    for base in (ROOT, ROOT / "resources", RESOURCES_DIR):
+        candidate = (base / rel_path).resolve()
+        key = str(candidate)
+        if key in seen:
+            continue
+        seen.add(key)
+        yield candidate
+
+
 def _resolve_preset_path(path_list):
+    tried = []
     for p in path_list:
-        candidate = ROOT / p
-        if candidate.exists():
-            return candidate.resolve()
-    raise FileNotFoundError(f"所有预设路径均不存在: {path_list} (ROOT={ROOT})")
+        for candidate in _iter_preset_candidates(p):
+            tried.append(str(candidate))
+            if candidate.exists():
+                return candidate.resolve()
+    raise FileNotFoundError(f"所有预设路径均不存在: {path_list} (ROOT={ROOT}, tried={tried[:8]})")
 
 
 def _dir_has_pdfs(dir_path: Path) -> bool:
@@ -202,6 +253,7 @@ class JsonRpcServer:
         self.methods['company_query.load_cache'] = self._company_query_load_cache
         self.methods['company_query.clear_cache'] = self._company_query_clear_cache
         self.methods['task.cancel'] = self._task_cancel
+        self.methods['task.clear_cancel'] = self._task_clear_cancel
 
         self.methods['print.start'] = self._print_start
         self.methods['print.cancel'] = self._print_cancel
@@ -466,6 +518,10 @@ class JsonRpcServer:
             emitter.progress("ocr", _ocr_total, _ocr_total + 2, "OCR 识别完成", _ocr_total, _ocr_total)
 
             # 导出阶段
+            if _is_task_cancelled(task_id):
+                emitter.log("warn", "任务已取消，跳过导出阶段")
+                emitter.complete(False, error="用户取消")
+                raise CancelledError("任务已取消")
             emitter.progress("export", _ocr_total + 1, _ocr_total + 2, "开始导出文件...")
             export_result = export_non_litigation_standard_outputs(
                 sample_root=sample_root_path, input_dir=input_root,
@@ -475,6 +531,10 @@ class JsonRpcServer:
             emitter.progress("export", _ocr_total + 1, _ocr_total + 2, f"导出完成: {export_result['created_count']} 个文件")
 
             # 验证阶段
+            if _is_task_cancelled(task_id):
+                emitter.log("warn", "任务已取消，跳过验证阶段")
+                emitter.complete(False, error="用户取消")
+                raise CancelledError("任务已取消")
             emitter.progress("validation", _ocr_total + 2, _ocr_total + 2, "开始验证...")
             cases = load_non_litigation_cases(sample_root_path, excel_path=excel_file_path)
             validation_result = validate_ocr_results(cases, ocr_results, input_dir=input_root)
@@ -510,6 +570,8 @@ class JsonRpcServer:
         except CancelledError as e:
             emitter.log("warn", str(e))
             emitter.complete(False, error="用户取消")
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
+            return {"cancelled": True, "success": False, "task_id": task_id}
         except Exception as e:
             emitter.log("error", f"处理失败: {str(e)}")
             emitter.complete(False, error=str(e))
@@ -668,8 +730,13 @@ class JsonRpcServer:
                 "stats": stats,
             }
         except CancelledError:
-            raise
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": "任务已取消"}}), file=sys.stderr, flush=True)
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
+            return {"cancelled": True, "success": False, "task_id": task_id}
         except Exception as e:
+            if _is_task_cancelled(task_id) or "取消" in str(e):
+                print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
+                return {"cancelled": True, "success": False, "task_id": task_id}
             raise Exception(f"强制执行提取失败: {str(e)}")
         finally:
             _clear_task(task_id)
@@ -723,6 +790,9 @@ class JsonRpcServer:
             emitter.log("info", f"{status_msg}: 成功 {result['success_count']}/{result['total']}，缓存跳过 {cached} 条")
             return result
         except Exception as e:
+            cancelled = result.get('cancelled', False) if isinstance(result, dict) else False
+            if cancelled:
+                print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
             raise Exception(f"企业查询失败: {str(e)}")
 
     def _company_query_cancel(self, params: Dict, id: Any) -> Dict:
@@ -735,14 +805,19 @@ class JsonRpcServer:
         task_id = params.get('task_id', '')
         from core.task_cancel import request_cancel, is_cancelled
         request_cancel(task_id)
-        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": f"收到取消请求: task_id={task_id}, 已设置标志={is_cancelled(task_id)}"}}), file=sys.stderr, flush=True)
-        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
+        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": f"收到取消请求: task_id={task_id}, 已标记取消={is_cancelled(task_id)}"}}), file=sys.stderr, flush=True)
         from infra.print_service import cancel_print_task as _cancel_print
         try:
             _cancel_print(task_id)
         except Exception:
             pass
         return {"cancelled": True, "task_id": task_id}
+
+    def _task_clear_cancel(self, params: Dict, id: Any) -> Dict:
+        task_id = params.get('task_id', '')
+        from core.task_cancel import clear_cancel
+        clear_cancel(task_id)
+        return {"cleared": True, "task_id": task_id}
 
     def _company_query_load_cache(self, params: Dict, id: Any) -> Dict:
         excel_path = params.get('excel_path', '')

@@ -6,6 +6,7 @@ interface Props {
   excelFile: string;
   running: boolean;
   cancelling?: boolean;
+  taskPaused?: boolean;
   rangeStart: number;
   rangeEnd: number;
   cacheTtlDays: number;
@@ -37,6 +38,7 @@ export default function CompanyQueryConfig({
   excelFile,
   running,
   cancelling = false,
+  taskPaused = false,
   rangeStart,
   rangeEnd,
   cacheTtlDays,
@@ -177,9 +179,11 @@ export default function CompanyQueryConfig({
       <ActionFooter
         running={running}
         cancelling={cancelling}
+        taskPaused={taskPaused}
         onRun={onRun}
         onCancel={onCancel}
         runLabel="开始查询"
+        resumeLabel="继续查询"
         runIcon={
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path

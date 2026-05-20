@@ -13,6 +13,7 @@ interface Props {
 
   running: boolean;
   cancelling: boolean;
+  taskPaused: boolean;
   printerName: string;
   printCopies: number;
   printers: PrinterInfo[];
@@ -60,6 +61,7 @@ export default function ConfigPanel({
 
   running,
   cancelling,
+  taskPaused,
   printerName,
   printCopies,
   printers,
@@ -106,6 +108,7 @@ export default function ConfigPanel({
           outputDir={outputDir}
           running={running}
           cancelling={cancelling}
+          taskPaused={taskPaused}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
           onPreset={onPreset}
@@ -125,6 +128,7 @@ export default function ConfigPanel({
           outputDir={outputDir}
           running={running}
           cancelling={cancelling}
+          taskPaused={taskPaused}
           onSampleRootChange={onSampleRootChange}
           onExcelFileChange={onExcelFileChange}
           onPreset={onPreset}
@@ -143,6 +147,7 @@ export default function ConfigPanel({
           outputDir={outputDir}
           running={running}
           cancelling={cancelling}
+          taskPaused={taskPaused}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
           onExcelFileChange={onExcelFileChange}

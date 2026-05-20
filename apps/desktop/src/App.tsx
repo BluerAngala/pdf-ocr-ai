@@ -15,7 +15,7 @@ import type {
   PrintTaskStatus,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
-import { getPresetById, getPresets } from "./presets";
+import { getPresetById, getPresets, invalidatePresetCache } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus, setupPoppler } from "./services/system";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -122,6 +122,12 @@ export default function App() {
     setPreviewState("empty");
   }, []);
 
+  const pauseTaskState = useCallback(() => {
+    setRunning(false);
+    setCancelling(false);
+    setPreviewState("paused");
+  }, []);
+
   useEffect(() => {
     if (previewState === "result") {
       setLogsExpanded(false);
@@ -131,7 +137,9 @@ export default function App() {
   const handleProgress = useCallback(
     (params: ProgressParams) => {
       if (params.task_id !== currentTaskIdRef.current) return;
-      setPreviewState("progress");
+      if (previewState !== "cancelling" && previewState !== "paused") {
+        setPreviewState("progress");
+      }
       setPhase(PHASE_NAMES[params.phase] || params.phase);
       setProgressCurrent(params.current);
       setProgressTotal(params.total);
@@ -145,12 +153,13 @@ export default function App() {
         }
       }
     },
-    [currentModule],
+    [currentModule, previewState],
   );
 
   const handleProgressRef = useRef(handleProgress);
   const addLogRef = useRef(addLog);
   const resetTaskStateRef = useRef(resetTaskState);
+  const pauseTaskStateRef = useRef(pauseTaskState);
 
   useEffect(() => {
     handleProgressRef.current = handleProgress;
@@ -163,6 +172,10 @@ export default function App() {
   useEffect(() => {
     resetTaskStateRef.current = resetTaskState;
   }, [resetTaskState]);
+
+  useEffect(() => {
+    pauseTaskStateRef.current = pauseTaskState;
+  }, [pauseTaskState]);
 
   const runningRef = useRef(false);
   useEffect(() => {
@@ -270,8 +283,8 @@ export default function App() {
       (params) => {
         const taskId = currentTaskIdRef.current;
         if (taskId && params.task_id === taskId) {
-          resetTaskStateRef.current();
-          addLogRef.current("warn", `任务 ${params.task_id} 已取消`);
+          pauseTaskStateRef.current();
+          addLogRef.current("warn", `任务 ${params.task_id} 已暂停，可点击继续任务`);
         }
       },
     ).then((cleanup) => {
@@ -281,6 +294,7 @@ export default function App() {
         cleanup();
       }
     });
+    invalidatePresetCache();
     getPresets().then(() => {
       if (initialized) return;
       initialized = true;
@@ -606,19 +620,14 @@ export default function App() {
     setPreviewState("cancelling");
     try {
       await sendRequest("task.cancel", { task_id: taskId });
-      addLog("warn", "取消请求已发送");
+      addLog("warn", "取消信号已发送，等待后端停止...");
     } catch (err) {
       addLog("error", `取消请求发送失败: ${err}`);
     }
-    setTimeout(() => {
-      if (currentTaskIdRef.current === taskId) {
-        addLog("warn", "取消超时，强制重置状态");
-        resetTaskState();
-      }
-    }, 10000);
-  }, [addLog, cancelling, resetTaskState]);
+  }, [addLog, cancelling]);
 
   const startProcessing = useCallback(async () => {
+    if (running) return;
     if (!sampleRoot && currentModule !== "company-query") {
       alert("请选择样本材料文件夹");
       return;
@@ -628,16 +637,30 @@ export default function App() {
       return;
     }
 
-    const taskId = `${currentModule}-${Date.now()}`;
-    currentTaskIdRef.current = taskId;
+    const isResume = previewState === "paused" && !!currentTaskIdRef.current;
+    const taskId = isResume ? currentTaskIdRef.current! : `${currentModule}-${Date.now()}`;
+    if (!isResume) {
+      currentTaskIdRef.current = taskId;
+    }
     flushLogs();
     setRunning(true);
     setCancelling(false);
     setLogsExpanded(true);
     setPreviewState("progress");
-    setResult(null);
-    setLiveCompanies([]);
-    addLog("info", `开始${MODULE_CONFIG[currentModule].title}处理...`);
+    if (!isResume) {
+      setResult(null);
+      setLiveCompanies([]);
+    }
+    if (isResume) {
+      try {
+        await sendRequest("task.clear_cancel", { task_id: taskId });
+      } catch {
+        // ignore
+      }
+      addLog("info", `继续${MODULE_CONFIG[currentModule].title}处理（断点续跑）...`);
+    } else {
+      addLog("info", `开始${MODULE_CONFIG[currentModule].title}处理...`);
+    }
 
     try {
       let res: ProcessingResult = {} as ProcessingResult;
@@ -792,20 +815,33 @@ export default function App() {
         };
       }
       if (currentTaskIdRef.current !== taskId) return;
+      const cancelled =
+        (res as { cancelled?: boolean }).cancelled === true ||
+        (res as { success?: boolean }).success === false &&
+          String((res as { error?: string }).error || "").includes("取消");
+      if (cancelled) {
+        pauseTaskState();
+        addLog("warn", "任务已暂停，可点击继续任务");
+        return;
+      }
       setPreviewState("result");
       setResult(res);
+      currentTaskIdRef.current = null;
       addLog("info", "处理完成！");
     } catch (err) {
-      if (currentTaskIdRef.current !== taskId) return;
       const error = err as Error | string;
       const msg = typeof error === "string" ? error : (error as Error)?.message || String(error);
-      if (msg.includes("已取消") || msg.includes("cancel")) {
-        addLog("warn", "任务已取消");
-      } else {
-        addLog("error", `处理失败: ${msg}`);
-        alert(`处理失败: ${msg}`);
+      if (currentTaskIdRef.current === taskId) {
+        if (msg.includes("已取消") || msg.includes("cancel") || msg.includes("Cancelled")) {
+          pauseTaskState();
+          addLog("warn", "任务已暂停，可点击继续任务");
+        } else {
+          addLog("error", `处理失败: ${msg}`);
+          alert(`处理失败: ${msg}`);
+          setPreviewState("empty");
+          currentTaskIdRef.current = null;
+        }
       }
-      setPreviewState("empty");
     } finally {
       if (currentTaskIdRef.current === taskId) {
         setRunning(false);
@@ -824,6 +860,9 @@ export default function App() {
     rangeStart,
     rangeEnd,
     cacheTtlDays,
+    previewState,
+    running,
+    pauseTaskState,
     addLog,
     flushLogs,
     printCompanyNameColumn,
@@ -964,6 +1003,7 @@ export default function App() {
           onPrintOrders={printOrders}
           running={running}
           cancelling={cancelling}
+          taskPaused={previewState === "paused"}
           previewState={previewState}
           phase={phase}
           progressCurrent={progressCurrent}

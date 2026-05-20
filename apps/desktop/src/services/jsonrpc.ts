@@ -135,6 +135,10 @@ function mockResponse(method: string, params: Record<string, unknown>): unknown 
       };
     case "company_query.cancel":
       return { cancelled: true };
+    case "task.cancel":
+      return { cancelled: true };
+    case "task.clear_cancel":
+      return { cleared: true };
     case "company_query.load_cache":
       return { companies: [], total: 0 };
     case "company_query.process":

@@ -6,6 +6,7 @@ interface Props {
   excelFile: string;
   running: boolean;
   cancelling?: boolean;
+  taskPaused?: boolean;
   onSampleRootChange: (v: string) => void;
   onExcelFileChange: (v: string) => void;
   onPreset: () => void;
@@ -23,6 +24,7 @@ export default function NonLitigationConfig({
   excelFile,
   running,
   cancelling = false,
+  taskPaused = false,
   onSampleRootChange,
   onExcelFileChange,
   outputDir,
@@ -88,9 +90,11 @@ export default function NonLitigationConfig({
       <ActionFooter
         running={running}
         cancelling={cancelling}
+        taskPaused={taskPaused}
         onRun={onRun}
         onCancel={onCancel}
         runLabel="开始处理"
+        resumeLabel="继续处理"
         accent="blue"
       />
     </div>

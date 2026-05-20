@@ -44,6 +44,10 @@ const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = 
     text: "正在取消...",
     className: "text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded",
   },
+  paused: {
+    text: "已暂停",
+    className: "text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded",
+  },
   result: {
     text: "完成",
     className: "text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded",
@@ -164,7 +168,7 @@ export default function PreviewPanel({
             </div>
           )}
 
-          {(previewState === "progress" || previewState === "cancelling") && (
+          {(previewState === "progress" || previewState === "cancelling" || previewState === "paused") && (
             <div className="flex flex-col gap-3">
               {previewState === "cancelling" && (
                 <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
@@ -183,6 +187,13 @@ export default function PreviewPanel({
                   </svg>
                   <span className="text-xs font-medium text-amber-700">
                     正在停止任务，等待当前操作完成...
+                  </span>
+                </div>
+              )}
+              {previewState === "paused" && (
+                <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <span className="text-xs font-medium text-amber-800">
+                    任务已暂停，已完成部分已写入缓存。点击「继续任务」从断点接着处理。
                   </span>
                 </div>
               )}

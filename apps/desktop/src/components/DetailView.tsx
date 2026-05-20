@@ -64,6 +64,7 @@ interface Props {
   onPrintOrders: (orders: number[]) => void;
   running: boolean;
   cancelling: boolean;
+  taskPaused: boolean;
   previewState: PreviewState;
   phase: string;
   progressCurrent: number;
@@ -132,6 +133,7 @@ export default function DetailView({
   onPrintOrders,
   running,
   cancelling,
+  taskPaused,
   previewState,
   phase,
   progressCurrent,
@@ -240,6 +242,7 @@ export default function DetailView({
             outputDir={outputDir}
             running={running}
             cancelling={cancelling}
+            taskPaused={taskPaused}
             printerName={printerName}
             printCopies={printCopies}
             printers={printers}

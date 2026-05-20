@@ -165,16 +165,24 @@ fn get_resources_dir() -> Result<std::path::PathBuf, String> {
 }
 
 fn is_bundled() -> bool {
-    if let Ok(exe_path) = std::env::current_exe() {
-        if let Some(exe_dir) = exe_path.parent() {
-            let marker = exe_dir.join("resources").join("gjj-ocr-server.exe");
-            if marker.exists() {
-                eprintln!("[is_bundled] Detected by resources marker: {:?}", marker);
-                return true;
+    // Debug 开发始终用 venv + apps/server/src，避免 target/debug/resources 里的过期 server_src
+    #[cfg(debug_assertions)]
+    {
+        return false;
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        if let Ok(exe_path) = std::env::current_exe() {
+            if let Some(exe_dir) = exe_path.parent() {
+                let marker = exe_dir.join("resources").join("gjj-ocr-server.exe");
+                if marker.exists() {
+                    eprintln!("[is_bundled] Detected by resources marker: {:?}", marker);
+                    return true;
+                }
             }
         }
+        false
     }
-    false
 }
 
 fn get_project_root() -> Result<std::path::PathBuf, String> {
@@ -242,6 +250,54 @@ fn get_server_script_path(_app_handle: &tauri::AppHandle) -> Result<String, Stri
 fn get_project_root_cmd() -> Result<String, String> {
     let root = get_project_root()?;
     Ok(root.to_string_lossy().to_string())
+}
+
+/// 解析相对数据路径：开发态在 ROOT/resources 下，打包态在 resources 根下；并回退到 样本材料/
+#[tauri::command]
+fn resolve_data_path(relative: String) -> Result<String, String> {
+    let root = get_project_root()?;
+    let rel = relative.replace('/', std::path::MAIN_SEPARATOR_STR);
+    let mut candidates = vec![
+        root.join(&rel),
+        root.join("resources").join(&rel),
+    ];
+    if rel.contains("non-litigation-batch1") {
+        if rel.ends_with(".xlsx") {
+            candidates.push(
+                root.join("样本材料")
+                    .join("非诉组自动化样本材料")
+                    .join("台账及命名规则.xlsx"),
+            );
+        } else {
+            candidates.push(root.join("样本材料").join("非诉组自动化样本材料"));
+        }
+    } else if rel.contains("non-litigation-batch2") {
+        if rel.ends_with(".xlsx") {
+            candidates.push(
+                root.join("样本材料")
+                    .join("非诉组自动化样本材料（第2批）")
+                    .join("台账及命名规则.xlsx"),
+            );
+        } else {
+            candidates.push(root.join("样本材料").join("非诉组自动化样本材料（第2批）"));
+        }
+    } else if rel.contains("enforcement/extract") {
+        candidates.push(root.join("样本材料").join("强制组-自动化").join("提取信息"));
+    } else if rel.contains("enforcement/print") {
+        candidates.push(root.join("样本材料").join("强制组-自动化").join("自动打印"));
+    } else if rel.contains("company-query") {
+        candidates.push(root.join("样本材料").join("企业信息查询"));
+    }
+    for candidate in &candidates {
+        if candidate.exists() {
+            return Ok(candidate.to_string_lossy().to_string());
+        }
+    }
+    Err(format!(
+        "数据路径不存在: {} (ROOT={})",
+        relative,
+        root.display()
+    ))
 }
 
 // Tauri 命令：发送 JSON-RPC 请求
@@ -444,6 +500,7 @@ fn main() {
             kill_python,
             select_folder,
             select_files,
+            resolve_data_path,
             open_path,
             open_url,
             get_project_root_cmd,

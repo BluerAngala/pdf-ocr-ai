@@ -867,6 +867,9 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                         page_progress(start_page, total_pages)
                     for offset in range(pages_per):
                         page_num = start_page + offset
+                        if cancel_check and cancel_check():
+                            _log(f"  [申请书] 已取消，第 {page_num} 页")
+                            raise CancelledError("用户取消")
                         if page_num > total_pages:
                             break
                         if any(p['page'] == page_num for p in pages):
@@ -920,6 +923,9 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                 }
 
                 for item in application_region_results:
+                    if cancel_check and cancel_check():
+                        _log(f"  [申请书] 后处理阶段已取消")
+                        raise CancelledError("用户取消")
                     page_num = item['page_num']
                     text = item['text']
                     page_logs = item['page_logs']
@@ -1111,18 +1117,18 @@ def _run_ocr_with_timeout(pdf_path: Path, **kwargs) -> Dict:
     if timeout is None:
         total_pages = inspect_pdf_page_count(pdf_path) if pdf_path.exists() else 1
         timeout = max(_PDF_TIMEOUT_SECONDS, total_pages * 5)
+    poll_seconds = 0.25
     with ThreadPoolExecutor(max_workers=1) as executor:
         future = executor.submit(run_real_ocr_on_pdf, pdf_path, **kwargs)
         try:
-            elapsed = 0
-            step = 2
+            elapsed = 0.0
             while elapsed < timeout:
                 try:
-                    return future.result(timeout=step)
+                    return future.result(timeout=poll_seconds)
                 except FuturesTimeoutError:
-                    elapsed += step
+                    elapsed += poll_seconds
                     if cancel_check and cancel_check():
-                        _log(f"  [CANCEL] {pdf_path.name} 已取消，等待 OCR 退出...")
+                        _log(f"  [CANCEL] {pdf_path.name} 已取消")
                         raise CancelledError("用户取消")
             _log(f"  [TIMEOUT] {pdf_path.name} 处理超时 ({timeout}s)，跳过")
             return {'pages': [], 'total_pages': 0, 'filename': pdf_path.name, 'method': 'timeout'}
@@ -1410,6 +1416,9 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 post_processor=shared_post_processor,
                 cancel_check=cancel_check,
             )
+            if cancel_check and cancel_check():
+                _report(f"责催已取消，已完成 {idx}/{notice_count}")
+                raise CancelledError("用户取消")
             file_dur = time.perf_counter() - t0
             ocr_results[source_name] = result
             _on_result(source_name, result)

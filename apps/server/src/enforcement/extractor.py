@@ -611,8 +611,9 @@ def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True, cancel_check=None
 
     for pdf_file in sorted(pdf_dir.glob("*.pdf")):
         if cancel_check and cancel_check():
+            from core.task_cancel import CancelledError
             print("INFO: 任务已取消，停止处理")
-            break
+            raise CancelledError("任务已取消")
         stem = pdf_file.stem
         if stem in cache:
             print(f"INFO: 跳过已缓存: {pdf_file.name}")
@@ -651,7 +652,8 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
     from enforcement.product import load_enforcement_cases
 
     if cancel_check and cancel_check():
-        raise Exception("任务已取消")
+        from core.task_cancel import CancelledError
+        raise CancelledError("任务已取消")
 
     if mock_mode:
         print(f"INFO: Mock 模式：使用模拟数据")

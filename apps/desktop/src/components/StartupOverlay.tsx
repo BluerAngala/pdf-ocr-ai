@@ -15,7 +15,7 @@ export default function StartupOverlay({ phase, detail, error }: StartupOverlayP
           />
           <div>
             <h2 className="text-lg font-semibold text-slate-900">正在启动</h2>
-            <p className="text-sm text-slate-500">首次启动可能需要 30–60 秒，请稍候</p>
+            <p className="text-sm text-slate-500">后端就绪后即可进入；OCR 在后台预热</p>
           </div>
         </div>
         {error ? (

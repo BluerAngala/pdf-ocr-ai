@@ -1,4 +1,5 @@
 import { sendRequest, isTauri } from "./services/jsonrpc";
+import { normalizePath } from "./services/paths";
 
 export interface PresetConfig {
   id: string;
@@ -43,10 +44,7 @@ const PRESET_STUBS: Omit<PresetConfig, "sampleRoot" | "excelPath">[] = [
   },
 ];
 
-async function fetchPresetsFromPython(
-  retries = 12,
-  delayMs = 400,
-): Promise<PresetConfig[] | null> {
+async function fetchPresetsFromPython(retries = 12, delayMs = 400): Promise<PresetConfig[] | null> {
   if (!isTauri()) return null;
   let lastError: unknown;
   for (let i = 0; i < retries; i++) {
@@ -59,7 +57,11 @@ async function fetchPresetsFromPython(
         console.warn("[presets] 部分预设未解析:", raw.errors);
       }
       if (raw.presets?.length) {
-        return raw.presets;
+        return raw.presets.map((p) => ({
+          ...p,
+          sampleRoot: normalizePath(p.sampleRoot),
+          excelPath: normalizePath(p.excelPath),
+        }));
       }
     } catch (e) {
       lastError = e;
@@ -93,9 +95,7 @@ export async function getPresets(forceRefresh = false): Promise<PresetConfig[]> 
   }
 
   if (isTauri()) {
-    throw new Error(
-      "无法从后端加载预设路径（请重新安装最新版，或手动选择样本文件夹）",
-    );
+    throw new Error("无法从后端加载预设路径（请重新安装最新版，或手动选择样本文件夹）");
   }
 
   _cachedPresets = PRESET_STUBS.map((d) => ({
@@ -114,9 +114,7 @@ export function getPresetById(id: string): PresetConfig | undefined {
   return _cachedPresets?.find((p) => p.id === id);
 }
 
-export async function ensurePresetById(
-  presetId: string,
-): Promise<PresetConfig | undefined> {
+export async function ensurePresetById(presetId: string): Promise<PresetConfig | undefined> {
   let preset = getPresetById(presetId);
   if (preset?.sampleRoot) return preset;
   invalidatePresetCache();

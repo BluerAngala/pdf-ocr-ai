@@ -168,7 +168,9 @@ export default function PreviewPanel({
             </div>
           )}
 
-          {(previewState === "progress" || previewState === "cancelling" || previewState === "paused") && (
+          {(previewState === "progress" ||
+            previewState === "cancelling" ||
+            previewState === "paused") && (
             <div className="flex flex-col gap-3">
               {previewState === "cancelling" && (
                 <div className="flex items-center gap-2 p-2 bg-amber-50 border border-amber-200 rounded-lg">

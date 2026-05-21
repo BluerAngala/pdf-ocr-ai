@@ -2,6 +2,8 @@ interface Props {
   running: boolean;
   cancelling?: boolean;
   taskPaused?: boolean;
+  runDisabled?: boolean;
+  runDisabledHint?: string;
   onRun: () => void;
   onCancel: () => void;
   runLabel: string;
@@ -44,6 +46,8 @@ export default function ActionFooter({
   running,
   cancelling = false,
   taskPaused = false,
+  runDisabled = false,
+  runDisabledHint,
   onRun,
   onCancel,
   runLabel,
@@ -51,6 +55,7 @@ export default function ActionFooter({
   runIcon,
   accent = "blue",
 }: Props) {
+  const disabledClass = "bg-slate-300 cursor-not-allowed hover:bg-slate-300";
   if (running) {
     return (
       <button
@@ -68,7 +73,9 @@ export default function ActionFooter({
     return (
       <button
         onClick={onRun}
-        className={`shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white ${RUN_COLORS[accent] || RUN_COLORS.blue} active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2`}
+        disabled={runDisabled}
+        title={runDisabled ? runDisabledHint : undefined}
+        className={`shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white ${runDisabled ? disabledClass : RUN_COLORS[accent] || RUN_COLORS.blue} active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2`}
       >
         {runIcon || DefaultRunIcon}
         {resumeLabel}
@@ -79,7 +86,9 @@ export default function ActionFooter({
   return (
     <button
       onClick={onRun}
-      className={`shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white ${RUN_COLORS[accent] || RUN_COLORS.blue} active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2`}
+      disabled={runDisabled}
+      title={runDisabled ? runDisabledHint : undefined}
+      className={`shrink-0 w-full h-11 rounded-lg text-sm font-semibold text-white ${runDisabled ? disabledClass : RUN_COLORS[accent] || RUN_COLORS.blue} active:scale-[0.98] transition-all shadow-sm cursor-pointer flex items-center justify-center gap-2`}
     >
       {runIcon || DefaultRunIcon}
       {runLabel}

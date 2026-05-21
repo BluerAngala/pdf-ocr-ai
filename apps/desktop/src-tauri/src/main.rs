@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
@@ -33,6 +34,22 @@ impl PythonService {
             error_message: Arc::new(Mutex::new(None)),
         }
     }
+}
+
+/// Windows 长路径前缀 `\\?\` 仅用于系统 API，UI 展示应去掉。
+fn path_for_display(path: &Path) -> String {
+    let s = path.to_string_lossy();
+    let s = s.as_ref();
+    #[cfg(windows)]
+    {
+        if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+            return format!(r"\\{}", rest);
+        }
+        if let Some(rest) = s.strip_prefix(r"\\?\") {
+            return rest.to_string();
+        }
+    }
+    s.to_string()
 }
 
 fn stderr_line_rpc_ready(line: &str) -> bool {
@@ -84,7 +101,7 @@ async fn init_python_service(
     }
 
     let mut cmd = Command::new(&python_path);
-    if !bundled {
+    if !server_script.is_empty() {
         cmd.arg(&server_script);
     }
     cmd.current_dir(&paths.app_root)
@@ -96,7 +113,6 @@ async fn init_python_service(
         .env("GJJ_OCR_USER_DATA", paths.user_data_dir.as_str())
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8");
-
     #[cfg(target_os = "windows")]
     {
         #[allow(unused_imports)]
@@ -272,6 +288,7 @@ fn resolve_user_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 }
 
 /// 开发态 resources：仓库 resources/ 或 src-tauri/resources/
+#[cfg(debug_assertions)]
 fn resolve_dev_resources_dir(project_root: &Path) -> Result<PathBuf, String> {
     let bundled_layout = project_root.join("sample-data");
     if bundled_layout.is_dir() {
@@ -295,46 +312,85 @@ fn resolve_dev_resources_dir(project_root: &Path) -> Result<PathBuf, String> {
     Ok(project_root.to_path_buf())
 }
 
-/// 生产态 resources：优先 Tauri resource_dir()，否则安装目录下 resources/
-fn resolve_bundled_resources_dir(app: &AppHandle, app_root: &Path) -> PathBuf {
-    if let Some(dir) = app.path_resolver().resource_dir() {
-        if dir.join("config.yaml").is_file() || dir.join("sample-data").is_dir() {
-            return dir;
+/// 安装后资源根目录（含 config.yaml、poppler 等；onefile 后端为 gjj-ocr-server.exe）
+fn resolve_resources_content_root(base: &Path) -> Option<PathBuf> {
+    for root in [base.to_path_buf(), base.join("resources")] {
+        if root.join("config.yaml").is_file() {
+            eprintln!("[resources] content root {:?}", root);
+            return Some(root);
         }
     }
-    app_root.join("resources")
+    None
 }
 
-fn is_bundled() -> bool {
-    // Debug 开发始终用 venv + apps/server/src，避免 target/debug/resources 里的过期 server_src
+/// 安装后 resources 可能落在 Tauri resource_dir 或 exe 旁 resources/，需逐一尝试。
+fn resource_dir_candidates(app: &AppHandle, app_root: &Path) -> Vec<PathBuf> {
+    let mut seen = HashSet::new();
+    let mut out = Vec::new();
+    let mut push = |p: PathBuf| {
+        if seen.insert(p.clone()) {
+            out.push(p);
+        }
+    };
+    if let Some(d) = app.path_resolver().resource_dir() {
+        push(d);
+    }
+    push(app_root.join("resources"));
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            push(dir.join("resources"));
+        }
+    }
+    out
+}
+
+fn find_install_resources_dir(app: &AppHandle, app_root: &Path) -> Option<PathBuf> {
+    for dir in resource_dir_candidates(app, app_root) {
+        if let Some(root) = resolve_resources_content_root(&dir) {
+            return Some(root);
+        }
+    }
+    eprintln!(
+        "[resources] config.yaml NOT found; checked {:?}",
+        resource_dir_candidates(app, app_root)
+    );
+    None
+}
+
+fn find_onefile_server_exe(app: &AppHandle, app_root: &Path, resources_dir: &Path) -> Option<PathBuf> {
+    let mut candidates = vec![
+        resources_dir.join("gjj-ocr-server.exe"),
+        app_root.join("gjj-ocr-server.exe"),
+        app_root.join("resources").join("gjj-ocr-server.exe"),
+    ];
+    if let Some(rd) = app.path_resolver().resource_dir() {
+        candidates.push(rd.join("gjj-ocr-server.exe"));
+        candidates.push(rd.join("resources").join("gjj-ocr-server.exe"));
+    }
+    for exe in candidates {
+        if exe.is_file() {
+            eprintln!("[resources] onefile server {:?}", exe);
+            return Some(exe);
+        }
+    }
+    None
+}
+
+fn is_bundled_app(app: &AppHandle) -> bool {
     #[cfg(debug_assertions)]
     {
         return false;
     }
     #[cfg(not(debug_assertions))]
     {
-        if let Ok(exe_path) = std::env::current_exe() {
-            if let Some(exe_dir) = exe_path.parent() {
-                let onedir = exe_dir
-                    .join("resources")
-                    .join("gjj-ocr-server")
-                    .join("gjj-ocr-server.exe");
-                if onedir.exists() {
-                    eprintln!("[is_bundled] Detected onedir server: {:?}", onedir);
-                    return true;
-                }
-                // 兼容旧安装包中的 onefile 后端
-                let onefile = exe_dir.join("resources").join("gjj-ocr-server.exe");
-                if onefile.exists() {
-                    eprintln!("[is_bundled] Detected legacy onefile server: {:?}", onefile);
-                    return true;
-                }
-            }
-        }
-        false
+        get_app_dir()
+            .ok()
+            .and_then(|root| find_install_resources_dir(app, &root))
+            .is_some()
     }
 }
 
+#[cfg(debug_assertions)]
 fn get_dev_project_root() -> Result<PathBuf, String> {
     let current_dir = std::env::current_dir()
         .map_err(|e| format!("Failed to get current dir: {}", e))?;
@@ -367,70 +423,93 @@ fn get_dev_project_root() -> Result<PathBuf, String> {
 
 /// 统一路径入口：前端 invoke、Python 环境变量注入均走此处
 fn compute_runtime_paths(app: &AppHandle) -> Result<RuntimePathsDto, String> {
-    let bundled = is_bundled();
-    let app_root = if bundled {
-        get_app_dir()?
-    } else {
-        get_dev_project_root()?
-    };
-    let resources_dir = if bundled {
-        resolve_bundled_resources_dir(app, &app_root)
-    } else {
-        resolve_dev_resources_dir(&app_root)?
-    };
-    let user_data_dir = resolve_user_data_dir(app)?;
-    Ok(RuntimePathsDto {
-        app_root: app_root.to_string_lossy().to_string(),
-        resources_dir: resources_dir.to_string_lossy().to_string(),
-        user_data_dir: user_data_dir.to_string_lossy().to_string(),
-        bundled,
-    })
-}
+    #[cfg(debug_assertions)]
+    {
+        let app_root = get_dev_project_root()?;
+        let resources_dir = resolve_dev_resources_dir(&app_root)?;
+        let user_data_dir = resolve_user_data_dir(app)?;
+        return Ok(RuntimePathsDto {
+            app_root: path_for_display(&app_root),
+            resources_dir: path_for_display(&resources_dir),
+            user_data_dir: path_for_display(&user_data_dir),
+            bundled: false,
+        });
+    }
 
-fn bundled_server_exe(resources: &Path) -> Result<PathBuf, String> {
-    let onedir = resources
-        .join("gjj-ocr-server")
-        .join("gjj-ocr-server.exe");
-    if onedir.exists() {
-        return Ok(onedir);
+    #[cfg(not(debug_assertions))]
+    {
+        let app_root = get_app_dir()?;
+        let resources_dir = find_install_resources_dir(app, &app_root).ok_or_else(|| {
+            format!(
+                "安装包缺少配置文件 config.yaml。已检查: {:?}。请卸载后重新安装。",
+                resource_dir_candidates(app, &app_root)
+            )
+        })?;
+        if find_onefile_server_exe(app, &app_root, &resources_dir).is_none() {
+            return Err(format!(
+                "安装包缺少后端 gjj-ocr-server.exe（{:?}）。请卸载后重新安装。",
+                resources_dir
+            ));
+        }
+        let user_data_dir = resolve_user_data_dir(app)?;
+        return Ok(RuntimePathsDto {
+            app_root: path_for_display(&app_root),
+            resources_dir: path_for_display(&resources_dir),
+            user_data_dir: path_for_display(&user_data_dir),
+            bundled: true,
+        });
     }
-    let onefile = resources.join("gjj-ocr-server.exe");
-    if onefile.exists() {
-        return Ok(onefile);
-    }
-    Err(format!(
-        "Bundled server not found under {:?} (expected gjj-ocr-server/ or gjj-ocr-server.exe)",
-        resources
-    ))
 }
 
 fn get_python_path(app_handle: &AppHandle) -> Result<String, String> {
-    if is_bundled() {
+    #[cfg(not(debug_assertions))]
+    {
         let paths = compute_runtime_paths(app_handle)?;
-        let exe_path = bundled_server_exe(Path::new(&paths.resources_dir))?;
-        println!("Using bundled server exe: {:?}", exe_path);
-        return Ok(exe_path.to_string_lossy().to_string());
+        let app_root = Path::new(&paths.app_root);
+        let resources_dir = Path::new(&paths.resources_dir);
+        let exe = find_onefile_server_exe(app_handle, app_root, resources_dir).ok_or_else(|| {
+            format!(
+                "未找到 gjj-ocr-server.exe（resources={:?}）",
+                paths.resources_dir
+            )
+        })?;
+        eprintln!("Using onefile server: {:?}", exe);
+        return Ok(exe.to_string_lossy().to_string());
     }
 
-    let project_root = get_dev_project_root()?;
-    let venv_python = project_root.join(".venv312").join("Scripts").join("python.exe");
-    if venv_python.exists() {
-        println!("Using venv Python: {:?}", venv_python);
-        return Ok(venv_python.to_string_lossy().to_string());
+    #[cfg(debug_assertions)]
+    {
+        let project_root = get_dev_project_root()?;
+        let venv_python = project_root.join(".venv312").join("Scripts").join("python.exe");
+        if venv_python.exists() {
+            println!("Using venv Python: {:?}", venv_python);
+            return Ok(venv_python.to_string_lossy().to_string());
+        }
+        Ok("python".to_string())
     }
-    Ok("python".to_string())
 }
 
-fn get_server_script_path(_app_handle: &AppHandle) -> Result<String, String> {
-    if is_bundled() {
+fn get_server_script_path(app_handle: &AppHandle) -> Result<String, String> {
+    #[cfg(not(debug_assertions))]
+    {
+        let _ = app_handle;
+        // onefile 后端已内嵌 server.py，无需再传脚本路径
         return Ok(String::new());
     }
-    let project_root = get_dev_project_root()?;
-    let server_script = project_root.join("apps").join("server").join("src").join("server.py");
-    if !server_script.exists() {
-        return Err(format!("Server script not found: {:?}", server_script));
+
+    #[cfg(debug_assertions)]
+    {
+        let project_root = get_dev_project_root()?;
+        let server_script = project_root
+            .join("apps")
+            .join("server")
+            .join("src")
+            .join("server.py");
+        if !server_script.exists() {
+            return Err(format!("Server script not found: {:?}", server_script));
+        }
+        Ok(server_script.to_string_lossy().to_string())
     }
-    Ok(server_script.to_string_lossy().to_string())
 }
 
 /// 运行时路径（安装目录 / 内嵌 resources / 用户数据）。前端与 Python 均不应硬编码路径。
@@ -445,8 +524,8 @@ fn get_project_root_cmd(app: AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn is_production_bundle() -> bool {
-    is_bundled()
+fn is_production_bundle(app: AppHandle) -> bool {
+    is_bundled_app(&app)
 }
 
 #[tauri::command]
@@ -546,7 +625,7 @@ async fn select_folder(window: Window) -> Result<Option<String>, String> {
         });
 
     let folder = rx.recv().map_err(|e| format!("Failed to receive: {}", e))?;
-    Ok(folder.map(|p: std::path::PathBuf| p.to_string_lossy().to_string()))
+    Ok(folder.map(|p: std::path::PathBuf| path_for_display(&p)))
 }
 
 // Tauri 命令：打开文件/文件夹（用系统默认程序）
@@ -620,7 +699,7 @@ async fn select_files(
 
         let files = rx.recv().map_err(|e| format!("Failed to receive: {}", e))?;
         Ok(files.map(|f| {
-            f.into_iter().map(|p| p.to_string_lossy().to_string()).collect()
+            f.into_iter().map(|p| path_for_display(&p)).collect()
         }))
     } else {
         let (tx, rx) = std::sync::mpsc::channel::<Option<std::path::PathBuf>>();
@@ -632,7 +711,7 @@ async fn select_files(
             });
 
         let file = rx.recv().map_err(|e| format!("Failed to receive: {}", e))?;
-        Ok(file.map(|f| vec![f.to_string_lossy().to_string()]))
+        Ok(file.map(|f| vec![path_for_display(&f)]))
     }
 }
 
@@ -654,7 +733,7 @@ fn main() {
                         *service.request_tx.lock().unwrap() = Some(request_tx);
                         *service.initialized.lock().unwrap() = true;
                         *service.error_message.lock().unwrap() = None;
-                        let timeout_secs = if is_bundled() { 300 } else { 120 };
+                        let timeout_secs = if is_bundled_app(&app_handle) { 300 } else { 120 };
                         if let Err(e) =
                             wait_for_python_rpc_ready(&service, &mut child, timeout_secs).await
                         {

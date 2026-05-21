@@ -1,3 +1,5 @@
+import { formatDisplayPath } from "../../services/paths";
+
 interface Props {
   label: string;
   value: string;
@@ -45,6 +47,7 @@ export default function PathSelector({
   compact = false,
 }: Props) {
   const style = ACCENT_MAP[accent] || ACCENT_MAP.blue;
+  const displayValue = formatDisplayPath(value);
 
   if (compact) {
     return (
@@ -54,7 +57,7 @@ export default function PathSelector({
           <input
             type="text"
             readOnly
-            value={value}
+            value={displayValue}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             className={`flex-1 h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${style.ring} transition-all`}
@@ -84,7 +87,7 @@ export default function PathSelector({
       <input
         type="text"
         readOnly
-        value={value}
+        value={displayValue}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={`w-full h-8 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 ${style.ring} transition-all`}

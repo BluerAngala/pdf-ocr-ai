@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, TypedDict
 
-from core.paths import get_data_roots
+from core.paths import get_data_roots, path_for_display
 
 PresetKind = Literal["sample", "excel"]
 
@@ -196,8 +196,8 @@ def get_resolved_presets() -> tuple[List[dict], List[dict]]:
                     "name": preset["name"],
                     "description": preset["description"],
                     "mode": preset["mode"],
-                    "sampleRoot": str(sample),
-                    "excelPath": str(excel),
+                    "sampleRoot": path_for_display(sample),
+                    "excelPath": path_for_display(excel),
                 }
             )
         except Exception as e:

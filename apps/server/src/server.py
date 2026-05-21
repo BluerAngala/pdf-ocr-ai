@@ -79,6 +79,29 @@ if getattr(sys, "frozen", False):
         if str(_server_src) not in sys.path:
             sys.path.insert(0, str(_server_src))
     # 否则使用 PyInstaller 内嵌模块，避免旧版 resources/server_src 覆盖新 RPC
+    print(
+        _safe_json_dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notify.log",
+                "params": {"level": "info", "message": "Python 进程已启动，正在加载模块…"},
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
+    # onefile 冷启动：在重型 import 之前通知 Tauri，避免前端误判为「服务未就绪」
+    print(
+        _safe_json_dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notify.log",
+                "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"},
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
 else:
     _server_src = Path(__file__).resolve().parent
     if str(_server_src) not in sys.path:
@@ -94,6 +117,7 @@ from core.paths import (
     get_user_data_dir,
     resolve_input_path,
     describe_runtime_paths,
+    path_for_display,
 )
 from core.task_cancel import CancelledError
 from core.preset_paths import (
@@ -172,6 +196,7 @@ class JsonRpcServer:
         'enforcement.extract',
         'company_query.process',
         'print.start',
+        'ocr.warmup',
     ])
 
     def __init__(self):
@@ -239,21 +264,60 @@ class JsonRpcServer:
     _warmed_up = False
 
     def _ocr_warmup(self, params: Dict, id: Any) -> Dict:
-        """预热 OCR 模型，应用启动时调用"""
-        if JsonRpcServer._warmed_up:
+        """预热 OCR 模型。skip_gpu_probe=快速启动；full_probe=后台完整 GPU 探测。"""
+        skip_gpu_probe = bool(params.get('skip_gpu_probe', False))
+        full_probe = bool(params.get('full_probe', False))
+
+        if full_probe:
+            from core.pdf_ocr_ultra import reset_ocr_engine
+            reset_ocr_engine()
+            JsonRpcServer._warmed_up = False
+            print(
+                _safe_json_dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notify.log",
+                        "params": {"level": "info", "message": "OCR 完整预热：正在探测 GPU 并加载模型…"},
+                    }
+                ),
+                file=sys.stderr,
+                flush=True,
+            )
+        elif JsonRpcServer._warmed_up:
             return {"status": "already_warm"}
+
         try:
-            from core.pdf_ocr_ultra import get_ocr_engine
+            from core.pdf_ocr_ultra import get_ocr_engine, detect_gpu_provider
             import time
             start = time.time()
-            engine = get_ocr_engine()
+            if skip_gpu_probe:
+                print(
+                    _safe_json_dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "notify.log",
+                            "params": {"level": "info", "message": "OCR 快速预热：跳过 GPU 多轮探测"},
+                        }
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+            engine = get_ocr_engine(skip_gpu_probe=skip_gpu_probe)
             from PIL import Image
             dummy = Image.new('RGB', (100, 100), color='white')
             import numpy as np
             engine(np.array(dummy))
             elapsed = time.time() - start
+            provider, info = detect_gpu_provider(skip_probe=skip_gpu_probe)
             JsonRpcServer._warmed_up = True
-            return {"status": "warm", "duration_seconds": round(elapsed, 2)}
+            return {
+                "status": "warm",
+                "duration_seconds": round(elapsed, 2),
+                "provider": provider,
+                "provider_info": info,
+                "skip_gpu_probe": skip_gpu_probe,
+                "full_probe": full_probe,
+            }
         except Exception as e:
             return {"status": "error", "error": str(e)}
 
@@ -950,9 +1014,9 @@ class JsonRpcServer:
         return {
             "presets": presets,
             "errors": errors,
-            "appRoot": str(get_app_root()),
-            "resources": str(get_resources_dir()),
-            "userData": str(get_user_data_dir()),
+            "appRoot": path_for_display(get_app_root()),
+            "resources": path_for_display(get_resources_dir()),
+            "userData": path_for_display(get_user_data_dir()),
         }
 
     def _system_describe_paths(self, params: Dict, id: Any) -> Dict:
@@ -965,7 +1029,7 @@ class JsonRpcServer:
         return {
             "summary": describe_runtime_paths(),
             "configExists": cfg.is_file(),
-            "configPath": str(cfg),
+            "configPath": path_for_display(cfg),
             "batch1Exists": batch1.is_dir(),
             "ledgerExists": ledger.is_file(),
         }
@@ -976,7 +1040,7 @@ class JsonRpcServer:
             raise Exception("缺少 relative 参数")
         try:
             path = resolve_data_path_rel(relative)
-            return {"path": str(path), "exists": path.exists()}
+            return {"path": path_for_display(path), "exists": path.exists()}
         except Exception as e:
             raise Exception(f"路径解析失败: {e}")
 
@@ -1182,5 +1246,17 @@ class JsonRpcServer:
 
 
 if __name__ == '__main__':
+    # 尽早通知 Tauri（便携 Python 模式下冷启动远快于 PyInstaller）
+    print(
+        _safe_json_dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notify.log",
+                "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"},
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
     server = JsonRpcServer()
     server.run()

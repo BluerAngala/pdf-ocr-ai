@@ -30,6 +30,7 @@ interface Props {
   onSelectOutputDir: () => void;
   onRun: () => void;
   onCancel: () => void;
+  ocrEngineReady: boolean;
   onLoadCache: () => void;
   onClearCache: () => void;
   rangeStart: number;
@@ -56,7 +57,7 @@ export default function ConfigPanel({
   moduleType,
   sampleRoot,
   excelFile,
-  mockMode: _mockMode,
+  mockMode,
   outputDir,
 
   running,
@@ -78,6 +79,7 @@ export default function ConfigPanel({
   onSelectOutputDir,
   onRun,
   onCancel,
+  ocrEngineReady,
   onLoadCache,
   onClearCache,
   rangeStart,
@@ -99,6 +101,11 @@ export default function ConfigPanel({
   onLoadExcelColumns,
   selectedPrintCount,
 }: Props) {
+  const ocrRunDisabled =
+    !ocrEngineReady &&
+    (moduleType === "non-litigation" || (moduleType === "enforcement" && !mockMode));
+  const ocrRunDisabledHint = "OCR 引擎正在后台准备中，请稍候…";
+
   switch (moduleType) {
     case "non-litigation":
       return (
@@ -118,6 +125,8 @@ export default function ConfigPanel({
           onOutputDirChange={onOutputDirChange}
           onRun={onRun}
           onCancel={onCancel}
+          ocrRunDisabled={ocrRunDisabled}
+          ocrRunDisabledHint={ocrRunDisabledHint}
         />
       );
     case "enforcement":
@@ -138,6 +147,8 @@ export default function ConfigPanel({
           onOutputDirChange={onOutputDirChange}
           onRun={onRun}
           onCancel={onCancel}
+          ocrRunDisabled={ocrRunDisabled}
+          ocrRunDisabledHint={ocrRunDisabledHint}
         />
       );
     case "company-query":

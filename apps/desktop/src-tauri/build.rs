@@ -27,7 +27,6 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
 const BUNDLE_SAMPLE_MAPPINGS: &[(&[&str], &str)] =
     &[(&["非诉组自动化样本材料"], "non-litigation-batch1")];
 
-/// 将仓库 样本材料/ 同步为 sample-data/ 布局，供打包 exe 与开发 resources 共用。
 fn sync_sample_data(
     project_root: &Path,
     dst_sample_data: &Path,
@@ -122,14 +121,12 @@ fn sync_resources() -> std::io::Result<()> {
     }
     fs::copy(config_src, config_dst)?;
 
-    // Tauri 安装包：仅嵌入 non-litigation-batch1
     let tauri_sample = resources_dir.join("sample-data");
     if let Some(parent) = tauri_sample.parent() {
         fs::create_dir_all(parent)?;
     }
     sync_sample_data(project_root, &tauri_sample, BUNDLE_SAMPLE_MAPPINGS)?;
 
-    // 仓库 resources/sample-data：开发调试用，仍同步全部批次（走 样本材料/）
     let dev_sample = project_root.join("resources").join("sample-data");
     if let Some(parent) = dev_sample.parent() {
         fs::create_dir_all(parent)?;
@@ -159,10 +156,6 @@ fn find_python(project_root: &Path) -> Option<PathBuf> {
     if venv.exists() {
         return Some(venv);
     }
-    which_python()
-}
-
-fn which_python() -> Option<PathBuf> {
     std::process::Command::new("python")
         .arg("--version")
         .output()
@@ -171,36 +164,41 @@ fn which_python() -> Option<PathBuf> {
         .map(|_| PathBuf::from("python"))
 }
 
-fn bundle_python_server(project_root: &Path, resources_dir: &Path) -> std::io::Result<()> {
+/// PyInstaller onefile -> resources/gjj-ocr-server.exe
+fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> std::io::Result<()> {
     if std::env::var("GJJ_SKIP_SERVER_BUNDLE").ok().as_deref() == Some("1") {
         eprintln!("[build] GJJ_SKIP_SERVER_BUNDLE=1, skip PyInstaller");
         return Ok(());
     }
 
-    let profile = std::env::var("PROFILE").unwrap_or_default();
-    if profile != "release" {
-        eprintln!("[build] profile={profile}, skip PyInstaller (release only)");
+    let dst = resources_dir.join("gjj-ocr-server.exe");
+    if dst.is_file() {
+        eprintln!("[build] using existing onefile {:?}", dst);
         return Ok(());
     }
 
     let python = match find_python(project_root) {
         Some(p) => p,
         None => {
-            eprintln!("[build] Python not found, skip PyInstaller");
-            return Ok(());
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "未找到 Python 3.12（.venv312），无法运行 PyInstaller",
+            ));
         }
     };
 
     let server_dir = project_root.join("apps").join("server");
     let spec = server_dir.join("gjj-ocr-server.spec");
-    if !spec.exists() {
-        eprintln!("[build] spec not found: {:?}", spec);
-        return Ok(());
+    if !spec.is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("spec not found: {:?}", spec),
+        ));
     }
 
-    eprintln!("[build] Running PyInstaller onedir via {:?}", python);
+    eprintln!("[build] PyInstaller onefile via {:?}", python);
     let status = std::process::Command::new(&python)
-        .args(["-m", "PyInstaller", "gjj-ocr-server.spec", "--noconfirm"])
+        .args(["-m", "PyInstaller", "gjj-ocr-server.spec", "--noconfirm", "--clean"])
         .current_dir(&server_dir)
         .status()?;
     if !status.success() {
@@ -210,26 +208,30 @@ fn bundle_python_server(project_root: &Path, resources_dir: &Path) -> std::io::R
         ));
     }
 
-    let dist = server_dir.join("dist").join("gjj-ocr-server");
-    if !dist.is_dir() {
+    let onefile = server_dir.join("dist").join("gjj-ocr-server.exe");
+    if !onefile.is_file() {
         return Err(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            format!("PyInstaller output not found: {:?}", dist),
+            format!("PyInstaller onefile output not found: {:?}", onefile),
         ));
     }
 
-    let dst = resources_dir.join("gjj-ocr-server");
-    if dst.exists() {
-        fs::remove_dir_all(&dst)?;
+    if let Some(parent) = dst.parent() {
+        fs::create_dir_all(parent)?;
     }
-    copy_dir_all(&dist, &dst)?;
-    // 已改用 onedir，删除旧版 onefile，避免与 gjj-ocr-server/** 重复打进安装包（约 +150MB）
-    let legacy_onefile = resources_dir.join("gjj-ocr-server.exe");
-    if legacy_onefile.exists() {
-        fs::remove_file(&legacy_onefile)?;
-        eprintln!("[build] removed legacy onefile {:?}", legacy_onefile);
+    fs::copy(&onefile, &dst)?;
+    eprintln!("[build] onefile backend -> {:?}", dst);
+
+    // 避免旧方案残留打进安装包
+    let legacy_onedir = resources_dir.join("gjj-ocr-server");
+    if legacy_onedir.exists() {
+        fs::remove_dir_all(&legacy_onedir)?;
     }
-    eprintln!("[build] bundled server (onedir) -> {:?}", dst);
+    let legacy_portable = resources_dir.join("python-runtime");
+    if legacy_portable.exists() {
+        fs::remove_dir_all(&legacy_portable)?;
+    }
+
     Ok(())
 }
 
@@ -242,8 +244,8 @@ fn main() {
     let tauri_dir = Path::new(&manifest_dir);
     let project_root = tauri_dir.parent().unwrap().parent().unwrap().parent().unwrap();
     let resources_dir = tauri_dir.join("resources");
-    if let Err(err) = bundle_python_server(project_root, &resources_dir) {
-        panic!("failed to bundle python server: {err}");
+    if let Err(err) = bundle_python_server_onefile(project_root, &resources_dir) {
+        panic!("failed to bundle python server (onefile): {err}");
     }
 
     tauri_build::build()

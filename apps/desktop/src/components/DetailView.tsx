@@ -38,6 +38,7 @@ interface Props {
   onSelectOutputDir: () => void;
   onRun: () => void;
   onCancel: () => void;
+  ocrEngineReady: boolean;
   onLoadCache: () => void;
   onClearCache: () => void;
   rangeStart: number;
@@ -107,6 +108,7 @@ export default function DetailView({
   onSelectOutputDir,
   onRun,
   onCancel,
+  ocrEngineReady,
   onLoadCache,
   onClearCache,
   rangeStart,
@@ -258,6 +260,7 @@ export default function DetailView({
             onSelectOutputDir={onSelectOutputDir}
             onRun={onRun}
             onCancel={onCancel}
+            ocrEngineReady={ocrEngineReady}
             onLoadCache={onLoadCache}
             onClearCache={onClearCache}
             rangeStart={rangeStart}

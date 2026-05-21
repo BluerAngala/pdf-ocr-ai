@@ -31,7 +31,7 @@ pytest apps/server/tests/ --cov=apps/server/src --cov-report=html   # 覆盖率
 
 npm run desktop:dev          # 前端开发
 npm run desktop:tauri dev    # Tauri 桌面版开发
-npm run desktop:tauri build  # 发布打包（release 自动 PyInstaller onedir 后端；安装包仅内嵌 non-litigation-batch1 样本）
+npm run desktop:tauri build  # 发布 NSIS（release 自动 PyInstaller onefile -> gjj-ocr-server.exe）
 # 仅重打 Python 后端: apps/server/scripts/build_server_bundle.ps1
 # 跳过自动打后端: $env:GJJ_SKIP_SERVER_BUNDLE="1"
 npm run lint                 # 前端 lint

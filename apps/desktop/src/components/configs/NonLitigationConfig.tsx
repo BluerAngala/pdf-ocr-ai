@@ -17,6 +17,8 @@ interface Props {
   onOutputDirChange: (v: string) => void;
   onRun: () => void;
   onCancel: () => void;
+  ocrRunDisabled?: boolean;
+  ocrRunDisabledHint?: string;
 }
 
 export default function NonLitigationConfig({
@@ -35,6 +37,8 @@ export default function NonLitigationConfig({
   onOutputDirChange,
   onRun,
   onCancel,
+  ocrRunDisabled = false,
+  ocrRunDisabledHint,
 }: Props) {
   return (
     <div className="h-full flex flex-col gap-4 overflow-hidden">
@@ -91,6 +95,8 @@ export default function NonLitigationConfig({
         running={running}
         cancelling={cancelling}
         taskPaused={taskPaused}
+        runDisabled={ocrRunDisabled}
+        runDisabledHint={ocrRunDisabledHint}
         onRun={onRun}
         onCancel={onCancel}
         runLabel="开始处理"

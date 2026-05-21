@@ -192,7 +192,16 @@ def _detect_gpu_hardware():
     return vendor, name
 
 
-def detect_gpu_provider():
+def reset_ocr_engine() -> None:
+    """重置 OCR 引擎与 GPU 选择（完整预热前调用）。"""
+    global _ocr_engine, _gpu_provider, _gpu_info
+    with _ocr_lock:
+        _ocr_engine = None
+    _gpu_provider = None
+    _gpu_info = ""
+
+
+def detect_gpu_provider(*, skip_probe: bool = False):
     global _gpu_provider, _gpu_info
     if _gpu_provider is not None:
         return _gpu_provider, _gpu_info
@@ -200,6 +209,10 @@ def detect_gpu_provider():
     if cached:
         _gpu_provider = cached["provider"]
         _gpu_info = cached.get("info", "")
+        return _gpu_provider, _gpu_info
+    if skip_probe:
+        _gpu_provider = 'cpu'
+        _gpu_info = 'CPU (启动快速模式，完整 GPU 探测将在后台进行)'
         return _gpu_provider, _gpu_info
     if not HAS_RAPIDOCR:
         _gpu_provider = 'cpu'
@@ -275,10 +288,10 @@ def _build_onnx_session_options():
         return None
 
 
-def _create_ocr_engine():
+def _create_ocr_engine(*, skip_gpu_probe: bool = False):
     if not HAS_RAPIDOCR:
         raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
-    provider, info = detect_gpu_provider()
+    provider, info = detect_gpu_provider(skip_probe=skip_gpu_probe)
     kwargs = dict(use_cls=False)
     if provider == 'cuda':
         kwargs['det_use_cuda'] = True
@@ -305,12 +318,12 @@ def init_worker():
     if HAS_RAPIDOCR:
         _ocr_engine = _create_ocr_engine()
 
-def get_ocr_engine():
+def get_ocr_engine(*, skip_gpu_probe: bool = False):
     """获取OCR引擎 - 线程安全版"""
     global _ocr_engine
     with _ocr_lock:
         if _ocr_engine is None:
-            _ocr_engine = _create_ocr_engine()
+            _ocr_engine = _create_ocr_engine(skip_gpu_probe=skip_gpu_probe)
         return _ocr_engine
 
 def get_ocr_lock() -> threading.Lock:

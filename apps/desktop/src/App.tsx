@@ -16,21 +16,25 @@ import type {
   ModuleTaskUiState,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
-import {
-  createInitialModuleTaskState,
-  resolveTaskModule,
-} from "./moduleTaskState";
+import { createInitialModuleTaskState, resolveTaskModule } from "./moduleTaskState";
 import { ensurePresetById, invalidatePresetCache } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus, setupPoppler } from "./services/system";
 import { invoke } from "@tauri-apps/api/tauri";
+import { normalizePath } from "./services/paths";
 import HomeView from "./components/HomeView";
 import DetailView from "./components/DetailView";
 import StatusBar from "./components/StatusBar";
 import SystemStatusModal from "./components/SystemStatusModal";
 import ChangelogModal from "./components/ChangelogModal";
 import StartupOverlay from "./components/StartupOverlay";
-import { runStartupWarmup, type StartupProgress } from "./services/startup";
+import OcrWarmupBanner from "./components/OcrWarmupBanner";
+import {
+  runStartupWarmup,
+  runBackgroundOcrWarmup,
+  isProductionBundle,
+  type StartupProgress,
+} from "./services/startup";
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "detail">("home");
@@ -69,6 +73,10 @@ export default function App() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [showChangelogModal, setShowChangelogModal] = useState(false);
   const [appReady, setAppReady] = useState(false);
+  const [ocrEngineReady, setOcrEngineReady] = useState(!isTauri());
+  const [ocrWarmupDetail, setOcrWarmupDetail] = useState<string | undefined>();
+  const [ocrWarmupError, setOcrWarmupError] = useState<string | undefined>();
+  const [ocrGpuProbing, setOcrGpuProbing] = useState(false);
   const [startupProgress, setStartupProgress] = useState<StartupProgress>({
     phase: "waiting_backend",
     label: "正在启动…",
@@ -91,9 +99,7 @@ export default function App() {
   const patchModuleTask = useCallback(
     (
       module: ModuleType,
-      patch:
-        | Partial<ModuleTaskUiState>
-        | ((prev: ModuleTaskUiState) => Partial<ModuleTaskUiState>),
+      patch: Partial<ModuleTaskUiState> | ((prev: ModuleTaskUiState) => Partial<ModuleTaskUiState>),
     ) => {
       setModuleTaskState((prev) => {
         const cur = prev[module];
@@ -147,23 +153,26 @@ export default function App() {
     delete pausedSessionsRef.current[module];
   }, []);
 
-  const savePausedSession = useCallback((module: ModuleType) => {
-    const task = moduleTaskStateRef.current[module];
-    if (!task.taskId) return;
-    const cfg = taskConfigRef.current[task.taskId];
-    pausedSessionsRef.current[module] = {
-      taskId: task.taskId,
-      phase: task.phase,
-      progressCurrent: task.progressCurrent,
-      progressTotal: task.progressTotal,
-      progressFileCurrent: task.progressFileCurrent,
-      progressFileTotal: task.progressFileTotal,
-      progressMessage: task.progressMessage,
-      sampleRoot: cfg?.sampleRoot ?? sampleRoot,
-      excelFile: cfg?.excelFile ?? excelFile,
-      outputDir: cfg?.outputDir ?? outputDir,
-    };
-  }, [sampleRoot, excelFile, outputDir]);
+  const savePausedSession = useCallback(
+    (module: ModuleType) => {
+      const task = moduleTaskStateRef.current[module];
+      if (!task.taskId) return;
+      const cfg = taskConfigRef.current[task.taskId];
+      pausedSessionsRef.current[module] = {
+        taskId: task.taskId,
+        phase: task.phase,
+        progressCurrent: task.progressCurrent,
+        progressTotal: task.progressTotal,
+        progressFileCurrent: task.progressFileCurrent,
+        progressFileTotal: task.progressFileTotal,
+        progressMessage: task.progressMessage,
+        sampleRoot: cfg?.sampleRoot ?? sampleRoot,
+        excelFile: cfg?.excelFile ?? excelFile,
+        outputDir: cfg?.outputDir ?? outputDir,
+      };
+    },
+    [sampleRoot, excelFile, outputDir],
+  );
 
   const restorePausedSession = useCallback(
     (module: ModuleType, session: PausedTaskSession) => {
@@ -339,7 +348,15 @@ export default function App() {
     } catch {
       // auto-preview silently fails
     }
-  }, [sampleRoot, excelFile, printCompanyNameColumn, rangeStart, rangeEnd, printerName, patchModuleTask]);
+  }, [
+    sampleRoot,
+    excelFile,
+    printCompanyNameColumn,
+    rangeStart,
+    rangeEnd,
+    printerName,
+    patchModuleTask,
+  ]);
 
   useEffect(() => {
     if (currentModule !== "print" || !sampleRoot) return;
@@ -388,11 +405,7 @@ export default function App() {
         const task = moduleTaskStateRef.current[module];
         if (params.task_id !== task.taskId) return;
         pauseTaskStateRef.current(module);
-        addLogRef.current(
-          "warn",
-          `任务 ${params.task_id} 已暂停，可点击继续任务`,
-          module,
-        );
+        addLogRef.current("warn", `任务 ${params.task_id} 已暂停，可点击继续任务`, module);
       },
     ).then((cleanup) => {
       if (mounted) {
@@ -405,17 +418,64 @@ export default function App() {
       if (initialized) return;
       initialized = true;
       addLogRef.current("info", "应用已启动");
+      if (isTauri()) {
+        setAppReady(true);
+      }
       try {
+        const bundled = isTauri() && (await isProductionBundle());
         await runStartupWarmup((p) => {
           setStartupProgress(p);
           if (p.phase === "ready") {
             setAppReady(true);
           }
-          if (p.phase === "warming_ocr" && p.detail) {
+          if (p.phase === "error") {
+            addLogRef.current("error", p.error ?? p.label);
+          }
+          if (p.phase === "waiting_backend" && p.detail) {
             addLogRef.current("debug", p.detail);
           }
         });
-        addLogRef.current("info", "初始化完成，可以开始使用");
+        if (bundled) {
+          addLogRef.current("info", "界面已打开，服务在后台连接");
+        } else {
+          addLogRef.current("info", "后端已就绪，界面可用");
+        }
+        let ocrFastReady = false;
+        void runBackgroundOcrWarmup(
+          (p) => {
+            setOcrWarmupDetail(p.detail);
+            if (p.detail) {
+              addLogRef.current("debug", p.detail, "non-litigation");
+            }
+          },
+          () => {
+            ocrFastReady = true;
+            setOcrEngineReady(true);
+            setOcrGpuProbing(true);
+            addLogRef.current("info", "OCR 基础引擎已就绪，可先开始处理（GPU 探测进行中）");
+          },
+        ).then((result) => {
+          setOcrGpuProbing(false);
+          if (result.ok) {
+            setOcrEngineReady(true);
+            setOcrWarmupError(undefined);
+            addLogRef.current("info", "OCR 引擎预热完成");
+          } else if (!ocrFastReady) {
+            setOcrWarmupError(result.error);
+            addLogRef.current(
+              "warn",
+              `OCR 预热未完成: ${result.error ?? "未知错误"}`,
+              "non-litigation",
+            );
+          } else {
+            addLogRef.current(
+              "warn",
+              `GPU 完整探测未完成，将使用快速模式: ${result.error ?? "未知错误"}`,
+              "non-litigation",
+            );
+          }
+          setOcrWarmupDetail(undefined);
+        });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         setStartupProgress({ phase: "error", label: "启动失败", error: msg });
@@ -440,11 +500,7 @@ export default function App() {
         addLog("info", `已加载预设: ${preset.name}`, logModule ?? module);
         return true;
       }
-      addLog(
-        "warn",
-        "预设路径未就绪，请点击「加载预设」或手动选择样本文件夹",
-        logModule ?? module,
-      );
+      addLog("warn", "预设路径未就绪，请点击「加载预设」或手动选择样本文件夹", logModule ?? module);
       return false;
     },
     [addLog],
@@ -490,7 +546,14 @@ export default function App() {
       }
       addLog("info", `切换到模块: ${config.title}`, module);
     },
-    [addLog, applyModulePreset, currentView, currentModule, savePausedSession, restorePausedSession],
+    [
+      addLog,
+      applyModulePreset,
+      currentView,
+      currentModule,
+      savePausedSession,
+      restorePausedSession,
+    ],
   );
 
   const navigateHome = useCallback(() => {
@@ -518,7 +581,7 @@ export default function App() {
   const selectFolder = useCallback(async () => {
     try {
       const result = (await invoke("select_folder")) as string | null;
-      if (result) setSampleRoot(result);
+      if (result) setSampleRoot(normalizePath(result));
     } catch {
       addLog("error", "选择文件夹失败");
     }
@@ -527,7 +590,7 @@ export default function App() {
   const selectOutputDir = useCallback(async () => {
     try {
       const result = (await invoke("select_folder")) as string | null;
-      if (result) setOutputDir(result);
+      if (result) setOutputDir(normalizePath(result));
     } catch {
       addLog("error", "选择输出文件夹失败");
     }
@@ -536,7 +599,7 @@ export default function App() {
   const selectExcel = useCallback(async () => {
     try {
       const result = (await invoke("select_files", { multiple: false })) as string[] | null;
-      if (result && result.length > 0) setExcelFile(result[0]);
+      if (result && result.length > 0) setExcelFile(normalizePath(result[0]));
     } catch {
       addLog("error", "选择文件失败");
     }
@@ -704,13 +767,16 @@ export default function App() {
             printer_used: rawResult.printer_used || "",
             print_dry_run: false,
             print_errors: rawResult.errors || [],
-            print_match_results:
-              prev.result?.print_match_results || rawResult.match_results || [],
+            print_match_results: prev.result?.print_match_results || rawResult.match_results || [],
             summary: { result_root: sampleRoot },
           },
           previewState: "result",
         }));
-        addLog("info", `打印完成: ${rawResult.submitted || 0} 成功, ${rawResult.failed || 0} 失败`, "print");
+        addLog(
+          "info",
+          `打印完成: ${rawResult.submitted || 0} 成功, ${rawResult.failed || 0} 失败`,
+          "print",
+        );
       } catch (err) {
         if (moduleTaskStateRef.current.print.taskId !== taskId) return;
         const msg = err instanceof Error ? err.message : String(err);
@@ -782,6 +848,12 @@ export default function App() {
     }
     if (!excelFile && currentModule !== "print") {
       alert("请选择台账 Excel 文件");
+      return;
+    }
+    const needsOcr =
+      currentModule === "non-litigation" || (currentModule === "enforcement" && !mockMode);
+    if (needsOcr && !ocrEngineReady) {
+      alert("OCR 引擎正在后台准备中，请稍候片刻后再试");
       return;
     }
 
@@ -955,8 +1027,7 @@ export default function App() {
           printer_used: rawResult.printer_used || "",
           print_task_id: printTaskId,
           print_errors: rawResult.errors || [],
-          print_match_results:
-            printPrev?.print_match_results || rawResult.match_results || [],
+          print_match_results: printPrev?.print_match_results || rawResult.match_results || [],
           print_dry_run: rawResult.dry_run || false,
           summary: { result_root: sampleRoot },
         };
@@ -964,8 +1035,8 @@ export default function App() {
       if (moduleTaskStateRef.current[module].taskId !== taskId) return;
       const cancelled =
         (res as { cancelled?: boolean }).cancelled === true ||
-        (res as { success?: boolean }).success === false &&
-          String((res as { error?: string }).error || "").includes("取消");
+        ((res as { success?: boolean }).success === false &&
+          String((res as { error?: string }).error || "").includes("取消"));
       if (cancelled) {
         pauseTaskState(module);
         addLog("warn", "任务已暂停，可点击继续任务", module);
@@ -1004,6 +1075,7 @@ export default function App() {
     excelFile,
     outputDir,
     mockMode,
+    ocrEngineReady,
     forceOcr,
     printerName,
     printCopies,
@@ -1115,6 +1187,22 @@ export default function App() {
           error={startupProgress.error}
         />
       ) : null}
+      {appReady && startupProgress.phase === "error" ? (
+        <div className="shrink-0 border-b border-red-200 bg-red-50 px-4 py-2 text-xs text-red-800">
+          <span className="font-medium">后端未连接：</span>
+          {startupProgress.error ?? startupProgress.label}
+        </div>
+      ) : null}
+      {appReady && isTauri() && !ocrEngineReady ? (
+        <OcrWarmupBanner
+          detail={
+            ocrGpuProbing
+              ? ocrWarmupDetail
+              : (ocrWarmupDetail ?? "后端与 OCR 正在启动，打包版首次可能需 1–3 分钟")
+          }
+          error={ocrWarmupError}
+        />
+      ) : null}
       {currentView === "home" ? (
         <HomeView
           onNavigate={navigateToModule}
@@ -1144,6 +1232,7 @@ export default function App() {
           onSelectOutputDir={selectOutputDir}
           onRun={startProcessing}
           onCancel={cancelProcessing}
+          ocrEngineReady={ocrEngineReady}
           onLoadCache={loadCache}
           onClearCache={clearCache}
           rangeStart={rangeStart}

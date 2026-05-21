@@ -14,7 +14,20 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Union
+
+
+def path_for_display(path: Union[Path, str]) -> str:
+    """去掉 Windows 长路径前缀 \\\\?\\，供前端展示（不影响文件访问）。"""
+    text = os.fspath(path)
+    if os.name != "nt":
+        return text
+    norm = text.replace("/", "\\")
+    if norm.startswith("\\\\?\\UNC\\"):
+        return "\\\\" + norm[8:]
+    if norm.startswith("\\\\?\\"):
+        return norm[4:]
+    return text
 
 
 def get_app_root() -> Path:

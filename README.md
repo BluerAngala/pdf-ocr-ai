@@ -4,7 +4,7 @@
 
 ## 特性
 
-- ✅ **智能识别策略**: 优先提取可编辑文本，扫描件自动 fallback 到 OCR
+- ✅ **智能识 别策略**: 优先提取可编辑文本，扫描件自动 fallback 到 OCR
 - ✅ **找到即停**: 责催文件逐页 OCR，识别到责令号立即停止，3 案件 ~20s
 - ✅ **多格式支持**: PDF + PNG/JPG/JPEG 图片
 - ✅ **超极速处理**: 多进程并行 + 图像预处理优化
@@ -29,6 +29,7 @@ cd pdf-ocr-ai
 本项目使用 **Python 3.12**（见 `.python-version` 文件）。
 
 **Windows（标准库）:**
+
 ```bash
 python -m venv .venv312
 .venv312\Scripts\activate
@@ -92,13 +93,15 @@ python apps/server/src/pdf_ocr_ultra.py document.pdf -o ./results
 python apps/server/src/pdf_ocr_ultra.py document.pdf --workers 6
 ```
 
-| 参数 | 说明 | 默认值 |
-|------|------|--------|
-| `--dpi` | 图像分辨率，越高越清晰但越慢 | 250 |
-| `--max-size` | 最大图像尺寸（像素） | 1024 |
-| `--workers` | 并行处理进程数 | 4 |
-| `--force-ocr` | 强制使用 OCR 识别 | False |
-| `-o, --output` | 输出目录 | ./output |
+
+| 参数             | 说明             | 默认值      |
+| -------------- | -------------- | -------- |
+| `--dpi`        | 图像分辨率，越高越清晰但越慢 | 250      |
+| `--max-size`   | 最大图像尺寸（像素）     | 1024     |
+| `--workers`    | 并行处理进程数        | 4        |
+| `--force-ocr`  | 强制使用 OCR 识别    | False    |
+| `-o, --output` | 输出目录           | ./output |
+
 
 ### 非诉组业务流程
 
@@ -150,11 +153,13 @@ pdf-ocr-ai/
 
 ## 技术方案
 
-| 方案 | 适用场景 | 速度 | 准确率 |
-|------|----------|------|--------|
-| pdfplumber | 可编辑 PDF | 极快 (~0.1s) | 文本精确 |
-| RapidOCR | 扫描件/图片 | 快 (~3-10s/页) | 高 |
-| 逐页 OCR + 找到即停 | 责催文件 | ~7s/文件(1页) | 高 |
+
+| 方案            | 适用场景    | 速度           | 准确率  |
+| ------------- | ------- | ------------ | ---- |
+| pdfplumber    | 可编辑 PDF | 极快 (~0.1s)   | 文本精确 |
+| RapidOCR      | 扫描件/图片  | 快 (~3-10s/页) | 高    |
+| 逐页 OCR + 找到即停 | 责催文件    | ~7s/文件(1页)   | 高    |
+
 
 ## 性能优化
 

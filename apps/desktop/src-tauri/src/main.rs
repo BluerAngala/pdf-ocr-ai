@@ -722,35 +722,42 @@ async fn select_files(
     }
 }
 
-/// 清理旧版本缓存 - 安装新版本时调用
+/// 清理旧版本缓存 - 安装新版本时调用，清空整个 output/、temp/ 及零散缓存文件
 fn clear_old_caches(app: &tauri::AppHandle) -> Result<(), String> {
     use std::fs;
-    
-    // 获取用户数据目录
+
     let user_data_dir = resolve_user_data_dir(app)?;
-    
-    // 需要清理的缓存文件/目录
-    let cache_items = [
-        user_data_dir.join("output").join("ocr-cache.pkl"),
-        user_data_dir.join("output").join("enf-ocr-cache.pkl"),
+
+    let cache_dirs = [
+        user_data_dir.join("output"),
         user_data_dir.join("temp"),
+    ];
+    let cache_files = [
         user_data_dir.join("ocr-gpu-cache.json"),
     ];
-    
-    for item in &cache_items {
-        if item.exists() {
-            let result = if item.is_dir() {
-                fs::remove_dir_all(item)
-            } else {
-                fs::remove_file(item)
-            };
-            match result {
-                Ok(_) => eprintln!("[cache-cleanup] 已清理: {:?}", item),
-                Err(e) => eprintln!("[cache-cleanup] 清理失败 {:?}: {}", item, e),
+
+    for dir in &cache_dirs {
+        if dir.is_dir() {
+            match fs::remove_dir_all(dir) {
+                Ok(_) => eprintln!("[cache-cleanup] 已清理目录: {:?}", dir),
+                Err(e) => eprintln!("[cache-cleanup] 清理目录失败 {:?}: {}", dir, e),
             }
         }
     }
-    
+
+    for file in &cache_files {
+        if file.is_file() {
+            match fs::remove_file(file) {
+                Ok(_) => eprintln!("[cache-cleanup] 已清理文件: {:?}", file),
+                Err(e) => eprintln!("[cache-cleanup] 清理文件失败 {:?}: {}", file, e),
+            }
+        }
+    }
+
+    if let Err(e) = fs::create_dir_all(user_data_dir.join("output")) {
+        eprintln!("[cache-cleanup] 重建 output 目录失败: {}", e);
+    }
+
     Ok(())
 }
 

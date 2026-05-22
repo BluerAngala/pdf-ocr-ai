@@ -245,6 +245,29 @@ pytest apps/server/tests/non-litigation/
 pytest apps/server/tests/ --cov=apps/server/src --cov-report=html
 ```
 
+## 打包与发布
+
+```bash
+# 构建 NSIS 安装包（自动 PyInstaller onefile -> gjj-ocr-server.exe）
+npm run desktop:tauri build
+
+# 仅重打 Python 后端（含 OCR 冒烟校验）
+apps/server/scripts/build_server_bundle.ps1
+
+# 强制重打（删除旧 exe 重新 PyInstaller）
+$env:GJJ_FORCE_SERVER_BUNDLE="1"; npm run desktop:tauri build
+
+# 跳过重打后端（仅前端变更时加速）
+$env:GJJ_SKIP_SERVER_BUNDLE="1"; npm run desktop:tauri build
+```
+
+### 版本升级与缓存清理
+
+- 版本号在 `tauri.conf.json` 和 `Cargo.toml` 两处，发布前确保一致
+- `build.rs` 自动检测 `apps/server/src/` 源码是否比 exe 新，新则自动重打 PyInstaller
+- 安装新版本后首次启动会自动清理旧缓存（`output/`、`temp/`、`ocr-gpu-cache.json`），无需手动操作
+- `tauri.conf.json` 的 `bundle.resources` 包含 `resources/server_src/**`，安装包携带最新 Python 源码
+
 ## 许可证
 
 MIT License

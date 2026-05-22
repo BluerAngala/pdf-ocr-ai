@@ -63,6 +63,43 @@ _ocr_engine = None
 _ocr_lock = threading.Lock()
 _gpu_provider = None
 _gpu_info = ""
+_GPU_CACHE_VERSION = 1
+
+
+def _gpu_cache_path() -> Path:
+    from core.paths import USER_DATA_DIR
+    return USER_DATA_DIR / "ocr-gpu-cache.json"
+
+
+def _load_gpu_cache() -> Optional[Dict[str, str]]:
+    path = _gpu_cache_path()
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data.get("version") != _GPU_CACHE_VERSION:
+            return None
+        provider = data.get("provider")
+        if provider not in ("cuda", "dml_det", "cpu"):
+            return None
+        return {"provider": provider, "info": data.get("info", "")}
+    except Exception:
+        return None
+
+
+def _save_gpu_cache(provider: str, info: str) -> None:
+    try:
+        from core.paths import USER_DATA_DIR
+        USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        _gpu_cache_path().write_text(
+            json.dumps(
+                {"version": _GPU_CACHE_VERSION, "provider": provider, "info": info},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
 
 
 def _generate_test_image():
@@ -155,9 +192,27 @@ def _detect_gpu_hardware():
     return vendor, name
 
 
-def detect_gpu_provider():
+def reset_ocr_engine() -> None:
+    """重置 OCR 引擎与 GPU 选择（完整预热前调用）。"""
+    global _ocr_engine, _gpu_provider, _gpu_info
+    with _ocr_lock:
+        _ocr_engine = None
+    _gpu_provider = None
+    _gpu_info = ""
+
+
+def detect_gpu_provider(*, skip_probe: bool = False):
     global _gpu_provider, _gpu_info
     if _gpu_provider is not None:
+        return _gpu_provider, _gpu_info
+    cached = _load_gpu_cache()
+    if cached:
+        _gpu_provider = cached["provider"]
+        _gpu_info = cached.get("info", "")
+        return _gpu_provider, _gpu_info
+    if skip_probe:
+        _gpu_provider = 'cpu'
+        _gpu_info = 'CPU (启动快速模式，完整 GPU 探测将在后台进行)'
         return _gpu_provider, _gpu_info
     if not HAS_RAPIDOCR:
         _gpu_provider = 'cpu'
@@ -175,6 +230,7 @@ def detect_gpu_provider():
             if _validate_gpu_det_accuracy(**cuda_kwargs):
                 _gpu_provider = 'cuda'
                 _gpu_info = f'NVIDIA CUDA GPU (det+rec){f" [{hw_name}]" if hw_name else ""}'
+                _save_gpu_cache(_gpu_provider, _gpu_info)
                 return _gpu_provider, _gpu_info
 
         if 'DmlExecutionProvider' in providers:
@@ -184,6 +240,7 @@ def detect_gpu_provider():
                 if win_ver < 10:
                     _gpu_provider = 'cpu'
                     _gpu_info = f'CPU (Windows {win_ver} < 10, DirectML 不可用)'
+                    _save_gpu_cache(_gpu_provider, _gpu_info)
                     return _gpu_provider, _gpu_info
             except Exception:
                 pass
@@ -194,12 +251,14 @@ def detect_gpu_provider():
                 vendor_label = hw_vendor or 'GPU'
                 name_label = f" [{hw_name}]" if hw_name else ""
                 _gpu_info = f'DirectML {vendor_label} (det=GPU, rec=CPU){name_label}'
+                _save_gpu_cache(_gpu_provider, _gpu_info)
                 return _gpu_provider, _gpu_info
 
             dml_full_kwargs = dict(use_cls=False, det_use_dml=True, rec_use_dml=True)
             if _validate_gpu_det_accuracy(**dml_full_kwargs):
                 _gpu_provider = 'dml_det'
                 _gpu_info = f'DirectML GPU (det+rec){f" [{hw_name}]" if hw_name else ""}'
+                _save_gpu_cache(_gpu_provider, _gpu_info)
                 return _gpu_provider, _gpu_info
 
     except Exception:
@@ -210,6 +269,7 @@ def detect_gpu_provider():
         _gpu_info = f'CPU ({hw_name} 检测到但 GPU 加速不可用)'
     else:
         _gpu_info = 'CPU (无 GPU 或驱动未安装)'
+    _save_gpu_cache(_gpu_provider, _gpu_info)
     return _gpu_provider, _gpu_info
 
 
@@ -228,27 +288,56 @@ def _build_onnx_session_options():
         return None
 
 
-def _create_ocr_engine():
+def _rapidocr_config_path() -> str | None:
+    """PyInstaller onefile：显式定位 _MEIPASS 内的 config.yaml，避免默认 __file__ 路径缺失。"""
+    if not getattr(sys, "frozen", False):
+        return None
+    meipass = getattr(sys, "_MEIPASS", None)
+    candidates = []
+    if meipass:
+        candidates.append(Path(meipass) / "rapidocr_onnxruntime" / "config.yaml")
+    try:
+        import rapidocr_onnxruntime as _ro
+
+        candidates.append(Path(_ro.__file__).resolve().parent / "config.yaml")
+    except Exception:
+        pass
+    for path in candidates:
+        if path.is_file():
+            return str(path)
+    tried = ", ".join(str(p) for p in candidates)
+    raise FileNotFoundError(
+        f"打包版缺少 RapidOCR 配置（rapidocr_onnxruntime/config.yaml），已检查: {tried}"
+    )
+
+
+def _create_ocr_engine(*, skip_gpu_probe: bool = False):
+    """创建 OCR 引擎 - 简化版：自动选择最佳配置，无需预热"""
     if not HAS_RAPIDOCR:
         raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
-    provider, info = detect_gpu_provider()
+    
     kwargs = dict(use_cls=False)
-    if provider == 'cuda':
-        kwargs['det_use_cuda'] = True
-        kwargs['rec_use_cuda'] = True
-        print(f"[OCR] 使用 NVIDIA CUDA GPU 加速 (det+rec)")
-    elif provider == 'dml_det':
-        kwargs['det_use_dml'] = True
-        sess_opts = _build_onnx_session_options()
-        if sess_opts is not None:
-            kwargs['rec_session_options'] = sess_opts
-        print(f"[OCR] 使用 DirectML GPU 加速 (det=GPU, rec=CPU)")
-    else:
-        sess_opts = _build_onnx_session_options()
-        if sess_opts is not None:
-            kwargs['det_session_options'] = sess_opts
-            kwargs['rec_session_options'] = sess_opts
-        print(f"[OCR] 使用 CPU 模式 (GPU 不可用或准确度验证未通过)")
+    cfg = _rapidocr_config_path()
+    if cfg:
+        kwargs["config_path"] = cfg
+    
+    # 简化 GPU 检测：只检查 onnxruntime 是否报告有 CUDA/DirectML，不做准确度验证
+    try:
+        import onnxruntime as ort
+        providers = ort.get_available_providers()
+        
+        if 'CUDAExecutionProvider' in providers:
+            kwargs['det_use_cuda'] = True
+            kwargs['rec_use_cuda'] = True
+            print(f"[OCR] 使用 NVIDIA CUDA GPU 加速")
+        elif 'DmlExecutionProvider' in providers:
+            kwargs['det_use_dml'] = True
+            print(f"[OCR] 使用 DirectML GPU 加速")
+        else:
+            print(f"[OCR] 使用 CPU 模式")
+    except Exception:
+        print(f"[OCR] 使用 CPU 模式 (自动检测失败)")
+    
     return RapidOCR(**kwargs)
 
 
@@ -258,12 +347,12 @@ def init_worker():
     if HAS_RAPIDOCR:
         _ocr_engine = _create_ocr_engine()
 
-def get_ocr_engine():
+def get_ocr_engine(*, skip_gpu_probe: bool = False):
     """获取OCR引擎 - 线程安全版"""
     global _ocr_engine
     with _ocr_lock:
         if _ocr_engine is None:
-            _ocr_engine = _create_ocr_engine()
+            _ocr_engine = _create_ocr_engine(skip_gpu_probe=skip_gpu_probe)
         return _ocr_engine
 
 def get_ocr_lock() -> threading.Lock:
@@ -396,9 +485,9 @@ class OCRConfig:
 
     def __post_init__(self):
         import sys
-        from core.paths import ROOT, RESOURCES_DIR
+        from core.paths import RESOURCES_DIR, get_user_data_dir
         if self._base_dir is None:
-            self._base_dir = ROOT
+            self._base_dir = get_user_data_dir()
         if self._server_dir is None:
             if getattr(sys, "frozen", False):
                 self._server_dir = RESOURCES_DIR

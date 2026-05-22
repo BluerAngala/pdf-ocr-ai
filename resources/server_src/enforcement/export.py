@@ -7,13 +7,15 @@
 1. 批量处理裁定PDF，提取信息
 2. 与台账（非诉表格）进行责令号匹配
 3. 导出合并后Excel（原表字段 + OCR识别字段）
+   - Sheet1: 匹配数据（台账中有且PDF中有）
+   - Sheet2: PDF独有数据（台账中没有但PDF中有）
 """
 
 import json
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Set
 from datetime import datetime
 
 import pandas as pd
@@ -24,7 +26,11 @@ from core.paths import ROOT
 
 from core.config_loader import load_config
 from enforcement.extractor import RulingPDFExtractor, RulingInfo, extract_ruling_from_pdf, chinese_date_to_arabic
-from enforcement.product import EnforcementCaseRegistry, load_enforcement_cases
+from enforcement.product import (
+    EnforcementCaseRegistry,
+    load_enforcement_cases,
+    normalize_notice_for_match,
+)
 
 _cfg = load_config()
 _enforcement_cfg = _cfg.raw_config.get('enforcement', {})
@@ -39,74 +45,133 @@ def build_output_excel(
     """
     构建输出Excel：合并非诉表格字段与OCR识别字段
 
+    输出两个Sheet：
+      - Sheet1 "匹配数据": 台账中有且匹配到PDF的
+      - Sheet2 "PDF独有": 台账中没有但PDF中有的责令号
+
     输出列：
       区号 | 行政审查案号 | 责令号 | 被执行人 | 职工姓名 | 金额 | 法官/法官助理 | 执行时间 | 裁定结果 | 备注
     """
-    rows = []
+    # 调试信息
+    print(f"[DEBUG] build_output_excel: 台账行数={len(registry.cases)}, PDF数={len(pdf_results)}")
     for case in registry.cases:
-        matched_info = _match_case_to_pdf(case, pdf_results)
+        print(f"[DEBUG]   台账: {case.notice_number} (区号: {case.region})")
+    for pdf_key, info in pdf_results.items():
+        print(f"[DEBUG]   PDF: {pdf_key} -> 责令号: {info.notice_numbers}")
+    
+    # 收集匹配信息
+    matched_rows = []  # 台账匹配到的
+    pdf_matched_notices: Set[str] = set()  # 记录PDF中哪些责令号被匹配到了
 
-        row = {
-            '区号': case.region or '',
-            '行政审查案号': '',
-            '责令号': case.notice_number or '',
-            '被执行人': case.respondent or '',
-            '职工姓名': case.employee or '',
-            '金额': _format_amount(case.amount),
-            '法官/法官助理': '',
-            '执行时间': '',
-            '裁定结果': '',
-            '备注': '',
-        }
-
+    for case in registry.cases:
+        matched_info, matched_notice = _match_case_to_pdf_with_notice(case, pdf_results)
         if matched_info:
-            row['行政审查案号'] = matched_info.court_case_number or ''
-            row['执行时间'] = _format_date(matched_info.ruling_date) or ''
-            row['裁定结果'] = matched_info.ruling_result or ''
+            pdf_matched_notices.add(matched_notice)
+            row = {
+                '区号': case.region or '',
+                '行政审查案号': matched_info.court_case_number or '',
+                '责令号': case.notice_number or '',
+                '被执行人': case.respondent or '',
+                '职工姓名': case.employee or '',
+                '金额': _format_amount(case.amount),
+                '法官/法官助理': '',
+                '执行时间': _format_date(matched_info.ruling_date) or '',
+                '裁定结果': matched_info.ruling_result or '',
+                '备注': '',
+            }
             judge_parts = []
             if matched_info.judge:
                 judge_parts.append(matched_info.judge)
             if matched_info.clerk:
                 judge_parts.append(matched_info.clerk)
             row['法官/法官助理'] = '/'.join(judge_parts) if judge_parts else ''
+            matched_rows.append(row)
 
-        rows.append(row)
+    # 收集PDF独有的责令号
+    pdf_only_rows = []
+    for info in pdf_results.values():
+        for notice in info.notice_numbers:
+            norm_notice = _normalize_for_match(notice)
+            # 检查这个责令号是否被匹配到了台账
+            if norm_notice not in pdf_matched_notices:
+                # 检查是否已经在pdf_only_rows中
+                if not any(_normalize_for_match(r['责令号']) == norm_notice for r in pdf_only_rows):
+                    row = {
+                        '区号': '',
+                        '行政审查案号': info.court_case_number or '',
+                        '责令号': notice,
+                        '被执行人': '',
+                        '职工姓名': '',
+                        '金额': '',
+                        '法官/法官助理': '',
+                        '执行时间': _format_date(info.ruling_date) or '',
+                        '裁定结果': info.ruling_result or '',
+                        '备注': 'PDF独有',
+                    }
+                    judge_parts = []
+                    if info.judge:
+                        judge_parts.append(info.judge)
+                    if info.clerk:
+                        judge_parts.append(info.clerk)
+                    row['法官/法官助理'] = '/'.join(judge_parts) if judge_parts else ''
+                    pdf_only_rows.append(row)
 
-    _sort_rows_by_region(rows)
-    df = pd.DataFrame(rows)
-    df = df.fillna('')
+    # 排序
+    _sort_rows_by_region(matched_rows)
+
     columns_order = ['区号', '行政审查案号', '责令号', '被执行人', '职工姓名', '金额', '法官/法官助理', '执行时间', '裁定结果', '备注']
-    df = df[columns_order]
 
-    with pd.ExcelWriter(str(output_path), engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='执行组识别结果')
-        ws = writer.sheets['执行组识别结果']
-        _auto_fit_columns(ws)
-        _apply_header_style(ws)
+    # 使用 openpyxl 直接写入，避免 pandas.ExcelWriter 在 PyInstaller 下的问题
+    from openpyxl import Workbook
+    
+    wb = Workbook()
+    
+    # Sheet1: 匹配数据
+    ws_matched = wb.active
+    ws_matched.title = '匹配数据'
+    _write_sheet_data(ws_matched, matched_rows, columns_order)
+    _auto_fit_columns(ws_matched)
+    _apply_header_style(ws_matched)
+    
+    # Sheet2: PDF独有
+    ws_pdf_only = wb.create_sheet('PDF独有')
+    _write_sheet_data(ws_pdf_only, pdf_only_rows, columns_order)
+    _auto_fit_columns(ws_pdf_only)
+    _apply_header_style(ws_pdf_only)
+    
+    wb.save(str(output_path))
 
+    print(f"[DEBUG] Excel导出完成: {output_path}")
+    print(f"[DEBUG]   - 匹配数据: {len(matched_rows)} 条")
+    print(f"[DEBUG]   - PDF独有: {len(pdf_only_rows)} 条")
+    for row in pdf_only_rows:
+        print(f"[DEBUG]     PDF独有: {row['责令号']}")
+    
     return output_path
 
 
-def _match_case_to_pdf(case, pdf_results: Dict[str, RulingInfo]) -> Optional[RulingInfo]:
+def _match_case_to_pdf_with_notice(case, pdf_results: Dict[str, RulingInfo]) -> tuple[Optional[RulingInfo], str]:
+    """
+    匹配案件到PDF，返回匹配到的PDF信息和匹配到的具体责令号
+    """
     for info in pdf_results.values():
         for ocr_notice in info.notice_numbers:
             norm_ocr = _normalize_for_match(ocr_notice)
             norm_excel = _normalize_for_match(case.notice_number)
             if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
-                return info
-    return None
+                return info, norm_ocr
+    return None, ''
+
+
+def _match_case_to_pdf(case, pdf_results: Dict[str, RulingInfo]) -> Optional[RulingInfo]:
+    """兼容旧代码的匹配函数"""
+    info, _ = _match_case_to_pdf_with_notice(case, pdf_results)
+    return info
 
 
 def _normalize_for_match(text: str) -> str:
-    """标准化责令号用于匹配：统一括号、去空格"""
-    if not text:
-        return ''
-    text = str(text).replace(' ', '')
-    for old, new in [('(', '〔'), (')', '〕'), ('（', '〔'), ('）', '〕'),
-                      ('[', '〔'), (']', '〕'), ('［', '〔'), ('］', '〕'),
-                      ('【', '〔'), ('】', '〕')]:
-        text = text.replace(old, new)
-    return text
+    """标准化责令号用于匹配（与 product.normalize_notice_for_match 一致）"""
+    return normalize_notice_for_match(text)
 
 
 def _format_amount(amount) -> str:
@@ -129,6 +194,25 @@ def _sort_rows_by_region(rows: List[Dict]):
                     '白云': 6, '黄埔': 7, '番禺': 8, '花都': 9, '南沙': 10,
                     '增城': 11, '从化': 12}
     rows.sort(key=lambda r: (region_order.get(r.get('区号', ''), 99), r.get('责令号', '')))
+
+
+def _write_sheet_data(ws, rows: List[Dict], columns: List[str]):
+    """使用 openpyxl 直接写入数据到 sheet"""
+    from openpyxl.styles import Font, Alignment
+    
+    # 写入表头
+    for col_idx, col_name in enumerate(columns, 1):
+        cell = ws.cell(row=1, column=col_idx, value=col_name)
+        cell.font = Font(name='微软雅黑', size=10)
+        cell.alignment = Alignment(horizontal='center', vertical='center')
+    
+    # 写入数据行
+    for row_idx, row_data in enumerate(rows, 2):
+        for col_idx, col_name in enumerate(columns, 1):
+            value = row_data.get(col_name, '')
+            cell = ws.cell(row=row_idx, column=col_idx, value=value if value else '')
+            cell.font = Font(name='微软雅黑', size=10)
+            cell.alignment = Alignment(horizontal='left', vertical='center')
 
 
 def _auto_fit_columns(ws):
@@ -169,7 +253,7 @@ def run_enforcement_extraction(
     1. 加载台账（非诉表格.xlsx）
     2. 批量OCR识别裁定PDF（行审案号、责令号、法官/法官助理、责令作出时间）
     3. 按责令号匹配台账与OCR结果
-    4. 导出合并后Excel
+    4. 导出合并后Excel（两个Sheet：匹配数据 + PDF独有）
     """
     output_dir.mkdir(parents=True, exist_ok=True)
 

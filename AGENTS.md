@@ -85,6 +85,16 @@ apps/
 - 强制执行组：`paths` ← `config_loader` ← `enforcement_product` → `enforcement_extractor` → `enforcement_export`
 - 通用：`paths` ← `pdf_ocr_ultra`；`smart_extractor` → `region_extractor`；`text_postprocessor` 被 `non_litigation_export` 直接引用
 
+## 打包与发布
+
+- **版本号在两处**：`tauri.conf.json` (`package.version`) 和 `Cargo.toml` (`version`)，发布前确保一致
+- **build.rs 源码变脏检测**：`bundle_python_server_onefile()` 会自动检查 `apps/server/src/` 是否比 `gjj-ocr-server.exe` 新，新则自动重打 PyInstaller，无需手动删除旧 exe
+- **强制重打后端**：`$env:GJJ_FORCE_SERVER_BUNDLE="1"` 或删除 `apps/desktop/src-tauri/resources/gjj-ocr-server.exe`
+- **跳过重打后端**：`$env:GJJ_SKIP_SERVER_BUNDLE="1"`
+- **版本升级自动清缓存**：`main.rs` 的 `check_and_clear_cache_on_upgrade()` 检测版本号变化时，自动删除 `output/`、`temp/` 及零散缓存文件（`ocr-gpu-cache.json`），然后重建空 `output/`
+- **打包后代码加载优先级**：`server.py` 在 `sys.frozen` 模式下，优先加载 `resources/server_src/`（兼容性检查通过时），其次用 PyInstaller 内嵌代码。**`build.rs` 的 `sync_resources()` 会自动同步 `apps/server/src/` → `resources/server_src/`，不要手动编辑后者**
+- **tauri.conf.json resources** 必须包含 `resources/server_src/**`，否则安装包没有最新 Python 源码
+
 ## 开发注意事项
 
 - **无包安装**：`apps/server/src/` 无 `__init__.py`，模块通过 `sys.path.insert` 互相导入。测试靠 `conftest.py` 注入 `sys.path`。改文件名或导入方式时要连带检查测试

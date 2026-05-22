@@ -403,9 +403,16 @@ def process_company_query(
         result_df[col] = values[:len(result_df)]
 
     col_order = []
+    # 序号列放在第一列（如果存在）
+    for c in ["序号", "序号.", "No.", "no.", "NO.", "Index", "index"]:
+        if c in result_df.columns:
+            col_order.append(c)
+            break
+    # 核心字段按顺序排列
     for c in ["被执行人", "现用名", "法代", "所在地", "社会信用代码"]:
         if c in result_df.columns:
             col_order.append(c)
+    # 其他列放在后面
     for c in result_df.columns:
         if c not in col_order:
             col_order.append(c)

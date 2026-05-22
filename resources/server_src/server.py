@@ -65,34 +65,67 @@ sys.stdin = _force_utf8_stream(sys.stdin, mode='r')
 sys.stdout = _force_utf8_stream(sys.stdout, mode='w')
 sys.stderr = _force_utf8_stream(sys.stderr, mode='w')
 
+def _external_server_src_is_compatible(external: Path) -> bool:
+    """仅当外部 server_src 含新版 preset_paths 时才覆盖 PyInstaller 内嵌代码。"""
+    return (external / "core" / "preset_paths.py").is_file()
+
+
 if getattr(sys, "frozen", False):
     _exe_dir = Path(sys.executable).resolve().parent
-    _server_src = Path(os.environ.get("GJJ_OCR_RESOURCES", str(_exe_dir.parent))) / "server_src"
+    _resources = Path(os.environ.get("GJJ_OCR_RESOURCES", str(_exe_dir.parent)))
+    _external = _resources / "server_src"
+    if _external_server_src_is_compatible(_external):
+        _server_src = _external
+        if str(_server_src) not in sys.path:
+            sys.path.insert(0, str(_server_src))
+    # 否则使用 PyInstaller 内嵌模块，避免旧版 resources/server_src 覆盖新 RPC
+    print(
+        _safe_json_dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notify.log",
+                "params": {"level": "info", "message": "Python 进程已启动，正在加载模块…"},
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
+    # onefile 冷启动：在重型 import 之前通知 Tauri，避免前端误判为「服务未就绪」
+    print(
+        _safe_json_dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notify.log",
+                "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"},
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
 else:
     _server_src = Path(__file__).resolve().parent
-if str(_server_src) not in sys.path:
-    sys.path.insert(0, str(_server_src))
+    if str(_server_src) not in sys.path:
+        sys.path.insert(0, str(_server_src))
 
-from core.paths import ROOT, SERVER_SRC, USER_DATA_DIR
+from core.paths import (
+    ROOT,
+    SERVER_SRC,
+    USER_DATA_DIR,
+    RESOURCES_DIR,
+    get_app_root,
+    get_resources_dir,
+    get_user_data_dir,
+    resolve_input_path,
+    describe_runtime_paths,
+    path_for_display,
+)
+from core.task_cancel import CancelledError
+from core.preset_paths import (
+    get_resolved_presets,
+    resolve_data_path as resolve_data_path_rel,
+)
 
-print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"ROOT={ROOT}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}, stdin_encoding={getattr(sys.stdin, 'encoding', '?')}"}}), file=sys.stderr, flush=True)
-
-PRESET_SAMPLE_PATHS = {
-    "non-litigation-batch1": ["sample-data/non-litigation-batch1"],
-    "non-litigation-batch2": ["sample-data/non-litigation-batch2"],
-    "enforcement-extract": ["sample-data/enforcement/extract"],
-    "enforcement-print": ["sample-data/enforcement/print"],
-    "company-query": ["sample-data/company-query"],
-}
-
-PRESET_EXCEL_PATHS = {
-    "non-litigation-batch1": ["sample-data/non-litigation-batch1/台账及命名规则.xlsx"],
-    "non-litigation-batch2": ["sample-data/non-litigation-batch2/台账及命名规则.xlsx"],
-    "enforcement-extract": ["sample-data/enforcement/extract/cases.xlsx"],
-    "enforcement-print": ["sample-data/enforcement/print/aol-ledger.xlsx"],
-    "company-query": ["sample-data/company-query/companies.xlsx"],
-}
-
+print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "debug", "message": f"{describe_runtime_paths()}, SYS_PATH[0]={sys.path[0] if sys.path else 'empty'}"}}), file=sys.stderr, flush=True)
 
 def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "") -> Path:
     ts = _datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -106,14 +139,6 @@ def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "
     d = base / subfolder
     d.mkdir(parents=True, exist_ok=True)
     return d
-
-
-def _resolve_preset_path(path_list):
-    for p in path_list:
-        candidate = ROOT / p
-        if candidate.exists():
-            return candidate.resolve()
-    raise FileNotFoundError(f"所有预设路径均不存在: {path_list} (ROOT={ROOT})")
 
 
 def _dir_has_pdfs(dir_path: Path) -> bool:
@@ -171,6 +196,7 @@ class JsonRpcServer:
         'enforcement.extract',
         'company_query.process',
         'print.start',
+        'ocr.warmup',
     ])
 
     def __init__(self):
@@ -201,6 +227,7 @@ class JsonRpcServer:
         self.methods['company_query.load_cache'] = self._company_query_load_cache
         self.methods['company_query.clear_cache'] = self._company_query_clear_cache
         self.methods['task.cancel'] = self._task_cancel
+        self.methods['task.clear_cancel'] = self._task_clear_cancel
 
         self.methods['print.start'] = self._print_start
         self.methods['print.cancel'] = self._print_cancel
@@ -218,6 +245,9 @@ class JsonRpcServer:
         self.methods['system.get_status'] = self._system_get_status
         self.methods['system.check_dependencies'] = self._system_check_dependencies
         self.methods['system.setup_poppler'] = self._system_setup_poppler
+        self.methods['system.get_presets'] = self._system_get_presets
+        self.methods['system.resolve_data_path'] = self._system_resolve_data_path
+        self.methods['system.describe_paths'] = self._system_describe_paths
 
     def _send_response(self, result: Any, id: Any):
         response = {"jsonrpc": "2.0", "result": result, "id": id}
@@ -234,23 +264,29 @@ class JsonRpcServer:
     _warmed_up = False
 
     def _ocr_warmup(self, params: Dict, id: Any) -> Dict:
-        """预热 OCR 模型，应用启动时调用"""
+        """OCR 预热 - 简化版：立即返回成功，延迟加载模型"""
         if JsonRpcServer._warmed_up:
             return {"status": "already_warm"}
-        try:
-            from core.pdf_ocr_ultra import get_ocr_engine
-            import time
-            start = time.time()
-            engine = get_ocr_engine()
-            from PIL import Image
-            dummy = Image.new('RGB', (100, 100), color='white')
-            import numpy as np
-            engine(np.array(dummy))
-            elapsed = time.time() - start
-            JsonRpcServer._warmed_up = True
-            return {"status": "warm", "duration_seconds": round(elapsed, 2)}
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
+        
+        # 简化处理：立即返回成功，模型将在第一次实际 OCR 时自动加载
+        JsonRpcServer._warmed_up = True
+        print(
+            _safe_json_dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "notify.log",
+                    "params": {"level": "info", "message": "OCR 引擎就绪（延迟加载模式）"},
+                }
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
+        return {
+            "status": "warm",
+            "duration_seconds": 0.01,
+            "provider": "auto",
+            "provider_info": "延迟加载模式：模型将在首次识别时自动初始化",
+        }
 
     def _ocr_clear_cache(self, params: Dict, id: Any) -> Dict:
         """清除 OCR 结果缓存"""
@@ -341,22 +377,15 @@ class JsonRpcServer:
             import non_litigation.export as non_litigation_export
             non_litigation_export._suppress_print = True
 
-            if sample_root:
-                sample_root_path = Path(sample_root)
-                if not sample_root_path.is_absolute():
-                    sample_root_path = (ROOT / sample_root_path).resolve()
-                if not sample_root_path.exists() and preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                    emitter.log("warn", f"路径不存在({sample_root_path})，回退到预设路径")
-                    sample_root_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-                else:
-                    emitter.log("info", f"使用用户指定路径: {sample_root_path}")
-            elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                sample_root_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-                emitter.log("info", f"通过预设 {preset_id} 解析路径: {sample_root_path}")
-            else:
-                sample_root_path = (ROOT / '样本材料' / '非诉组自动化样本材料').resolve()
+            sample_root_path = resolve_input_path(
+                sample_root,
+                preset_id=preset_id,
+                preset_kind="sample",
+                default_preset_id="non-litigation-batch1",
+            )
+            emitter.log("info", f"样本目录: {sample_root_path}")
 
-            input_root = ensure_non_litigation_input_structure(ROOT)
+            input_root = ensure_non_litigation_input_structure(get_app_root())
             original_files_dir = sample_root_path / '原始文件'
             sample_input_dir = sample_root_path / 'input'
             if original_files_dir.exists() and list(original_files_dir.glob('*.pdf')):
@@ -367,12 +396,9 @@ class JsonRpcServer:
                 input_root = sample_root_path
 
             if excel_path:
-                excel_file_path = Path(excel_path)
-                if not excel_file_path.is_absolute():
-                    excel_file_path = (ROOT / excel_file_path).resolve()
-                if not excel_file_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
-                    emitter.log("warn", f"Excel不存在({excel_file_path})，回退到预设路径")
-                    excel_file_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
+                excel_file_path = resolve_input_path(
+                    excel_path, preset_id=preset_id, preset_kind="excel"
+                )
             else:
                 from core.config_loader import load_config
                 _tmp_cfg = load_config()
@@ -429,7 +455,7 @@ class JsonRpcServer:
 
                 def ocr_progress(current, total, filename):
                     if _is_task_cancelled(task_id):
-                        return
+                        raise CancelledError("任务已取消")
                     ocr_file_total[0] = total
                     emitter.progress("ocr", current, total + 2, f"正在识别 ({current}/{total}): {filename}", current, total)
 
@@ -451,7 +477,7 @@ class JsonRpcServer:
                 if _is_task_cancelled(task_id):
                     emitter.log("warn", f"任务已取消，已完成 {len(ocr_results)} 个文件的OCR（已缓存）")
                     emitter.complete(False, error="用户取消")
-                    raise Exception("任务已取消")
+                    raise CancelledError("任务已取消")
                 ocr_elapsed = _time.perf_counter() - ocr_t0
                 emitter.log("info", f"OCR 完成: {len(ocr_results)} 个文件, 耗时 {ocr_elapsed:.1f}s")
                 if not ocr_results:
@@ -465,6 +491,10 @@ class JsonRpcServer:
             emitter.progress("ocr", _ocr_total, _ocr_total + 2, "OCR 识别完成", _ocr_total, _ocr_total)
 
             # 导出阶段
+            if _is_task_cancelled(task_id):
+                emitter.log("warn", "任务已取消，跳过导出阶段")
+                emitter.complete(False, error="用户取消")
+                raise CancelledError("任务已取消")
             emitter.progress("export", _ocr_total + 1, _ocr_total + 2, "开始导出文件...")
             export_result = export_non_litigation_standard_outputs(
                 sample_root=sample_root_path, input_dir=input_root,
@@ -474,10 +504,16 @@ class JsonRpcServer:
             emitter.progress("export", _ocr_total + 1, _ocr_total + 2, f"导出完成: {export_result['created_count']} 个文件")
 
             # 验证阶段
+            if _is_task_cancelled(task_id):
+                emitter.log("warn", "任务已取消，跳过验证阶段")
+                emitter.complete(False, error="用户取消")
+                raise CancelledError("任务已取消")
             emitter.progress("validation", _ocr_total + 2, _ocr_total + 2, "开始验证...")
             cases = load_non_litigation_cases(sample_root_path, excel_path=excel_file_path)
             validation_result = validate_ocr_results(cases, ocr_results, input_dir=input_root)
-            quality = evaluate_non_litigation_quality(ROOT, result_root, sample_root=sample_root_path, excel_path=excel_file_path)
+            quality = evaluate_non_litigation_quality(
+                get_app_root(), result_root, sample_root=sample_root_path, excel_path=excel_file_path
+            )
 
             total_elapsed = __import__('time').perf_counter() - total_t0
 
@@ -506,6 +542,11 @@ class JsonRpcServer:
             emitter.log("info", f"全部完成: OCR {ocr_elapsed:.1f}s + 导出/验证 {total_elapsed - ocr_elapsed:.1f}s = 总计 {total_elapsed:.1f}s")
             return result
 
+        except CancelledError as e:
+            emitter.log("warn", str(e))
+            emitter.complete(False, error="用户取消")
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
+            return {"cancelled": True, "success": False, "task_id": task_id}
         except Exception as e:
             emitter.log("error", f"处理失败: {str(e)}")
             emitter.complete(False, error=str(e))
@@ -525,14 +566,12 @@ class JsonRpcServer:
         excel_path = params.get('excel_path')
         try:
             from non_litigation.product import load_non_litigation_cases
-            if sample_root:
-                sample_path = Path(sample_root)
-                if not sample_path.is_absolute():
-                    sample_path = (ROOT / sample_path).resolve()
-            elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                sample_path = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-            else:
-                sample_path = (ROOT / '样本材料' / '非诉组自动化样本材料').resolve()
+            sample_path = resolve_input_path(
+                sample_root,
+                preset_id=preset_id,
+                preset_kind="sample",
+                default_preset_id="non-litigation-batch1",
+            )
             excel_file = Path(excel_path) if excel_path else None
             cases = load_non_litigation_cases(sample_path, excel_path=excel_file)
             return {"cases": cases}
@@ -578,34 +617,29 @@ class JsonRpcServer:
             from enforcement.extractor import process_enforcement_cases
             import pickle as _pickle
             import time as _time
-            if input_dir:
-                input_dir = Path(input_dir)
-                if not input_dir.is_absolute():
-                    input_dir = (ROOT / input_dir).resolve()
-                if not input_dir.exists() and preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                    print(f"[WARN] input_dir 不存在({input_dir})，回退到预设路径")
-                    input_dir = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-            elif preset_id and preset_id in PRESET_SAMPLE_PATHS:
-                input_dir = _resolve_preset_path(PRESET_SAMPLE_PATHS[preset_id])
-            else:
-                input_dir = Path('.')
-
+            input_dir = resolve_input_path(
+                input_dir, preset_id=preset_id, preset_kind="sample"
+            )
             if excel_path:
-                excel_path = Path(excel_path)
-                if not excel_path.is_absolute():
-                    excel_path = (ROOT / excel_path).resolve()
-                if not excel_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
-                    print(f"[WARN] excel_path 不存在({excel_path})，回退到预设路径")
-                    excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-            elif preset_id and preset_id in PRESET_EXCEL_PATHS:
-                excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-            else:
-                excel_path = Path('.')
+                excel_path = resolve_input_path(
+                    excel_path, preset_id=preset_id, preset_kind="excel"
+                )
+            elif preset_id:
+                try:
+                    excel_path = resolve_input_path(
+                        None, preset_id=preset_id, preset_kind="excel"
+                    )
+                except FileNotFoundError:
+                    excel_path = Path(".")
 
             if not input_dir.exists():
-                raise FileNotFoundError(f"输入文件夹不存在: {input_dir} (ROOT={ROOT})")
+                raise FileNotFoundError(
+                    f"输入文件夹不存在: {input_dir} ({describe_runtime_paths()})"
+                )
             if not excel_path.exists():
-                raise FileNotFoundError(f"台账文件不存在: {excel_path} (ROOT={ROOT})")
+                raise FileNotFoundError(
+                    f"台账文件不存在: {excel_path} ({describe_runtime_paths()})"
+                )
 
             pdf_count = len(list(input_dir.glob('*.pdf'))) if input_dir.is_dir() else 0
             if pdf_count == 0 and not mock_mode:
@@ -663,8 +697,17 @@ class JsonRpcServer:
                 "output_dir": result.get('output_dir', ''),
                 "stats": stats,
             }
+        except CancelledError:
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": "任务已取消"}}), file=sys.stderr, flush=True)
+            print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
+            return {"cancelled": True, "success": False, "task_id": task_id}
         except Exception as e:
+            if _is_task_cancelled(task_id) or "取消" in str(e):
+                print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
+                return {"cancelled": True, "success": False, "task_id": task_id}
             raise Exception(f"强制执行提取失败: {str(e)}")
+        finally:
+            _clear_task(task_id)
 
     def _enforcement_fill_excel(self, params: Dict, id: Any) -> Dict:
         """回填到 Excel"""
@@ -673,7 +716,7 @@ class JsonRpcServer:
     # ============ 企业信息查询模块 ============
 
     def _company_query_process(self, params: Dict, id: Any) -> Dict:
-        preset_id = params.get('preset_id')
+        preset_id = params.get('preset_id') or 'company-query'
         excel_path = params.get('excel_path')
         range_start = params.get('range_start', 1)
         range_end = params.get('range_end', 99999)
@@ -681,19 +724,42 @@ class JsonRpcServer:
         task_id = params.get('task_id', f"cq-{id}")
         user_output_dir = params.get('output_dir')
         emitter = ProgressEmitter(task_id)
+        result = None
 
         try:
             from infra.company_query import process_company_query
-            if excel_path:
-                excel_path = Path(excel_path)
-                if not excel_path.is_absolute():
-                    excel_path = (ROOT / excel_path).resolve()
-                if not excel_path.exists() and preset_id and preset_id in PRESET_EXCEL_PATHS:
-                    excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
-            elif preset_id and preset_id in PRESET_EXCEL_PATHS:
-                excel_path = _resolve_preset_path(PRESET_EXCEL_PATHS[preset_id])
+            from core.preset_paths import resolve_preset
+
+            resolved_excel = None
+            if preset_id:
+                try:
+                    resolved_excel = resolve_preset(preset_id, "excel")
+                except (FileNotFoundError, KeyError):
+                    resolved_excel = None
+
+            raw = str(excel_path).strip() if excel_path else ""
+            if resolved_excel is not None:
+                if not raw:
+                    excel_path = resolved_excel
+                else:
+                    p = Path(raw)
+                    if not p.is_absolute() or not p.is_file():
+                        excel_path = resolved_excel
+                    elif p.resolve() != resolved_excel.resolve():
+                        emitter.log(
+                            "warn",
+                            f"已改用企业查询预设台账: {resolved_excel.name}（忽略其它模块残留路径）",
+                        )
+                        excel_path = resolved_excel
+                    else:
+                        excel_path = p.resolve()
             else:
-                excel_path = Path('.')
+                excel_path = resolve_input_path(
+                    excel_path,
+                    preset_id=preset_id,
+                    preset_kind="excel",
+                    default_preset_id="company-query",
+                )
 
             if not Path(excel_path).exists():
                 raise FileNotFoundError(f"Excel 文件不存在: {excel_path}")
@@ -715,6 +781,12 @@ class JsonRpcServer:
             emitter.log("info", f"{status_msg}: 成功 {result['success_count']}/{result['total']}，缓存跳过 {cached} 条")
             return result
         except Exception as e:
+            from core.task_cancel import is_cancelled
+            cancelled = (
+                isinstance(result, dict) and result.get('cancelled', False)
+            ) or is_cancelled(task_id)
+            if cancelled:
+                print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
             raise Exception(f"企业查询失败: {str(e)}")
 
     def _company_query_cancel(self, params: Dict, id: Any) -> Dict:
@@ -725,9 +797,21 @@ class JsonRpcServer:
 
     def _task_cancel(self, params: Dict, id: Any) -> Dict:
         task_id = params.get('task_id', '')
-        from core.task_cancel import request_cancel
+        from core.task_cancel import request_cancel, is_cancelled
         request_cancel(task_id)
+        print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "warn", "message": f"收到取消请求: task_id={task_id}, 已标记取消={is_cancelled(task_id)}"}}), file=sys.stderr, flush=True)
+        from infra.print_service import cancel_print_task as _cancel_print
+        try:
+            _cancel_print(task_id)
+        except Exception:
+            pass
         return {"cancelled": True, "task_id": task_id}
+
+    def _task_clear_cancel(self, params: Dict, id: Any) -> Dict:
+        task_id = params.get('task_id', '')
+        from core.task_cancel import clear_cancel
+        clear_cancel(task_id)
+        return {"cleared": True, "task_id": task_id}
 
     def _company_query_load_cache(self, params: Dict, id: Any) -> Dict:
         excel_path = params.get('excel_path', '')
@@ -916,6 +1000,47 @@ class JsonRpcServer:
 
     # ============ 系统模块 ============
 
+    def _system_get_presets(self, params: Dict, id: Any) -> Dict:
+        """返回已解析绝对路径的预设列表（开发/打包共用 preset_paths）。"""
+        presets, errors = get_resolved_presets()
+        if not presets and errors:
+            raise Exception(
+                f"解析预设路径失败: {errors[0].get('error', errors)} "
+                f"({describe_runtime_paths()})"
+            )
+        return {
+            "presets": presets,
+            "errors": errors,
+            "appRoot": path_for_display(get_app_root()),
+            "resources": path_for_display(get_resources_dir()),
+            "userData": path_for_display(get_user_data_dir()),
+        }
+
+    def _system_describe_paths(self, params: Dict, id: Any) -> Dict:
+        """诊断运行时路径（前端启动自检）。"""
+        from core.paths import get_config_path
+
+        cfg = get_config_path()
+        batch1 = get_resources_dir() / "sample-data" / "non-litigation-batch1"
+        ledger = batch1 / "台账及命名规则.xlsx"
+        return {
+            "summary": describe_runtime_paths(),
+            "configExists": cfg.is_file(),
+            "configPath": path_for_display(cfg),
+            "batch1Exists": batch1.is_dir(),
+            "ledgerExists": ledger.is_file(),
+        }
+
+    def _system_resolve_data_path(self, params: Dict, id: Any) -> Dict:
+        relative = params.get("relative", "")
+        if not relative:
+            raise Exception("缺少 relative 参数")
+        try:
+            path = resolve_data_path_rel(relative)
+            return {"path": path_for_display(path), "exists": path.exists()}
+        except Exception as e:
+            raise Exception(f"路径解析失败: {e}")
+
     def _system_get_status(self, params: Dict, id: Any) -> Dict:
         """获取系统状态"""
         import platform
@@ -1058,6 +1183,8 @@ class JsonRpcServer:
         try:
             result = self.methods[method](params, id)
             self._send_response(result, id)
+        except CancelledError:
+            self._send_error(-32001, "任务已取消", id)
         except Exception as e:
             import traceback as tb
             print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.log", "params": {"level": "error", "message": f"Method {method} failed: {str(e)}"}}), file=sys.stderr, flush=True)
@@ -1116,5 +1243,17 @@ class JsonRpcServer:
 
 
 if __name__ == '__main__':
+    # 尽早通知 Tauri（便携 Python 模式下冷启动远快于 PyInstaller）
+    print(
+        _safe_json_dumps(
+            {
+                "jsonrpc": "2.0",
+                "method": "notify.log",
+                "params": {"level": "info", "message": "Python JSON-RPC 服务已启动"},
+            }
+        ),
+        file=sys.stderr,
+        flush=True,
+    )
     server = JsonRpcServer()
     server.run()

@@ -125,9 +125,20 @@ tools/poppler/
 # PyInstaller
 *.spec
 
-# Tauri resources & platform icons
-apps/desktop/src-tauri/resources/
+# Tauri build resources (auto-synced by build.rs, do not edit manually)
+apps/desktop/src-tauri/resources/gjj-ocr-server.exe
+apps/desktop/src-tauri/resources/config.yaml
+apps/desktop/src-tauri/resources/sample-data/
+apps/desktop/src-tauri/resources/server_src/
+apps/desktop/src-tauri/resources/poppler/
 apps/desktop/src-tauri/icons/*.icns
+
+# Repo-level resources/server_src (auto-synced by build.rs from apps/server/src/)
+resources/server_src/
+
+# User data (version tracking, caches - only exist at runtime)
+.app-version
+ocr-gpu-cache.json
 
 # Test scripts (local development)
 test_rpc.py

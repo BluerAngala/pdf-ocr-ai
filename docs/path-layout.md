@@ -39,4 +39,6 @@ const presets = await getPresets(); // 内部调用 system.get_presets
 
 1. 日志中有 `APP_ROOT=...\GJJ-OCR-Tool`、`RESOURCES=...\resources\config.yaml (exists=True)`
 2. `system.get_presets` 至少解析出 `non-litigation-batch1`
-3. 勿残留旧版 `resources/server_src`（会覆盖 PyInstaller 内嵌逻辑）
+3. `tauri.conf.json` 的 `bundle.resources` 必须包含 `resources/server_src/**`
+4. 版本号在 `tauri.conf.json` 和 `Cargo.toml` 两处保持一致
+5. 旧版安装残留会在版本号变化时自动清理（`output/`、`temp/`、`ocr-gpu-cache.json`）

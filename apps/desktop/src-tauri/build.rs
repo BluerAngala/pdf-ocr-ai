@@ -229,12 +229,51 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
     let server_dir = project_root.join("apps").join("server");
     let verify_script = server_dir.join("scripts").join("verify_server_bundle.py");
 
-    if !force && dst.is_file() {
-        if run_onefile_verify(&python, &verify_script, &dst, resources_dir)? {
+    let need_rebuild = if force {
+        true
+    } else if !dst.is_file() {
+        true
+    } else {
+        let exe_mtime = fs::metadata(&dst).and_then(|m| m.modified()).ok();
+        let src_dir = server_dir.join("src");
+        let mut any_newer = false;
+        if let Some(exe_time) = exe_mtime {
+            fn check_newer(dir: &Path, exe_time: std::time::SystemTime, newer: &mut bool) {
+                if let Ok(entries) = fs::read_dir(dir) {
+                    for entry in entries.flatten() {
+                        let p = entry.path();
+                        if p.is_dir() {
+                            check_newer(&p, exe_time, newer);
+                        } else if let Ok(meta) = fs::metadata(&p) {
+                            if let Ok(modified) = meta.modified() {
+                                if modified > exe_time {
+                                    eprintln!("[build] source newer than exe: {:?}", p);
+                                    *newer = true;
+                                }
+                            }
+                        }
+                        if *newer {
+                            return;
+                        }
+                    }
+                }
+            }
+            check_newer(&src_dir, exe_time, &mut any_newer);
+        }
+        if any_newer {
+            eprintln!("[build] Python 源码比 exe 新，需要重新打包");
+            true
+        } else if run_onefile_verify(&python, &verify_script, &dst, resources_dir)? {
             eprintln!("[build] using verified onefile {:?}", dst);
             return Ok(());
+        } else {
+            eprintln!("[build] 已有 onefile 未通过校验，将重新打包");
+            true
         }
-        eprintln!("[build] 已有 onefile 未通过校验，将重新打包");
+    };
+
+    if !need_rebuild {
+        return Ok(());
     }
 
     let spec = server_dir.join("gjj-ocr-server.spec");

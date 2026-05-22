@@ -7,16 +7,28 @@ from typing import Dict, List, Optional, Tuple
 
 import yaml
 
-from core.paths import ROOT
+from core.paths import get_config_path
 
 _CONFIG_CACHE: Optional[dict] = None
-_CONFIG_PATH = ROOT / 'config.yaml'
+_CONFIG_PATH: Optional[Path] = None
+
+
+def _config_path() -> Path:
+    global _CONFIG_PATH
+    if _CONFIG_PATH is None:
+        _CONFIG_PATH = get_config_path()
+    return _CONFIG_PATH
 
 
 def _load_config() -> dict:
     global _CONFIG_CACHE
     if _CONFIG_CACHE is None:
-        with open(_CONFIG_PATH, 'r', encoding='utf-8') as f:
+        path = _config_path()
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"配置文件不存在: {path}（应位于安装目录 resources/config.yaml）"
+            )
+        with open(path, 'r', encoding='utf-8') as f:
             _CONFIG_CACHE = yaml.safe_load(f)
     return _CONFIG_CACHE
 
@@ -25,6 +37,8 @@ def reload_config(path: Optional[Path] = None):
     global _CONFIG_CACHE, _CONFIG_PATH
     if path:
         _CONFIG_PATH = path
+    else:
+        _CONFIG_PATH = None
     _CONFIG_CACHE = None
     _load_config()
 

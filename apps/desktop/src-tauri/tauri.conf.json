@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "GJJ-OCR-Tool",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "tauri": {
     "allowlist": {
@@ -74,6 +74,7 @@
       "resources": [
         "resources/gjj-ocr-server.exe",
         "resources/config.yaml",
+        "resources/server_src/**",
         "resources/poppler/**",
         "resources/sample-data/**"
       ]

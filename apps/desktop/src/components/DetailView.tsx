@@ -298,6 +298,7 @@ export default function DetailView({
             className="min-h-0 flex flex-col"
           >
             <PreviewPanel
+              sampleRoot={sampleRoot}
               moduleType={moduleType}
               previewState={previewState}
               phase={phase}

@@ -1,7 +1,9 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
+import { open } from "@tauri-apps/api/shell";
 import type { ProcessingResult, PrintTaskStatus } from "../../types";
 
 interface Props {
+  sampleRoot?: string;
   result: ProcessingResult;
   taskStatus: PrintTaskStatus | null;
   onCancel: () => void;
@@ -13,6 +15,7 @@ interface Props {
 }
 
 export default function PrintProgress({
+  sampleRoot,
   result,
   taskStatus,
   onCancel,
@@ -22,6 +25,18 @@ export default function PrintProgress({
   printedOrders,
   printingOrders,
 }: Props) {
+  const handleOpenFile = useCallback(
+    async (filePath: string) => {
+      if (!sampleRoot) return;
+      try {
+        const fullPath = `${sampleRoot}/${filePath}`;
+        await open(fullPath);
+      } catch (e) {
+        console.error("打开文件失败:", e);
+      }
+    },
+    [sampleRoot],
+  );
   const [removedOrders, setRemovedOrders] = useState<Set<number>>(new Set());
 
   const errors = result.print_errors || [];
@@ -132,9 +147,6 @@ export default function PrintProgress({
                 const isMatched = item.status === "matched";
                 const isPrinted = printedOrders.has(item.order);
                 const isPrinting = printingOrders.has(item.order);
-                const fileNames = item.files.map((f) => f.name.replace(/\.pdf$/i, ""));
-                const companyIsInFileName =
-                  item.company && fileNames.some((fn) => fn.includes(item.company));
                 return (
                   <tr
                     key={item.order}
@@ -154,10 +166,26 @@ export default function PrintProgress({
                     <td className="py-1.5">
                       {isMatched ? (
                         <span className="text-slate-600">
-                          {item.company && !companyIsInFileName && (
-                            <span className="text-slate-700 font-medium">{item.company} — </span>
-                          )}
-                          {fileNames.join("、")}
+                          <span className="text-slate-700 font-medium">【{item.company}】</span>
+                          <span className="text-slate-500">【文件名称：</span>
+                          {item.files.map((f, idx) => (
+                            <span key={f.path}>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleOpenFile(f.path);
+                                }}
+                                className="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                                title={`打开: ${f.name}`}
+                              >
+                                {f.name.replace(/\.pdf$/i, "")}
+                              </button>
+                              {idx < item.files.length - 1 && (
+                                <span className="text-slate-400">、</span>
+                              )}
+                            </span>
+                          ))}
+                          <span className="text-slate-500">】</span>
                           {isPrinted && (
                             <span className="ml-1.5 text-emerald-600 font-medium">✓</span>
                           )}
@@ -165,7 +193,7 @@ export default function PrintProgress({
                         </span>
                       ) : (
                         <span>
-                          <span className="text-slate-700">{item.company}</span>
+                          <span className="text-slate-700">【{item.company}】</span>
                           <span className="text-red-400 ml-2">未匹配</span>
                         </span>
                       )}

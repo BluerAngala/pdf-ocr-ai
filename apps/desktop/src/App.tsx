@@ -491,6 +491,7 @@ export default function App() {
       mounted = false;
       if (unlistenFn) unlistenFn();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const applyModulePreset = useCallback(
@@ -788,8 +789,10 @@ export default function App() {
         const failedOrders = new Set(
           (rawResult.errors || [])
             .map((e: { company?: string; file?: string; error: string }) => {
-              const mr = rawResult.match_results || prev?.print_match_results || [];
-              const found = mr.find((m) => m.company === e.company);
+              const mr = rawResult.match_results || [];
+              const found = mr.find(
+                (m: { company?: string; order?: number }) => m.company === e.company,
+              );
               return found?.order;
             })
             .filter(Boolean) as number[],

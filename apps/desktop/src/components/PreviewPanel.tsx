@@ -12,6 +12,7 @@ import CompanyQueryResult from "./results/CompanyQueryResult";
 import PrintProgress from "./results/PrintCardGrid";
 
 interface Props {
+  sampleRoot?: string;
   moduleType: ModuleType;
   previewState: PreviewState;
   phase: string;
@@ -78,6 +79,7 @@ const EMPTY_HINTS: Record<ModuleType, string> = {
 };
 
 export default function PreviewPanel({
+  sampleRoot,
   moduleType,
   previewState,
   phase,
@@ -266,6 +268,7 @@ export default function PreviewPanel({
             result &&
             (moduleType === "print" ? (
               <PrintProgress
+                sampleRoot={sampleRoot}
                 result={result}
                 taskStatus={printTaskStatus}
                 onCancel={onCancelPrint}

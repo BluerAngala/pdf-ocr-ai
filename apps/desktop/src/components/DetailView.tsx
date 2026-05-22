@@ -63,6 +63,8 @@ interface Props {
   selectedOrders: Set<number>;
   onSelectedOrdersChange: (orders: Set<number>) => void;
   onPrintOrders: (orders: number[]) => void;
+  printedOrders: Set<number>;
+  printingOrders: Set<number>;
   running: boolean;
   cancelling: boolean;
   taskPaused: boolean;
@@ -133,6 +135,8 @@ export default function DetailView({
   selectedOrders,
   onSelectedOrdersChange,
   onPrintOrders,
+  printedOrders,
+  printingOrders,
   running,
   cancelling,
   taskPaused,
@@ -311,6 +315,8 @@ export default function DetailView({
               selectedOrders={selectedOrders}
               onSelectedOrdersChange={onSelectedOrdersChange}
               onPrintOrders={onPrintOrders}
+              printedOrders={printedOrders}
+              printingOrders={printingOrders}
             />
           </div>
 

@@ -61,6 +61,8 @@ export default function App() {
   const [printExcelColumns, setPrintExcelColumns] = useState<PrintExcelColumn[]>([]);
   const [printTaskStatus, setPrintTaskStatus] = useState<PrintTaskStatus | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
+  const [printedOrders, setPrintedOrders] = useState<Set<number>>(new Set());
+  const [printingOrders, setPrintingOrders] = useState<Set<number>>(new Set());
   const autoPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const justPrintedRef = useRef(false);
 
@@ -585,6 +587,7 @@ export default function App() {
       taskId: null,
     });
     clearPausedSession(currentModule);
+    setPrintedOrders(new Set());
   }, [currentModule, clearPausedSession, patchModuleTask]);
 
   const loadPreset = useCallback(async () => {
@@ -710,18 +713,16 @@ export default function App() {
     async (orders: number[]) => {
       const printTask = moduleTaskStateRef.current.print;
       if (printTask.running || !sampleRoot) return;
-      // 标记刚刚进行了打印，防止自动预览立即触发
       justPrintedRef.current = true;
+      setPrintingOrders((prev) => {
+        const next = new Set(prev);
+        orders.forEach((o) => next.add(o));
+        return next;
+      });
       const taskId = `print-${Date.now()}`;
       taskIdToModuleRef.current[taskId] = "print";
       taskConfigRef.current[taskId] = { sampleRoot, excelFile, outputDir };
-      patchModuleTask("print", {
-        taskId,
-        running: true,
-        cancelling: false,
-        previewState: "progress",
-        result: null,
-      });
+      patchModuleTask("print", { taskId, running: true, cancelling: false });
       addLog("info", `开始打印 ${orders.length} 条...`, "print");
       try {
         const rawResult = (await sendRequest("print.start", {
@@ -770,25 +771,35 @@ export default function App() {
           finished_at: null,
           error_count: (rawResult.errors || []).length,
         });
+        setPrintingOrders((prev) => {
+          const next = new Set(prev);
+          orders.forEach((o) => next.delete(o));
+          return next;
+        });
         patchModuleTask("print", (prev) => ({
           result: {
             ...prev.result,
-            print_stats: rawResult.total_jobs
-              ? {
-                  total_jobs: rawResult.total_jobs,
-                  submitted: rawResult.submitted || 0,
-                  failed: rawResult.failed || 0,
-                }
-              : undefined,
-            printer_used: rawResult.printer_used || "",
-            print_dry_run: false,
+            printer_used: rawResult.printer_used || prev.result?.printer_used || "",
             print_errors: rawResult.errors || [],
-            // 优先使用新的匹配结果，如果没有则保留之前的
             print_match_results: rawResult.match_results || prev.result?.print_match_results || [],
             summary: { result_root: sampleRoot },
           },
-          previewState: "result",
         }));
+        const failedOrders = new Set(
+          (rawResult.errors || [])
+            .map((e: { company?: string; file?: string; error: string }) => {
+              const mr = rawResult.match_results || prev?.print_match_results || [];
+              const found = mr.find((m) => m.company === e.company);
+              return found?.order;
+            })
+            .filter(Boolean) as number[],
+        );
+        const successOrders = orders.filter((o) => !failedOrders.has(o));
+        setPrintedOrders((prev) => {
+          const next = new Set(prev);
+          successOrders.forEach((o) => next.add(o));
+          return next;
+        });
         addLog(
           "info",
           `打印完成: ${rawResult.submitted || 0} 成功, ${rawResult.failed || 0} 失败`,
@@ -798,6 +809,11 @@ export default function App() {
         if (moduleTaskStateRef.current.print.taskId !== taskId) return;
         const msg = err instanceof Error ? err.message : String(err);
         addLog("error", `打印失败: ${msg}`, "print");
+        setPrintingOrders((prev) => {
+          const next = new Set(prev);
+          orders.forEach((o) => next.delete(o));
+          return next;
+        });
       } finally {
         if (moduleTaskStateRef.current.print.taskId === taskId) {
           patchModuleTask("print", { running: false, cancelling: false });
@@ -1050,7 +1066,7 @@ export default function App() {
           print_task_id: printTaskId,
           print_errors: rawResult.errors || [],
           print_match_results: printPrev?.print_match_results || rawResult.match_results || [],
-          print_dry_run: rawResult.dry_run || false,
+          print_dry_run: true,
           summary: { result_root: sampleRoot },
         };
       }
@@ -1273,6 +1289,8 @@ export default function App() {
           selectedOrders={selectedOrders}
           onSelectedOrdersChange={setSelectedOrders}
           onPrintOrders={printOrders}
+          printedOrders={printedOrders}
+          printingOrders={printingOrders}
           running={currentTask.running}
           cancelling={currentTask.cancelling}
           taskPaused={currentTask.previewState === "paused"}

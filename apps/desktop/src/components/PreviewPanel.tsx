@@ -29,6 +29,8 @@ interface Props {
   selectedOrders: Set<number>;
   onSelectedOrdersChange: (orders: Set<number>) => void;
   onPrintOrders: (orders: number[]) => void;
+  printedOrders: Set<number>;
+  printingOrders: Set<number>;
 }
 
 const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = {
@@ -93,6 +95,8 @@ export default function PreviewPanel({
   selectedOrders,
   onSelectedOrdersChange,
   onPrintOrders,
+  printedOrders,
+  printingOrders,
 }: Props) {
   const badge = STATUS_BADGE[previewState];
   // 是否有文件级进度
@@ -268,6 +272,8 @@ export default function PreviewPanel({
                 selectedOrders={selectedOrders}
                 onSelectedOrdersChange={onSelectedOrdersChange}
                 onPrintOrders={onPrintOrders}
+                printedOrders={printedOrders}
+                printingOrders={printingOrders}
               />
             ) : ResultComponent ? (
               <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">

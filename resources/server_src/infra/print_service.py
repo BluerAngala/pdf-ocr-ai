@@ -256,9 +256,7 @@ def process_print_v2(
             raise FileNotFoundError(f"文件夹不存在: {folder}")
 
         if not dry_run and _is_virtual_printer(printer_name):
-            dry_run = True
-            if emitter:
-                emitter.log("warn", f"检测到虚拟打印机「{printer_name}」，自动切换为匹配预览模式")
+            raise ValueError(f"「{printer_name}」是虚拟打印机，无法实际打印，请选择真实打印机")
 
         if not printer_name:
             default = get_default_printer()

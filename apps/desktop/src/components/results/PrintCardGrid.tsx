@@ -8,6 +8,8 @@ interface Props {
   selectedOrders: Set<number>;
   onSelectedOrdersChange: (orders: Set<number>) => void;
   onPrintOrders: (orders: number[]) => void;
+  printedOrders: Set<number>;
+  printingOrders: Set<number>;
 }
 
 export default function PrintProgress({
@@ -17,21 +19,21 @@ export default function PrintProgress({
   selectedOrders,
   onSelectedOrdersChange,
   onPrintOrders,
+  printedOrders,
+  printingOrders,
 }: Props) {
   const [removedOrders, setRemovedOrders] = useState<Set<number>>(new Set());
 
-  const stats = result.print_stats;
   const errors = result.print_errors || [];
   const matchResults = useMemo(
     () => (result.print_match_results || []).filter((m) => !removedOrders.has(m.order)),
     [result.print_match_results, removedOrders],
   );
-  const isDryRun = result.print_dry_run ?? true;
-  const failedCount = taskStatus?.failed_jobs ?? stats?.failed ?? 0;
 
   const totalMatched = matchResults.filter((m) => m.status === "matched").length;
   const totalUnmatched = matchResults.filter((m) => m.status === "no_match").length;
   const totalFiles = matchResults.reduce((sum, m) => sum + m.files.length, 0);
+  const printedCount = matchResults.filter((m) => printedOrders.has(m.order)).length;
 
   const selectedFileCount = useMemo(() => {
     return matchResults
@@ -39,7 +41,10 @@ export default function PrintProgress({
       .reduce((sum, m) => sum + m.files.length, 0);
   }, [matchResults, selectedOrders]);
 
-  const allOrders = useMemo(() => new Set(matchResults.map((m) => m.order)), [matchResults]);
+  const matchedOrders = useMemo(
+    () => new Set(matchResults.filter((m) => m.status === "matched").map((m) => m.order)),
+    [matchResults],
+  );
 
   const toggleSelect = (order: number) => {
     const next = new Set(selectedOrders);
@@ -49,29 +54,17 @@ export default function PrintProgress({
   };
 
   const toggleAll = () => {
-    if (selectedOrders.size === allOrders.size) {
+    if (selectedOrders.size === matchedOrders.size) {
       onSelectedOrdersChange(new Set());
     } else {
-      const next = new Set(allOrders);
-      matchResults.forEach((m) => next.add(m.order));
-      onSelectedOrdersChange(next);
+      onSelectedOrdersChange(new Set(matchedOrders));
     }
   };
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      {/* 状态摘要 */}
       <div className="flex items-center justify-between px-1 py-2 border-b border-slate-100">
-        <div>
-          <span
-            className={`text-xs font-semibold ${isDryRun ? "text-blue-700" : "text-emerald-700"}`}
-          >
-            {isDryRun ? "匹配预览" : "打印完成"}
-          </span>
-          {isDryRun && (
-            <span className="text-[10px] text-slate-400 ml-2">虚拟打印机，未实际打印</span>
-          )}
-        </div>
+        <span className="text-xs font-semibold text-slate-700">匹配结果</span>
         <div className="flex items-center gap-3 text-[10px] text-slate-500">
           <span>
             匹配 <b className="text-emerald-700">{totalMatched}</b>/{totalMatched + totalUnmatched}
@@ -80,19 +73,23 @@ export default function PrintProgress({
             PDF <b>{totalFiles}</b>
           </span>
           {totalUnmatched > 0 && <span className="text-red-500">未匹配 {totalUnmatched}</span>}
+          {printedCount > 0 && (
+            <span>
+              已打印 <b className="text-emerald-700">{printedCount}</b>
+            </span>
+          )}
           <span>
             打印机 <b className="text-slate-700">{result.printer_used || "-"}</b>
           </span>
         </div>
       </div>
 
-      {/* 打印中 */}
       {(taskStatus?.status === "running" || taskStatus?.status === "pending") && taskStatus && (
         <div className="rounded border border-blue-200 bg-blue-50 p-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
             <span className="text-[11px] text-blue-700 font-medium">
-              {taskStatus.current_file || "准备中..."}
+              打印中: {taskStatus.current_file || "准备中..."}
             </span>
             {taskStatus.total_jobs > 0 && (
               <span className="text-[10px] text-slate-400">
@@ -109,13 +106,12 @@ export default function PrintProgress({
         </div>
       )}
 
-      {/* 勾选栏 */}
-      {matchResults.length > 0 && isDryRun && (
+      {matchResults.length > 0 && (
         <div className="flex items-center gap-3 px-1 text-[10px]">
           <label className="flex items-center gap-1 cursor-pointer select-none">
             <input
               type="checkbox"
-              checked={selectedOrders.size === allOrders.size && allOrders.size > 0}
+              checked={selectedOrders.size === matchedOrders.size && matchedOrders.size > 0}
               onChange={toggleAll}
               className="w-3 h-3 rounded border-slate-300 text-blue-600"
             />
@@ -127,7 +123,6 @@ export default function PrintProgress({
         </div>
       )}
 
-      {/* 匹配结果列表 — 紧凑行 */}
       {matchResults.length > 0 && (
         <div className="flex-1 min-h-0 overflow-y-auto">
           <table className="w-full text-xs">
@@ -135,6 +130,8 @@ export default function PrintProgress({
               {matchResults.map((item) => {
                 const isSelected = selectedOrders.has(item.order);
                 const isMatched = item.status === "matched";
+                const isPrinted = printedOrders.has(item.order);
+                const isPrinting = printingOrders.has(item.order);
                 const fileNames = item.files.map((f) => f.name.replace(/\.pdf$/i, ""));
                 const companyIsInFileName =
                   item.company && fileNames.some((fn) => fn.includes(item.company));
@@ -161,6 +158,10 @@ export default function PrintProgress({
                             <span className="text-slate-700 font-medium">{item.company} — </span>
                           )}
                           {fileNames.join("、")}
+                          {isPrinted && (
+                            <span className="ml-1.5 text-emerald-600 font-medium">✓</span>
+                          )}
+                          {isPrinting && <span className="ml-1.5 text-blue-500">打印中...</span>}
                         </span>
                       ) : (
                         <span>
@@ -171,23 +172,30 @@ export default function PrintProgress({
                     </td>
                     <td className="py-1.5 text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {isDryRun && isMatched && (
+                        {isMatched && !isPrinting && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               onPrintOrders([item.order]);
                             }}
-                            className="px-1.5 py-0.5 text-[10px] text-blue-600 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100 cursor-pointer text-center whitespace-nowrap"
+                            className={`px-1.5 py-0.5 text-[10px] rounded cursor-pointer text-center whitespace-nowrap ${
+                              isPrinted
+                                ? "text-emerald-600 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100"
+                                : "text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100"
+                            }`}
                           >
-                            仅打此条
+                            {isPrinted ? "重新打印" : "打印"}
                           </button>
+                        )}
+                        {isPrinting && (
+                          <span className="px-1.5 py-0.5 text-[10px] text-blue-500">打印中</span>
                         )}
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             setRemovedOrders((prev) => new Set(prev).add(item.order));
                           }}
-                          className="px-1.5 py-0.5 text-[10px] text-red-500 bg-red-50 border border-red-200 rounded hover:bg-red-100 cursor-pointer text-center whitespace-nowrap"
+                          className="px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-red-500 cursor-pointer text-center whitespace-nowrap"
                         >
                           移除
                         </button>
@@ -201,10 +209,9 @@ export default function PrintProgress({
         </div>
       )}
 
-      {/* 实际打印失败 */}
-      {!isDryRun && errors.length > 0 && (
+      {errors.length > 0 && (
         <div className="rounded border border-red-200 bg-red-50 p-3 text-[10px]">
-          <p className="font-semibold text-red-700 mb-1">打印失败 {failedCount} 个</p>
+          <p className="font-semibold text-red-700 mb-1">打印失败 {errors.length} 个</p>
           {errors.map((err, i) => (
             <p key={i} className="text-red-600">
               {err.company} {err.file && <span className="text-slate-500">{err.file}</span>} —{" "}

@@ -126,6 +126,9 @@ fn verify_sample_data_bundle(dst_sample_data: &Path) -> std::io::Result<()> {
 }
 
 fn sync_resources() -> std::io::Result<()> {
+    let profile = std::env::var("PROFILE").unwrap_or_default();
+    let is_release = profile == "release";
+
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
     let tauri_dir = Path::new(&manifest_dir);
@@ -138,41 +141,36 @@ fn sync_resources() -> std::io::Result<()> {
     let config_src = project_root.join("config.yaml");
     let config_dst = resources_dir.join("config.yaml");
 
-    if server_src_dst.exists() {
+    // dev 模式：不复制 server_src / sample-data 到 src-tauri/resources/，
+    // 避免 Tauri CLI 监听到文件变更触发无限重建循环。
+    // Python 通过 GJJ_OCR_RESOURCES 环境变量直接从项目根目录读取。
+    if is_release {
+        if server_src_dst.exists() {
+            fs::remove_dir_all(&server_src_dst)?;
+        }
+        copy_dir_all(&server_src_src, &server_src_dst)?;
+        eprintln!("[build] release: synced server_src -> {:?}", server_src_dst);
+    } else if server_src_dst.exists() {
         fs::remove_dir_all(&server_src_dst)?;
+        eprintln!("[build] dev: removed server_src from tauri resources to prevent watch loop");
     }
-    copy_dir_all(&server_src_src, &server_src_dst)?;
 
     if let Some(parent) = config_dst.parent() {
         fs::create_dir_all(parent)?;
     }
-    fs::copy(config_src, config_dst)?;
+    fs::copy(&config_src, &config_dst)?;
 
     let tauri_sample = resources_dir.join("sample-data");
-    if let Some(parent) = tauri_sample.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    sync_sample_data(project_root, &tauri_sample, BUNDLE_SAMPLE_MAPPINGS)?;
-
-    let dev_sample = project_root.join("resources").join("sample-data");
-    if let Some(parent) = dev_sample.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let dev_mappings: &[(&[&str], &str)] = &[
-        (&["非诉组自动化样本材料"], "non-litigation-batch1"),
-        (
-            &["非诉组自动化样本材料（第2批）"],
-            "non-litigation-batch2",
-        ),
-        (&["强制组-自动化", "提取信息"], "enforcement/extract"),
-        (&["强制组-自动化", "自动打印"], "enforcement/print"),
-        (&["企业信息查询"], "company-query"),
-    ];
-    sync_sample_data(project_root, &dev_sample, dev_mappings)?;
-
-    let profile = std::env::var("PROFILE").unwrap_or_default();
-    if profile == "release" {
+    if is_release {
+        if tauri_sample.exists() {
+            fs::remove_dir_all(&tauri_sample)?;
+        }
+        fs::create_dir_all(&tauri_sample)?;
+        sync_sample_data(project_root, &tauri_sample, BUNDLE_SAMPLE_MAPPINGS)?;
         verify_sample_data_bundle(&tauri_sample)?;
+    } else if tauri_sample.exists() {
+        fs::remove_dir_all(&tauri_sample)?;
+        eprintln!("[build] dev: removed sample-data from tauri resources to prevent watch loop");
     }
 
     Ok(())

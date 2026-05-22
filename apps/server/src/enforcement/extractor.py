@@ -640,6 +640,91 @@ def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True, cancel_check=None
     return results
 
 
+UNMATCHED_EXCEL_DETAILS_LIMIT = 80
+
+
+def _notice_pair_matches(norm_ocr: str, norm_excel: str) -> bool:
+    return bool(norm_ocr and norm_excel) and (
+        norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr)
+    )
+
+
+def compute_enforcement_match_stats(
+    registry,
+    pdf_results: Dict[str, "RulingInfo"],
+) -> Dict[str, Any]:
+    """
+    匹配统计：区分「本批 PDF」与「全量台账」。
+    - 按 PDF 聚合（与 export / match_ruling_info 一致），一份 PDF 可覆盖多行台账。
+    - 本批少量 PDF 测试时，以 pdf_match_rate 为主。
+    """
+    matched_excel: set = set()
+    matched_pdf_keys: set = set()
+
+    # 调试：打印台账索引前5个key
+    notice_keys = list(registry._notice_index.keys())[:5]
+    print(f"[DEBUG] 台账索引前5个key: {notice_keys}")
+
+    for pdf_key, info in pdf_results.items():
+        print(f"[DEBUG] 匹配 PDF: {pdf_key}, 提取责令号: {info.notice_numbers}")
+        cases = registry.match_ruling_info(info)
+        print(f"[DEBUG] 匹配结果: {len(cases)} 条")
+        for c in cases:
+            print(f"[DEBUG]   - 匹配到: {c.notice_number}")
+        if not cases:
+            continue
+        matched_pdf_keys.add(pdf_key)
+        for case in cases:
+            matched_excel.add(case.notice_number)
+
+    unmatched_excel_all: List[Dict[str, Any]] = []
+    for case in registry.cases:
+        if case.notice_number in matched_excel:
+            continue
+        unmatched_excel_all.append({
+            "notice_number": case.notice_number,
+            "respondent": case.respondent,
+            "employee": case.employee,
+            "region": case.region,
+            "reason": "本批 PDF 中未找到匹配的责令号",
+        })
+
+    unmatched_pdf_details: List[Dict[str, Any]] = []
+    for pdf_key, info in pdf_results.items():
+        if pdf_key in matched_pdf_keys:
+            continue
+        unmatched_pdf_details.append({
+            "pdf_key": pdf_key,
+            "court_case_number": info.court_case_number or "",
+            "notice_numbers": list(info.notice_numbers)[:6],
+            "reason": "本批裁定书未在台账中找到对应责令号",
+        })
+
+    total_pdfs = len(pdf_results)
+    total_excel = len(registry.cases)
+    matched_excel_rows = len(matched_excel)
+    matched_pdf_count = len(matched_pdf_keys)
+    withdraw_count = sum(1 for info in pdf_results.values() if info.is_withdraw)
+
+    return {
+        "total_pdfs": total_pdfs,
+        "total_excel_rows": total_excel,
+        "matched_rows": matched_excel_rows,
+        "unmatched_rows": total_excel - matched_excel_rows,
+        "matched_excel_rows": matched_excel_rows,
+        "unmatched_excel_rows": total_excel - matched_excel_rows,
+        "matched_pdf_count": matched_pdf_count,
+        "unmatched_pdf_count": max(0, total_pdfs - matched_pdf_count),
+        "withdraw_count": withdraw_count,
+        "unmatched_details_total": len(unmatched_excel_all),
+        "unmatched_details": unmatched_excel_all[:UNMATCHED_EXCEL_DETAILS_LIMIT],
+        "unmatched_pdf_details": unmatched_pdf_details,
+        "pdf_match_rate": round(matched_pdf_count / total_pdfs * 100, 1) if total_pdfs else 0.0,
+        "excel_coverage_rate": round(matched_excel_rows / total_excel * 100, 1) if total_excel else 0.0,
+        "_matched_pdf_keys": matched_pdf_keys,
+    }
+
+
 def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool = True, mock_mode: bool = False, output_dir: Path = None, cancel_check=None, cached_results: dict = None, result_callback=None) -> Dict[str, Any]:
     """
     强制执行组完整处理流程（供 server.py 调用）
@@ -663,11 +748,18 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
         pdf_results = batch_extract_rulings(input_dir, use_ocr=use_ocr, cancel_check=cancel_check, cached_results=cached_results, result_callback=result_callback)
     processed = len(pdf_results)
 
-    extracted = []
-    for key, info in pdf_results.items():
-        extracted.append(info.to_dict())
-
-    stats = {"total_pdfs": processed, "total_excel_rows": 0, "matched_rows": 0, "unmatched_rows": 0, "withdraw_count": 0, "unmatched_details": []}
+    stats: Dict[str, Any] = {
+        "total_pdfs": processed,
+        "total_excel_rows": 0,
+        "matched_rows": 0,
+        "unmatched_rows": 0,
+        "withdraw_count": 0,
+        "unmatched_details": [],
+        "matched_pdf_count": 0,
+        "unmatched_pdf_count": 0,
+        "pdf_match_rate": 0.0,
+    }
+    matched_pdf_keys: set = set()
     updated_excel_path = ""
 
     if output_dir is None:
@@ -677,51 +769,38 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
     if excel_path.exists():
         try:
             registry = load_enforcement_cases(excel_path)
-            stats["total_excel_rows"] = len(registry.cases)
-
-            for info in pdf_results.values():
-                if info.is_withdraw:
-                    stats["withdraw_count"] += 1
-
-            matched_count = 0
             print(f"[INFO] 开始匹配: 台账行数={len(registry.cases)}, PDF数={len(pdf_results)}")
-            for case in registry.cases:
-                case_matched = False
-                for info in pdf_results.values():
-                    for ocr_notice in info.notice_numbers:
-                        norm_ocr = registry._normalize_notice_number(ocr_notice)
-                        norm_excel = registry._normalize_notice_number(case.notice_number)
-                        if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
-                            case_matched = True
-                            matched_count += 1
-                            break
-                    if case_matched:
-                        break
-                if not case_matched:
-                    stats["unmatched_details"].append({
-                        "notice_number": case.notice_number,
-                        "respondent": case.respondent,
-                        "employee": case.employee,
-                        "region": case.region,
-                        "reason": "PDF中未找到匹配的责令号",
-                    })
-                    print(f"[WARN] 台账未匹配: 责令号='{case.notice_number}', 被执行人='{case.respondent}', 职工='{case.employee}'")
+            stats = compute_enforcement_match_stats(registry, pdf_results)
+            matched_pdf_keys = stats.pop("_matched_pdf_keys", set())
+            stats["total_pdfs"] = processed
 
-            if stats["unmatched_details"]:
-                print(f"[WARN] 共 {len(stats['unmatched_details'])} 条台账记录未匹配到PDF")
-
-            stats["matched_rows"] = matched_count
-            stats["unmatched_rows"] = len(stats["unmatched_details"])
+            if stats.get("unmatched_details_total", 0) > 0:
+                print(
+                    f"[WARN] 台账未覆盖 {stats['unmatched_excel_rows']} 条"
+                    f"（本批 PDF 已匹配台账 {stats['matched_excel_rows']} 条）；"
+                    f"展示前 {len(stats.get('unmatched_details', []))} 条"
+                )
+            if stats.get("unmatched_pdf_count", 0) > 0:
+                print(f"[WARN] 本批 {stats['unmatched_pdf_count']} 份 PDF 未匹配台账")
 
             from enforcement.export import build_output_excel
             excel_output = output_dir / "执行组识别结果.xlsx"
             try:
                 build_output_excel(registry, pdf_results, excel_output)
                 updated_excel_path = str(excel_output.resolve())
-            except Exception:
-                pass
+                print(f"[INFO] Excel导出成功: {updated_excel_path}")
+            except Exception as e:
+                import traceback
+                print(f"[ERROR] Excel导出失败: {e}")
+                print(f"[ERROR] 详细错误: {traceback.format_exc()}")
         except Exception as e:
             print(f"WARN: 台账匹配/导出失败: {e}")
+
+    extracted = []
+    for key, info in pdf_results.items():
+        row = info.to_dict()
+        row["ledger_matched"] = key in matched_pdf_keys
+        extracted.append(row)
 
     return {
         "processed": processed,

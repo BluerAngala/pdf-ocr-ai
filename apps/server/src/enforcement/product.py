@@ -341,23 +341,36 @@ class EnforcementCaseRegistry:
         return output_path
     
     def _normalize_notice_number(self, notice_number: str) -> str:
-        """标准化责令号格式"""
-        normalized = str(notice_number).strip()
-        # 统一括号
-        normalized = normalized.replace('(', '〔').replace(')', '〕')
-        normalized = normalized.replace('[', '〔').replace(']', '〕')
-        normalized = normalized.replace('（', '〔').replace('）', '〕')
-        normalized = normalized.replace('［', '〔').replace('］', '〕')
-        normalized = normalized.replace('【', '〔').replace('】', '〕')
-        return normalized
-    
+        """标准化责令号格式（与 export / 统计共用，含去空格）"""
+        return normalize_notice_for_match(notice_number)
+
     def _normalize_court_case_number(self, case_number: str) -> str:
         """标准化法院案号格式"""
         normalized = str(case_number).strip()
-        # 统一括号
         normalized = normalized.replace('(', '（').replace(')', '）')
         normalized = normalized.replace('[', '（').replace(']', '）')
         return normalized
+
+
+def normalize_notice_for_match(text: str) -> str:
+    """责令号匹配用归一化：去空格、统一括号（与 enforcement/export 一致）。"""
+    if not text:
+        return ""
+    normalized = str(text).strip().replace(" ", "")
+    for old, new in [
+        ("(", "〔"),
+        (")", "〕"),
+        ("（", "〔"),
+        ("）", "〕"),
+        ("[", "〔"),
+        ("]", "〕"),
+        ("［", "〔"),
+        ("］", "〕"),
+        ("【", "〔"),
+        ("】", "〕"),
+    ]:
+        normalized = normalized.replace(old, new)
+    return normalized
 
 
 def load_enforcement_cases(excel_path: Path) -> EnforcementCaseRegistry:

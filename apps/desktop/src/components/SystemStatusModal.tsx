@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { invoke } from "@tauri-apps/api/tauri";
 import type { SystemStatus, DependenciesCheck } from "../types";
 
 interface Props {
@@ -58,9 +59,7 @@ function buildRows(status: SystemStatus | null, deps: DependenciesCheck | null):
 
 function openUrl(url: string) {
   if ((window as { __TAURI_IPC__?: unknown }).__TAURI_IPC__) {
-    import("@tauri-apps/api/tauri").then(({ invoke }) => {
-      invoke("open_path", { path: url });
-    });
+    void invoke("open_url", { url });
   } else {
     window.open(url, "_blank");
   }

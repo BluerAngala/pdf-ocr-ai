@@ -67,6 +67,23 @@ export interface EnforcementExtracted {
   court_name: string;
   ruling_result: string;
   is_withdraw: boolean;
+  /** 本批裁定是否匹配到台账 */
+  ledger_matched?: boolean;
+}
+
+export interface EnforcementUnmatchedExcel {
+  notice_number: string;
+  respondent?: string;
+  employee?: string;
+  region?: string;
+  reason: string;
+}
+
+export interface EnforcementUnmatchedPdf {
+  pdf_key: string;
+  court_case_number?: string;
+  notice_numbers?: string[];
+  reason: string;
 }
 
 export interface EnforcementStats {
@@ -75,13 +92,15 @@ export interface EnforcementStats {
   matched_rows: number;
   unmatched_rows: number;
   withdraw_count: number;
-  unmatched_details?: {
-    notice_number: string;
-    respondent?: string;
-    employee?: string;
-    region?: string;
-    reason: string;
-  }[];
+  matched_excel_rows?: number;
+  unmatched_excel_rows?: number;
+  matched_pdf_count?: number;
+  unmatched_pdf_count?: number;
+  pdf_match_rate?: number;
+  excel_coverage_rate?: number;
+  unmatched_details_total?: number;
+  unmatched_details?: EnforcementUnmatchedExcel[];
+  unmatched_pdf_details?: EnforcementUnmatchedPdf[];
 }
 
 export interface CompanyQueryItem {

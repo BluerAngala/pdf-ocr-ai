@@ -23,9 +23,14 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// 安装包内嵌样本：仅非诉第 1 批（减小体积；其它模块需用户自选目录）
-const BUNDLE_SAMPLE_MAPPINGS: &[(&[&str], &str)] =
-    &[(&["非诉组自动化样本材料"], "non-litigation-batch1")];
+/// 安装包内嵌样本（与各模块「测试示例」 preset_id 对应）
+const BUNDLE_SAMPLE_MAPPINGS: &[(&[&str], &str)] = &[
+    (&["非诉组自动化样本材料"], "non-litigation-batch1"),
+    (&["非诉组自动化样本材料（第2批）"], "non-litigation-batch2"),
+    (&["强制组-自动化", "提取信息"], "enforcement/extract"),
+    (&["强制组-自动化", "自动打印"], "enforcement/print"),
+    (&["企业信息查询"], "company-query"),
+];
 
 fn sync_sample_data(
     project_root: &Path,
@@ -36,22 +41,21 @@ fn sync_sample_data(
     let repo_sample_data = project_root.join("resources").join("sample-data");
 
     if !samples_root.is_dir() {
-        let repo_batch = repo_sample_data.join("non-litigation-batch1");
-        if repo_batch.is_dir() {
+        if repo_sample_data.is_dir() {
             eprintln!(
-                "[build] 样本材料/ 不存在，回退仅复制 non-litigation-batch1 {:?}",
-                repo_batch
+                "[build] 样本材料/ 不存在，回退复制 resources/sample-data {:?}",
+                repo_sample_data
             );
             if dst_sample_data.exists() {
                 fs::remove_dir_all(dst_sample_data)?;
             }
             fs::create_dir_all(dst_sample_data)?;
-            copy_dir_all(&repo_batch, &dst_sample_data.join("non-litigation-batch1"))?;
+            copy_dir_all(&repo_sample_data, dst_sample_data)?;
             return Ok(());
         }
         eprintln!(
             "[build] skip sample-data sync: not found {:?} nor {:?}",
-            samples_root, repo_batch
+            samples_root, repo_sample_data
         );
         return Ok(());
     }
@@ -82,18 +86,41 @@ fn sync_sample_data(
 }
 
 fn verify_sample_data_bundle(dst_sample_data: &Path) -> std::io::Result<()> {
-    let marker = dst_sample_data
-        .join("non-litigation-batch1")
-        .join("台账及命名规则.xlsx");
-    if marker.is_file() {
-        eprintln!("[build] sample-data OK: {:?}", marker);
+    let markers = [
+        (
+            "non-litigation-batch1",
+            dst_sample_data
+                .join("non-litigation-batch1")
+                .join("台账及命名规则.xlsx"),
+        ),
+        (
+            "enforcement-extract",
+            dst_sample_data
+                .join("enforcement")
+                .join("extract")
+                .join("非诉表格.xlsx"),
+        ),
+        (
+            "company-query",
+            dst_sample_data.join("company-query").join("001.xlsx"),
+        ),
+    ];
+    let mut missing: Vec<String> = Vec::new();
+    for (name, path) in markers {
+        if path.is_file() {
+            eprintln!("[build] sample-data OK ({name}): {:?}", path);
+        } else {
+            missing.push(format!("{name}: {:?}", path));
+        }
+    }
+    if missing.is_empty() {
         return Ok(());
     }
     Err(std::io::Error::new(
         std::io::ErrorKind::NotFound,
         format!(
-            "打包样本缺失: {:?} — 请确认 样本材料/ 或 resources/sample-data/ 存在后重新 build",
-            marker
+            "打包样本缺失: {} — 请确认 样本材料/ 或 resources/sample-data/ 完整后重新 build",
+            missing.join("; ")
         ),
     ))
 }
@@ -164,7 +191,24 @@ fn find_python(project_root: &Path) -> Option<PathBuf> {
         .map(|_| PathBuf::from("python"))
 }
 
-/// PyInstaller onefile -> resources/gjj-ocr-server.exe
+fn run_onefile_verify(
+    python: &Path,
+    verify_script: &Path,
+    exe: &Path,
+    resources_dir: &Path,
+) -> std::io::Result<bool> {
+    if !verify_script.is_file() || !exe.is_file() {
+        return Ok(false);
+    }
+    let status = std::process::Command::new(python)
+        .arg(verify_script)
+        .arg(exe)
+        .args(["--resources", &resources_dir.to_string_lossy()])
+        .status()?;
+    Ok(status.success())
+}
+
+/// PyInstaller onefile -> resources/gjj-ocr-server.exe（打包后 OCR 冒烟校验）
 fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> std::io::Result<()> {
     if std::env::var("GJJ_SKIP_SERVER_BUNDLE").ok().as_deref() == Some("1") {
         eprintln!("[build] GJJ_SKIP_SERVER_BUNDLE=1, skip PyInstaller");
@@ -172,11 +216,7 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
     }
 
     let dst = resources_dir.join("gjj-ocr-server.exe");
-    if dst.is_file() {
-        eprintln!("[build] using existing onefile {:?}", dst);
-        return Ok(());
-    }
-
+    let force = std::env::var("GJJ_FORCE_SERVER_BUNDLE").ok().as_deref() == Some("1");
     let python = match find_python(project_root) {
         Some(p) => p,
         None => {
@@ -186,8 +226,17 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
             ));
         }
     };
-
     let server_dir = project_root.join("apps").join("server");
+    let verify_script = server_dir.join("scripts").join("verify_server_bundle.py");
+
+    if !force && dst.is_file() {
+        if run_onefile_verify(&python, &verify_script, &dst, resources_dir)? {
+            eprintln!("[build] using verified onefile {:?}", dst);
+            return Ok(());
+        }
+        eprintln!("[build] 已有 onefile 未通过校验，将重新打包");
+    }
+
     let spec = server_dir.join("gjj-ocr-server.spec");
     if !spec.is_file() {
         return Err(std::io::Error::new(
@@ -216,13 +265,19 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
         ));
     }
 
+    if !run_onefile_verify(&python, &verify_script, &onefile, resources_dir)? {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "onefile OCR 冒烟失败（rapidocr config.yaml），请查看上方 verify 输出",
+        ));
+    }
+
     if let Some(parent) = dst.parent() {
         fs::create_dir_all(parent)?;
     }
     fs::copy(&onefile, &dst)?;
     eprintln!("[build] onefile backend -> {:?}", dst);
 
-    // 避免旧方案残留打进安装包
     let legacy_onedir = resources_dir.join("gjj-ocr-server");
     if legacy_onedir.exists() {
         fs::remove_dir_all(&legacy_onedir)?;

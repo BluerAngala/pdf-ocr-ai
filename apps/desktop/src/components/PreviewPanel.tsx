@@ -34,23 +34,28 @@ interface Props {
 const STATUS_BADGE: Record<PreviewState, { text: string; className: string }> = {
   empty: {
     text: "就绪",
-    className: "text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded",
+    className:
+      "text-[10px] font-semibold text-slate-600 bg-slate-200 border border-slate-300 px-2.5 py-1 rounded-md shadow-sm",
   },
   progress: {
     text: "运行中",
-    className: "text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded",
+    className:
+      "text-[10px] font-semibold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-1 rounded-md shadow-sm",
   },
   cancelling: {
     text: "正在取消...",
-    className: "text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded",
+    className:
+      "text-[10px] font-semibold text-amber-800 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md shadow-sm",
   },
   paused: {
     text: "已暂停",
-    className: "text-[10px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded",
+    className:
+      "text-[10px] font-semibold text-amber-900 bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-md shadow-sm",
   },
   result: {
     text: "完成",
-    className: "text-[10px] font-medium text-blue-600 bg-blue-50 px-2 py-0.5 rounded",
+    className:
+      "text-[10px] font-semibold text-blue-800 bg-blue-100 border border-blue-300 px-2.5 py-1 rounded-md shadow-sm",
   },
 };
 
@@ -128,7 +133,7 @@ export default function PreviewPanel({
           {previewState === "result" && result && moduleType !== "print" && (
             <button
               onClick={onOpenOutput}
-              className="h-6 px-2.5 text-[10px] font-medium text-slate-500 bg-white border border-slate-200 rounded hover:bg-slate-50 hover:text-slate-700 transition-colors cursor-pointer"
+              className="h-7 px-3 text-[11px] font-semibold text-white bg-blue-600 border border-blue-700 rounded-md shadow-sm hover:bg-blue-700 active:bg-blue-800 transition-colors cursor-pointer"
             >
               输出结果
             </button>
@@ -136,7 +141,7 @@ export default function PreviewPanel({
           {previewState === "result" && result && (
             <button
               onClick={onClearResult}
-              className="h-6 px-2.5 text-[10px] font-medium text-slate-400 bg-white border border-slate-200 rounded hover:text-red-500 hover:border-red-300 hover:bg-red-50 transition-colors cursor-pointer"
+              className="h-7 px-3 text-[11px] font-semibold text-slate-700 bg-slate-200 border border-slate-300 rounded-md shadow-sm hover:bg-slate-300 hover:text-red-700 hover:border-red-300 active:bg-slate-300 transition-colors cursor-pointer"
             >
               清空
             </button>
@@ -265,7 +270,9 @@ export default function PreviewPanel({
                 onPrintOrders={onPrintOrders}
               />
             ) : ResultComponent ? (
-              <ResultComponent result={result} />
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 shadow-inner">
+                <ResultComponent result={result} />
+              </div>
             ) : null)}
         </div>
       </div>

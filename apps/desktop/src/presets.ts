@@ -76,8 +76,12 @@ async function fetchPresetsFromPython(retries = 12, delayMs = 400): Promise<Pres
 
 let _cachedPresets: PresetConfig[] | null = null;
 
+function presetIsUsable(p: PresetConfig): boolean {
+  return Boolean(p.sampleRoot || p.excelPath);
+}
+
 function hasResolvedPreset(presets: PresetConfig[]): boolean {
-  return presets.some((p) => Boolean(p.sampleRoot));
+  return presets.some(presetIsUsable);
 }
 
 export async function getPresets(forceRefresh = false): Promise<PresetConfig[]> {
@@ -114,11 +118,23 @@ export function getPresetById(id: string): PresetConfig | undefined {
   return _cachedPresets?.find((p) => p.id === id);
 }
 
+export async function getPresetResolveErrors(): Promise<{ id: string; error: string }[]> {
+  if (!isTauri()) return [];
+  try {
+    const raw = (await sendRequest("system.get_presets", {})) as {
+      errors?: { id: string; error: string }[];
+    };
+    return raw.errors ?? [];
+  } catch {
+    return [];
+  }
+}
+
 export async function ensurePresetById(presetId: string): Promise<PresetConfig | undefined> {
   let preset = getPresetById(presetId);
-  if (preset?.sampleRoot) return preset;
+  if (preset && presetIsUsable(preset)) return preset;
   invalidatePresetCache();
   await getPresets(true);
   preset = getPresetById(presetId);
-  return preset?.sampleRoot ? preset : undefined;
+  return preset && presetIsUsable(preset) ? preset : undefined;
 }

@@ -288,27 +288,56 @@ def _build_onnx_session_options():
         return None
 
 
+def _rapidocr_config_path() -> str | None:
+    """PyInstaller onefile：显式定位 _MEIPASS 内的 config.yaml，避免默认 __file__ 路径缺失。"""
+    if not getattr(sys, "frozen", False):
+        return None
+    meipass = getattr(sys, "_MEIPASS", None)
+    candidates = []
+    if meipass:
+        candidates.append(Path(meipass) / "rapidocr_onnxruntime" / "config.yaml")
+    try:
+        import rapidocr_onnxruntime as _ro
+
+        candidates.append(Path(_ro.__file__).resolve().parent / "config.yaml")
+    except Exception:
+        pass
+    for path in candidates:
+        if path.is_file():
+            return str(path)
+    tried = ", ".join(str(p) for p in candidates)
+    raise FileNotFoundError(
+        f"打包版缺少 RapidOCR 配置（rapidocr_onnxruntime/config.yaml），已检查: {tried}"
+    )
+
+
 def _create_ocr_engine(*, skip_gpu_probe: bool = False):
+    """创建 OCR 引擎 - 简化版：自动选择最佳配置，无需预热"""
     if not HAS_RAPIDOCR:
         raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
-    provider, info = detect_gpu_provider(skip_probe=skip_gpu_probe)
+    
     kwargs = dict(use_cls=False)
-    if provider == 'cuda':
-        kwargs['det_use_cuda'] = True
-        kwargs['rec_use_cuda'] = True
-        print(f"[OCR] 使用 NVIDIA CUDA GPU 加速 (det+rec)")
-    elif provider == 'dml_det':
-        kwargs['det_use_dml'] = True
-        sess_opts = _build_onnx_session_options()
-        if sess_opts is not None:
-            kwargs['rec_session_options'] = sess_opts
-        print(f"[OCR] 使用 DirectML GPU 加速 (det=GPU, rec=CPU)")
-    else:
-        sess_opts = _build_onnx_session_options()
-        if sess_opts is not None:
-            kwargs['det_session_options'] = sess_opts
-            kwargs['rec_session_options'] = sess_opts
-        print(f"[OCR] 使用 CPU 模式 (GPU 不可用或准确度验证未通过)")
+    cfg = _rapidocr_config_path()
+    if cfg:
+        kwargs["config_path"] = cfg
+    
+    # 简化 GPU 检测：只检查 onnxruntime 是否报告有 CUDA/DirectML，不做准确度验证
+    try:
+        import onnxruntime as ort
+        providers = ort.get_available_providers()
+        
+        if 'CUDAExecutionProvider' in providers:
+            kwargs['det_use_cuda'] = True
+            kwargs['rec_use_cuda'] = True
+            print(f"[OCR] 使用 NVIDIA CUDA GPU 加速")
+        elif 'DmlExecutionProvider' in providers:
+            kwargs['det_use_dml'] = True
+            print(f"[OCR] 使用 DirectML GPU 加速")
+        else:
+            print(f"[OCR] 使用 CPU 模式")
+    except Exception:
+        print(f"[OCR] 使用 CPU 模式 (自动检测失败)")
+    
     return RapidOCR(**kwargs)
 
 

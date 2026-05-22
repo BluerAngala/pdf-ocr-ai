@@ -264,62 +264,29 @@ class JsonRpcServer:
     _warmed_up = False
 
     def _ocr_warmup(self, params: Dict, id: Any) -> Dict:
-        """预热 OCR 模型。skip_gpu_probe=快速启动；full_probe=后台完整 GPU 探测。"""
-        skip_gpu_probe = bool(params.get('skip_gpu_probe', False))
-        full_probe = bool(params.get('full_probe', False))
-
-        if full_probe:
-            from core.pdf_ocr_ultra import reset_ocr_engine
-            reset_ocr_engine()
-            JsonRpcServer._warmed_up = False
-            print(
-                _safe_json_dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "notify.log",
-                        "params": {"level": "info", "message": "OCR 完整预热：正在探测 GPU 并加载模型…"},
-                    }
-                ),
-                file=sys.stderr,
-                flush=True,
-            )
-        elif JsonRpcServer._warmed_up:
+        """OCR 预热 - 简化版：立即返回成功，延迟加载模型"""
+        if JsonRpcServer._warmed_up:
             return {"status": "already_warm"}
-
-        try:
-            from core.pdf_ocr_ultra import get_ocr_engine, detect_gpu_provider
-            import time
-            start = time.time()
-            if skip_gpu_probe:
-                print(
-                    _safe_json_dumps(
-                        {
-                            "jsonrpc": "2.0",
-                            "method": "notify.log",
-                            "params": {"level": "info", "message": "OCR 快速预热：跳过 GPU 多轮探测"},
-                        }
-                    ),
-                    file=sys.stderr,
-                    flush=True,
-                )
-            engine = get_ocr_engine(skip_gpu_probe=skip_gpu_probe)
-            from PIL import Image
-            dummy = Image.new('RGB', (100, 100), color='white')
-            import numpy as np
-            engine(np.array(dummy))
-            elapsed = time.time() - start
-            provider, info = detect_gpu_provider(skip_probe=skip_gpu_probe)
-            JsonRpcServer._warmed_up = True
-            return {
-                "status": "warm",
-                "duration_seconds": round(elapsed, 2),
-                "provider": provider,
-                "provider_info": info,
-                "skip_gpu_probe": skip_gpu_probe,
-                "full_probe": full_probe,
-            }
-        except Exception as e:
-            return {"status": "error", "error": str(e)}
+        
+        # 简化处理：立即返回成功，模型将在第一次实际 OCR 时自动加载
+        JsonRpcServer._warmed_up = True
+        print(
+            _safe_json_dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "method": "notify.log",
+                    "params": {"level": "info", "message": "OCR 引擎就绪（延迟加载模式）"},
+                }
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
+        return {
+            "status": "warm",
+            "duration_seconds": 0.01,
+            "provider": "auto",
+            "provider_info": "延迟加载模式：模型将在首次识别时自动初始化",
+        }
 
     def _ocr_clear_cache(self, params: Dict, id: Any) -> Dict:
         """清除 OCR 结果缓存"""
@@ -749,7 +716,7 @@ class JsonRpcServer:
     # ============ 企业信息查询模块 ============
 
     def _company_query_process(self, params: Dict, id: Any) -> Dict:
-        preset_id = params.get('preset_id')
+        preset_id = params.get('preset_id') or 'company-query'
         excel_path = params.get('excel_path')
         range_start = params.get('range_start', 1)
         range_end = params.get('range_end', 99999)
@@ -757,15 +724,42 @@ class JsonRpcServer:
         task_id = params.get('task_id', f"cq-{id}")
         user_output_dir = params.get('output_dir')
         emitter = ProgressEmitter(task_id)
+        result = None
 
         try:
             from infra.company_query import process_company_query
-            excel_path = resolve_input_path(
-                excel_path,
-                preset_id=preset_id,
-                preset_kind="excel",
-                default_preset_id="company-query",
-            )
+            from core.preset_paths import resolve_preset
+
+            resolved_excel = None
+            if preset_id:
+                try:
+                    resolved_excel = resolve_preset(preset_id, "excel")
+                except (FileNotFoundError, KeyError):
+                    resolved_excel = None
+
+            raw = str(excel_path).strip() if excel_path else ""
+            if resolved_excel is not None:
+                if not raw:
+                    excel_path = resolved_excel
+                else:
+                    p = Path(raw)
+                    if not p.is_absolute() or not p.is_file():
+                        excel_path = resolved_excel
+                    elif p.resolve() != resolved_excel.resolve():
+                        emitter.log(
+                            "warn",
+                            f"已改用企业查询预设台账: {resolved_excel.name}（忽略其它模块残留路径）",
+                        )
+                        excel_path = resolved_excel
+                    else:
+                        excel_path = p.resolve()
+            else:
+                excel_path = resolve_input_path(
+                    excel_path,
+                    preset_id=preset_id,
+                    preset_kind="excel",
+                    default_preset_id="company-query",
+                )
 
             if not Path(excel_path).exists():
                 raise FileNotFoundError(f"Excel 文件不存在: {excel_path}")
@@ -787,7 +781,10 @@ class JsonRpcServer:
             emitter.log("info", f"{status_msg}: 成功 {result['success_count']}/{result['total']}，缓存跳过 {cached} 条")
             return result
         except Exception as e:
-            cancelled = result.get('cancelled', False) if isinstance(result, dict) else False
+            from core.task_cancel import is_cancelled
+            cancelled = (
+                isinstance(result, dict) and result.get('cancelled', False)
+            ) or is_cancelled(task_id)
             if cancelled:
                 print(_safe_json_dumps({"jsonrpc": "2.0", "method": "notify.task_cancelled", "params": {"task_id": task_id, "cancelled": True}}), file=sys.stderr, flush=True)
             raise Exception(f"企业查询失败: {str(e)}")

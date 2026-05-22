@@ -251,6 +251,7 @@ struct RuntimePathsDto {
     bundled: bool,
 }
 
+#[allow(dead_code)]
 fn get_app_dir() -> Result<PathBuf, String> {
     let exe_path = std::env::current_exe()
         .map_err(|e| format!("Failed to get current exe: {}", e))?;
@@ -312,7 +313,8 @@ fn resolve_dev_resources_dir(project_root: &Path) -> Result<PathBuf, String> {
     Ok(project_root.to_path_buf())
 }
 
-/// 安装后资源根目录（含 config.yaml、poppler 等；onefile 后端为 gjj-ocr-server.exe）
+/// 安装后资源根目录（含 config.yaml、poppler 等；后端为 resources/gjj-ocr-server.exe onefile）
+#[allow(dead_code)]
 fn resolve_resources_content_root(base: &Path) -> Option<PathBuf> {
     for root in [base.to_path_buf(), base.join("resources")] {
         if root.join("config.yaml").is_file() {
@@ -324,6 +326,7 @@ fn resolve_resources_content_root(base: &Path) -> Option<PathBuf> {
 }
 
 /// 安装后 resources 可能落在 Tauri resource_dir 或 exe 旁 resources/，需逐一尝试。
+#[allow(dead_code)]
 fn resource_dir_candidates(app: &AppHandle, app_root: &Path) -> Vec<PathBuf> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
@@ -344,6 +347,7 @@ fn resource_dir_candidates(app: &AppHandle, app_root: &Path) -> Vec<PathBuf> {
     out
 }
 
+#[allow(dead_code)]
 fn find_install_resources_dir(app: &AppHandle, app_root: &Path) -> Option<PathBuf> {
     for dir in resource_dir_candidates(app, app_root) {
         if let Some(root) = resolve_resources_content_root(&dir) {
@@ -357,26 +361,29 @@ fn find_install_resources_dir(app: &AppHandle, app_root: &Path) -> Option<PathBu
     None
 }
 
-fn find_onefile_server_exe(app: &AppHandle, app_root: &Path, resources_dir: &Path) -> Option<PathBuf> {
+#[allow(dead_code)]
+fn find_bundled_server_exe(app: &AppHandle, app_root: &Path, resources_dir: &Path) -> Option<PathBuf> {
     let mut candidates = vec![
         resources_dir.join("gjj-ocr-server.exe"),
-        app_root.join("gjj-ocr-server.exe"),
         app_root.join("resources").join("gjj-ocr-server.exe"),
+        app_root.join("gjj-ocr-server.exe"),
+        resources_dir.join("gjj-ocr-server").join("gjj-ocr-server.exe"),
     ];
     if let Some(rd) = app.path_resolver().resource_dir() {
         candidates.push(rd.join("gjj-ocr-server.exe"));
         candidates.push(rd.join("resources").join("gjj-ocr-server.exe"));
+        candidates.push(rd.join("gjj-ocr-server").join("gjj-ocr-server.exe"));
     }
     for exe in candidates {
         if exe.is_file() {
-            eprintln!("[resources] onefile server {:?}", exe);
+            eprintln!("[resources] bundled server {:?}", exe);
             return Some(exe);
         }
     }
     None
 }
 
-fn is_bundled_app(app: &AppHandle) -> bool {
+fn is_bundled_app(_app: &AppHandle) -> bool {
     #[cfg(debug_assertions)]
     {
         return false;
@@ -385,7 +392,7 @@ fn is_bundled_app(app: &AppHandle) -> bool {
     {
         get_app_dir()
             .ok()
-            .and_then(|root| find_install_resources_dir(app, &root))
+            .and_then(|root| find_install_resources_dir(_app, &root))
             .is_some()
     }
 }
@@ -445,7 +452,7 @@ fn compute_runtime_paths(app: &AppHandle) -> Result<RuntimePathsDto, String> {
                 resource_dir_candidates(app, &app_root)
             )
         })?;
-        if find_onefile_server_exe(app, &app_root, &resources_dir).is_none() {
+        if find_bundled_server_exe(app, &app_root, &resources_dir).is_none() {
             return Err(format!(
                 "安装包缺少后端 gjj-ocr-server.exe（{:?}）。请卸载后重新安装。",
                 resources_dir
@@ -461,20 +468,20 @@ fn compute_runtime_paths(app: &AppHandle) -> Result<RuntimePathsDto, String> {
     }
 }
 
-fn get_python_path(app_handle: &AppHandle) -> Result<String, String> {
+fn get_python_path(_app_handle: &AppHandle) -> Result<String, String> {
     #[cfg(not(debug_assertions))]
     {
-        let paths = compute_runtime_paths(app_handle)?;
+        let paths = compute_runtime_paths(_app_handle)?;
         let app_root = Path::new(&paths.app_root);
         let resources_dir = Path::new(&paths.resources_dir);
-        let exe = find_onefile_server_exe(app_handle, app_root, resources_dir).ok_or_else(|| {
+        let exe = find_bundled_server_exe(_app_handle, app_root, resources_dir).ok_or_else(|| {
             format!(
                 "未找到 gjj-ocr-server.exe（resources={:?}）",
                 paths.resources_dir
             )
         })?;
-        eprintln!("Using onefile server: {:?}", exe);
-        return Ok(exe.to_string_lossy().to_string());
+        eprintln!("Using bundled server: {:?}", exe);
+        return Ok(path_for_display(&exe));
     }
 
     #[cfg(debug_assertions)]
@@ -489,10 +496,10 @@ fn get_python_path(app_handle: &AppHandle) -> Result<String, String> {
     }
 }
 
-fn get_server_script_path(app_handle: &AppHandle) -> Result<String, String> {
+fn get_server_script_path(_app_handle: &AppHandle) -> Result<String, String> {
     #[cfg(not(debug_assertions))]
     {
-        let _ = app_handle;
+        let _ = _app_handle;
         // onefile 后端已内嵌 server.py，无需再传脚本路径
         return Ok(String::new());
     }
@@ -715,9 +722,78 @@ async fn select_files(
     }
 }
 
+/// 清理旧版本缓存 - 安装新版本时调用
+fn clear_old_caches(app: &tauri::AppHandle) -> Result<(), String> {
+    use std::fs;
+    
+    // 获取用户数据目录
+    let user_data_dir = resolve_user_data_dir(app)?;
+    
+    // 需要清理的缓存文件/目录
+    let cache_items = [
+        user_data_dir.join("output").join("ocr-cache.pkl"),
+        user_data_dir.join("output").join("enf-ocr-cache.pkl"),
+        user_data_dir.join("temp"),
+        user_data_dir.join("ocr-gpu-cache.json"),
+    ];
+    
+    for item in &cache_items {
+        if item.exists() {
+            let result = if item.is_dir() {
+                fs::remove_dir_all(item)
+            } else {
+                fs::remove_file(item)
+            };
+            match result {
+                Ok(_) => eprintln!("[cache-cleanup] 已清理: {:?}", item),
+                Err(e) => eprintln!("[cache-cleanup] 清理失败 {:?}: {}", item, e),
+            }
+        }
+    }
+    
+    Ok(())
+}
+
+/// 检查并执行版本升级清理
+fn check_and_clear_cache_on_upgrade(app: &tauri::AppHandle) {
+    use std::fs;
+    
+    let user_data_dir = resolve_user_data_dir(app).unwrap_or_else(|_| {
+        PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_default()).join("gjj-ocr-tool")
+    });
+    
+    let version_file = user_data_dir.join(".app-version");
+    let current_version = env!("CARGO_PKG_VERSION");
+    
+    // 读取上次运行的版本
+    let last_version = fs::read_to_string(&version_file).unwrap_or_default().trim().to_string();
+    
+    // 如果版本变化或首次运行，清理缓存
+    if last_version != current_version {
+        eprintln!("[version-check] 版本变化: {} -> {}，执行缓存清理", 
+            if last_version.is_empty() { "首次运行" } else { &last_version }, 
+            current_version
+        );
+        
+        if let Err(e) = clear_old_caches(app) {
+            eprintln!("[cache-cleanup] 清理缓存失败: {}", e);
+        }
+        
+        // 写入新版本号
+        if let Err(e) = fs::write(&version_file, current_version) {
+            eprintln!("[version-check] 写入版本文件失败: {}", e);
+        }
+    } else {
+        eprintln!("[version-check] 版本未变化: {}，跳过缓存清理", current_version);
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
+            // 检查版本变化并清理缓存
+            check_and_clear_cache_on_upgrade(&app.handle());
+            
             let app_handle = app.handle().clone();
             let service = PythonService::placeholder();
             app.manage(service.clone());

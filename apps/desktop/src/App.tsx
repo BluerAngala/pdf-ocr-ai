@@ -17,7 +17,7 @@ import type {
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { createInitialModuleTaskState, resolveTaskModule } from "./moduleTaskState";
-import { ensurePresetById, invalidatePresetCache } from "./presets";
+import { ensurePresetById, getPresetResolveErrors, invalidatePresetCache } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus, setupPoppler } from "./services/system";
 import { invoke } from "@tauri-apps/api/tauri";
@@ -56,12 +56,13 @@ export default function App() {
   // Print module specific states
   const [printCompanyNameColumn, setPrintCompanyNameColumn] = useState("");
   const [printMode, setPrintMode] = useState<"single" | "double">("single");
-  const [printCustomStartPage, setPrintCustomStartPage] = useState(0);
+  const [printCustomStartPage, setPrintCustomStartPage] = useState(1);
   const [printCustomEndPage, setPrintCustomEndPage] = useState(0);
   const [printExcelColumns, setPrintExcelColumns] = useState<PrintExcelColumn[]>([]);
   const [printTaskStatus, setPrintTaskStatus] = useState<PrintTaskStatus | null>(null);
   const [selectedOrders, setSelectedOrders] = useState<Set<number>>(new Set());
   const autoPreviewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const justPrintedRef = useRef(false);
 
   const [logsByModule, setLogsByModule] = useState<Record<string, LogEntry[]>>({});
   const [logsExpanded, setLogsExpanded] = useState(true);
@@ -361,9 +362,10 @@ export default function App() {
   useEffect(() => {
     if (currentModule !== "print" || !sampleRoot) return;
     if (excelFile && !printCompanyNameColumn) return;
+    if (justPrintedRef.current) return; // 刚刚打印过，不触发自动预览
     if (autoPreviewTimerRef.current) clearTimeout(autoPreviewTimerRef.current);
     autoPreviewTimerRef.current = setTimeout(() => {
-      if (!runningRef.current) autoPreviewPrint();
+      if (!runningRef.current && !justPrintedRef.current) autoPreviewPrint();
     }, 800);
     return () => {
       if (autoPreviewTimerRef.current) clearTimeout(autoPreviewTimerRef.current);
@@ -493,14 +495,32 @@ export default function App() {
     async (module: ModuleType, logModule?: ModuleType) => {
       const config = MODULE_CONFIG[module];
       const preset = await ensurePresetById(config.presetId);
-      if (preset?.sampleRoot) {
-        setSampleRoot(preset.sampleRoot);
-        setExcelFile(preset.excelPath);
+      if (preset?.sampleRoot || preset?.excelPath) {
+        if (preset.sampleRoot) setSampleRoot(preset.sampleRoot);
+        if (preset.excelPath) setExcelFile(preset.excelPath);
         setMockMode(preset.mode === "mock");
         addLog("info", `已加载预设: ${preset.name}`, logModule ?? module);
         return true;
       }
-      addLog("warn", "预设路径未就绪，请点击「加载预设」或手动选择样本文件夹", logModule ?? module);
+      if (module === "company-query") {
+        setExcelFile("");
+        setSampleRoot("");
+      }
+      const presetErrors = await getPresetResolveErrors();
+      const err = presetErrors.find((e) => e.id === config.presetId);
+      if (err) {
+        addLog(
+          "warn",
+          `预设「${config.presetId}」未找到样本：${err.error}（安装包需含对应 sample-data，或手动选择文件夹）`,
+          logModule ?? module,
+        );
+      } else {
+        addLog(
+          "warn",
+          "预设路径未就绪，请点击「测试示例」或手动选择 Excel/样本文件",
+          logModule ?? module,
+        );
+      }
       return false;
     },
     [addLog],
@@ -528,7 +548,8 @@ export default function App() {
         !enteringTask.taskId
       ) {
         setOutputDir("");
-        await applyModulePreset(module);
+        setSampleRoot("");
+        setExcelFile("");
       }
 
       const config = MODULE_CONFIG[module];
@@ -546,14 +567,7 @@ export default function App() {
       }
       addLog("info", `切换到模块: ${config.title}`, module);
     },
-    [
-      addLog,
-      applyModulePreset,
-      currentView,
-      currentModule,
-      savePausedSession,
-      restorePausedSession,
-    ],
+    [addLog, currentView, currentModule, savePausedSession, restorePausedSession],
   );
 
   const navigateHome = useCallback(() => {
@@ -696,6 +710,8 @@ export default function App() {
     async (orders: number[]) => {
       const printTask = moduleTaskStateRef.current.print;
       if (printTask.running || !sampleRoot) return;
+      // 标记刚刚进行了打印，防止自动预览立即触发
+      justPrintedRef.current = true;
       const taskId = `print-${Date.now()}`;
       taskIdToModuleRef.current[taskId] = "print";
       taskConfigRef.current[taskId] = { sampleRoot, excelFile, outputDir };
@@ -767,7 +783,8 @@ export default function App() {
             printer_used: rawResult.printer_used || "",
             print_dry_run: false,
             print_errors: rawResult.errors || [],
-            print_match_results: prev.result?.print_match_results || rawResult.match_results || [],
+            // 优先使用新的匹配结果，如果没有则保留之前的
+            print_match_results: rawResult.match_results || prev.result?.print_match_results || [],
             summary: { result_root: sampleRoot },
           },
           previewState: "result",
@@ -785,6 +802,10 @@ export default function App() {
         if (moduleTaskStateRef.current.print.taskId === taskId) {
           patchModuleTask("print", { running: false, cancelling: false });
         }
+        // 3秒后清除标记，允许自动预览再次触发
+        setTimeout(() => {
+          justPrintedRef.current = false;
+        }, 3000);
       }
     },
     [
@@ -922,14 +943,15 @@ export default function App() {
           },
         };
       } else if (module === "company-query") {
-        if (!excelFile) {
-          alert("请选择企业信息数据 Excel 文件");
+        const cqExcel = excelFile;
+        if (!cqExcel) {
+          alert("请选择企业信息数据 Excel 文件，或点击「测试示例」加载预设");
           patchModuleTask(module, { running: false, previewState: "empty" });
           return;
         }
         const rawResult = (await sendRequest("company_query.process", {
-          preset_id: MODULE_CONFIG["company-query"]?.presetId || null,
-          excel_path: excelFile,
+          preset_id: MODULE_CONFIG["company-query"]?.presetId || "company-query",
+          excel_path: cqExcel,
           range_start: rangeStart,
           range_end: rangeEnd || undefined,
           cache_ttl_days: cacheTtlDays,
@@ -1170,11 +1192,6 @@ export default function App() {
     const timer = setInterval(loadStatus, 30000);
     return () => clearInterval(timer);
   }, [loadStatus, appReady]);
-
-  useEffect(() => {
-    if (!appReady) return;
-    void applyModulePreset("non-litigation");
-  }, [appReady, applyModulePreset]);
 
   const moduleTitle = MODULE_CONFIG[currentModule]?.title || "";
 

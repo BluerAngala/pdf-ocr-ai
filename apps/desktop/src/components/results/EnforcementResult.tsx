@@ -6,28 +6,38 @@ function CollapsibleSection({
   count,
   totalHint,
   defaultOpen = false,
-  tone = "red",
+  tone = "success",
   children,
 }: {
   title: string;
   count: number;
   totalHint?: string;
   defaultOpen?: boolean;
-  tone?: "red" | "amber";
+  tone?: "success" | "warning" | "error";
   children: ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
-  const border = tone === "amber" ? "border-amber-200" : "border-red-200";
-  const titleColor = tone === "amber" ? "text-amber-700" : "text-red-700";
+
+  const toneStyles = {
+    success: {
+      border: "border-emerald-200",
+      titleColor: "text-emerald-700",
+      bg: "bg-emerald-50/30",
+    },
+    warning: { border: "border-amber-200", titleColor: "text-amber-700", bg: "bg-amber-50/30" },
+    error: { border: "border-red-200", titleColor: "text-red-700", bg: "bg-red-50/30" },
+  };
+
+  const style = toneStyles[tone];
 
   return (
-    <div className={`rounded-lg border ${border} bg-white overflow-hidden`}>
+    <div className={`rounded-lg border ${style.border} bg-white overflow-hidden`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-50 transition-colors cursor-pointer"
+        className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-slate-50 transition-colors cursor-pointer ${style.bg}`}
       >
-        <span className={`text-xs font-semibold ${titleColor}`}>
+        <span className={`text-xs font-semibold ${style.titleColor}`}>
           {open ? "▼" : "▶"} {title}
           <span className="font-normal text-slate-500 ml-1">
             ({count}
@@ -47,12 +57,13 @@ function ExtractedItem({ item, isMulti }: { item: EnforcementExtracted; isMulti?
   const ledgerOk = item.ledger_matched === true;
   const parties = [...item.applicants.map((a) => a.name), ...item.respondents.map((r) => r.name)];
 
+  // 已匹配用绿色系，未匹配用红色系，保持视觉一致性
+  const itemStyles = ledgerOk
+    ? { border: "border-l-emerald-400", bg: "bg-emerald-50/30", statusText: "text-emerald-700" }
+    : { border: "border-l-red-400", bg: "bg-red-50/40", statusText: "text-red-700" };
+
   return (
-    <div
-      className={`border-l-2 rounded px-3 py-2 ${
-        ledgerOk ? "border-l-emerald-500 bg-emerald-50/30" : "border-l-red-400 bg-red-50/40"
-      }`}
-    >
+    <div className={`border-l-2 rounded px-3 py-2 ${itemStyles.border} ${itemStyles.bg}`}>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-slate-700 truncate">
           {item.court_case_number || "（未识别案号）"}
@@ -68,7 +79,8 @@ function ExtractedItem({ item, isMulti }: { item: EnforcementExtracted; isMulti?
               未匹配
             </span>
           )}
-          <span className="text-[10px] font-semibold text-emerald-600">
+          {/* 裁定结果颜色与匹配状态一致，已匹配=绿色，未匹配=红色 */}
+          <span className={`text-[10px] font-semibold ${itemStyles.statusText}`}>
             {item.ruling_result || "准予执行"}
           </span>
         </div>
@@ -142,7 +154,12 @@ export default function EnforcementResult({ result }: { result: ProcessingResult
 
       {/* 匹配明细 */}
       {matchedCount > 0 && (
-        <CollapsibleSection title="已匹配明细" count={matchedCount} defaultOpen={true} tone="red">
+        <CollapsibleSection
+          title="已匹配明细"
+          count={matchedCount}
+          defaultOpen={true}
+          tone="success"
+        >
           {extracted
             .filter((e) => e.ledger_matched === true)
             .map((item, i) => {
@@ -159,7 +176,7 @@ export default function EnforcementResult({ result }: { result: ProcessingResult
           title="未匹配明细"
           count={unmatchedCount}
           defaultOpen={true}
-          tone="amber"
+          tone="error"
         >
           {extracted
             .filter((e) => e.ledger_matched !== true)
@@ -177,7 +194,7 @@ export default function EnforcementResult({ result }: { result: ProcessingResult
           title="本批 PDF 未匹配台账"
           count={unmatchedPdfs.length}
           defaultOpen={false}
-          tone="amber"
+          tone="warning"
         >
           {unmatchedPdfs.map((item, i) => (
             <div key={i} className="border-l-2 border-l-amber-400 bg-amber-50/50 rounded px-3 py-2">

@@ -1004,6 +1004,14 @@ export default function App() {
           patchModuleTask(module, { running: false, previewState: "empty" });
           return;
         }
+        // 如果选择了 Excel 文件但没有选择匹配列，提示用户
+        if (excelFile && !printCompanyNameColumn) {
+          alert(
+            "已选择台账文件，请选择「匹配字段」用于关联材料文件\n\n提示：先点击「加载 Excel 列」，然后从下拉框选择对应列",
+          );
+          patchModuleTask(module, { running: false, previewState: "empty" });
+          return;
+        }
         const rawResult = (await sendRequest("print.start", {
           folder_path: sampleRoot,
           excel_path: excelFile || undefined,

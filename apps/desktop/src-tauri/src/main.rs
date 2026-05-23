@@ -937,53 +937,6 @@ async fn start_python_service_with_retry(
     Err(format!("Failed to start Python service after {} attempts: {}", max_retries, last_error))
 }
 
-// 服务健康监控任务
-async fn service_health_monitor(
-    app_handle: tauri::AppHandle,
-    service: PythonService,
-) {
-    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
-    
-    loop {
-        interval.tick().await;
-        
-        // 检查服务健康状态
-        if !service.is_healthy() {
-            eprintln!("[health_monitor] Python service unhealthy detected");
-            
-            // 发送服务异常事件
-            let _ = app_handle.emit_all("python-service-unhealthy", ());
-            
-            // 尝试重启服务
-            eprintln!("[health_monitor] Attempting to restart Python service...");
-            
-            // 先停止现有服务
-            if let Some(mut child) = service.child.lock().unwrap().take() {
-                let _ = child.kill().await;
-            }
-            *service.initialized.lock().unwrap() = false;
-            *service.rpc_ready.lock().unwrap() = false;
-            *service.request_tx.lock().unwrap() = None;
-            *service.pid.lock().unwrap() = None;
-            
-            // 等待后重启
-            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
-            
-            match start_python_service_with_retry(app_handle.clone(), service.clone(), 3).await {
-                Ok(()) => {
-                    eprintln!("[health_monitor] Python service restarted successfully");
-                    let _ = app_handle.emit_all("python-service-restarted", ());
-                }
-                Err(e) => {
-                    eprintln!("[health_monitor] Failed to restart Python service: {}", e);
-                    *service.error_message.lock().unwrap() = Some(e.clone());
-                    let _ = app_handle.emit_all("python-service-error", e);
-                }
-            }
-        }
-    }
-}
-
 fn main() {
     tauri::Builder::default()
         .setup(|app| {

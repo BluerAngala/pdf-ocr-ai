@@ -127,10 +127,12 @@ def _match_files_by_keyword(folder: Path, keyword: str) -> List[Path]:
 
 def _print_pdf_silent(pdf_path: Path, printer_name: str, copies: int = 1,
                       start_page: Optional[int] = None, end_page: Optional[int] = None) -> dict:
+    """使用 Windows 原生 printto 命令直接打印 PDF，不打开阅读器。"""
     try:
         import win32api
         import win32print
 
+        # 验证打印机可用
         try:
             handle = win32print.OpenPrinter(printer_name)
             win32print.ClosePrinter(handle)
@@ -139,24 +141,29 @@ def _print_pdf_silent(pdf_path: Path, printer_name: str, copies: int = 1,
 
         abs_path = str(pdf_path.resolve())
 
+        # 使用 printto 直接发送到指定打印机（静默，不打开 WPS）
         result = win32api.ShellExecute(
-            0,
-            "print",
-            abs_path,
-            f'/d:"{printer_name}"',
-            ".",
-            0,
+            0,          # hwnd
+            "printto",  # 操作：直接打印到指定打印机
+            abs_path,   # 文件
+            f'"{printer_name}"',  # 参数：打印机名称
+            ".",        # 工作目录
+            0,          # 隐藏窗口
         )
 
         if result > 32:
-            return {"filename": pdf_path.name, "status": "submitted", "message": "已提交"}
+            return {"filename": pdf_path.name, "status": "submitted", "message": "已提交到打印机"}
         else:
             error_map = {
                 0: "内存不足", 2: "文件未找到", 3: "路径未找到",
-                5: "访问拒绝", 31: "无关联程序", 32: "DLL未找到",
+                5: "访问拒绝", 8: "内存不足", 11: "EXE 格式无效",
+                26: "共享错误", 27: "文件关联错误", 28: "无法加载 DLL",
+                29: "损坏的应用程序", 30: "应用程序加载失败", 31: "无关联程序",
+                32: "DLL 未找到",
             }
-            error_msg = error_map.get(result, f"未知错误码: {result}")
+            error_msg = error_map.get(result, f"打印失败，错误码: {result}")
             return {"filename": pdf_path.name, "status": "failed", "error": error_msg}
+
     except Exception as e:
         return {"filename": pdf_path.name, "status": "failed", "error": str(e)}
 

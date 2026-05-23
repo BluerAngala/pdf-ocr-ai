@@ -1,6 +1,46 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.4",
   "releases": [
+    {
+      "version": "1.0.4",
+      "date": "2026-05-23",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "内置 SumatraPDF，无需用户额外安装，实现完全静默打印"
+        },
+        {
+          "type": "improvement",
+          "description": "打印功能完全静默，不再弹出任何阅读器窗口"
+        }
+      ]
+    },
+    {
+      "version": "1.0.3",
+      "date": "2026-05-23",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "修复打印份数设置无效的问题"
+        },
+        {
+          "type": "fix",
+          "description": "修复打印页码范围设置无效的问题"
+        },
+        {
+          "type": "fix",
+          "description": "修复单双面打印设置无效的问题"
+        },
+        {
+          "type": "improvement",
+          "description": "打印功能支持 SumatraPDF 和 Adobe Reader 静默打印，避免弹出 WPS"
+        },
+        {
+          "type": "improvement",
+          "description": "打印前验证：未选择匹配字段时提示用户配置"
+        }
+      ]
+    },
     {
       "version": "1.0.2",
       "date": "2026-05-23",

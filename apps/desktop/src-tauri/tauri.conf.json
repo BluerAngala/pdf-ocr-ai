@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "GJJ-OCR-Tool",
-    "version": "1.0.2"
+    "version": "1.0.4"
   },
   "tauri": {
     "allowlist": {
@@ -75,7 +75,8 @@
         "resources/gjj-ocr-server.exe",
         "resources/config.yaml",
         "resources/poppler/**",
-        "resources/sample-data/**"
+        "resources/sample-data/**",
+        "resources/sumatrapdf/SumatraPDF-3.5.2-64.exe"
       ]
     }
   }

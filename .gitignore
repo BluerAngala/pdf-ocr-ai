@@ -131,6 +131,8 @@ apps/desktop/src-tauri/resources/config.yaml
 apps/desktop/src-tauri/resources/sample-data/
 apps/desktop/src-tauri/resources/server_src/
 apps/desktop/src-tauri/resources/poppler/
+apps/desktop/src-tauri/resources/sumatrapdf/
+!apps/desktop/src-tauri/resources/sumatrapdf/SumatraPDF*.exe
 apps/desktop/src-tauri/icons/*.icns
 
 # Repo-level resources/server_src (auto-synced by build.rs from apps/server/src/)

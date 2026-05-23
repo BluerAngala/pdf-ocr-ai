@@ -43,21 +43,20 @@ impl PythonService {
 
     /// 检查服务是否健康（进程存活 + channel 可用）
     fn is_healthy(&self) -> bool {
-        // 检查 rpc_ready 标志
+        // 检查 rpc_ready 标志（最关键的标志）
         if !*self.rpc_ready.lock().unwrap_or_else(|e| e.into_inner()) {
             return false;
         }
 
-        // 检查进程是否还在运行
+        // 检查进程是否还在运行（如果 child 已设置）
         if let Some(child) = self.child.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
             match child.try_wait() {
                 Ok(None) => {} // 进程还在运行
                 Ok(Some(_)) => return false, // 进程已退出
                 Err(_) => return false,
             }
-        } else {
-            return false;
         }
+        // 注意：child 可能还没设置，但只要 rpc_ready 为 true，就认为服务健康
 
         // 检查 channel 是否可用
         if self.request_tx.lock().unwrap_or_else(|e| e.into_inner()).is_none() {
@@ -224,9 +223,12 @@ async fn init_python_service(
     tokio::spawn(async move {
         let reader = BufReader::new(stderr);
         let mut lines = reader.lines();
+        eprintln!("[Python stderr] stderr reader started");
 
         while let Ok(Some(line)) = lines.next_line().await {
+            eprintln!("[Python stderr] {}", line);
             if stderr_line_rpc_ready(&line) {
+                eprintln!("[Python stderr] RPC ready line detected: {}", line);
                 let mut ready = rpc_ready_flag.lock().unwrap();
                 if !*ready {
                     *ready = true;
@@ -898,23 +900,31 @@ async fn start_python_service_with_retry(
                 *service.initialized.lock().unwrap() = true;
                 *service.error_message.lock().unwrap() = None;
                 
-                let timeout_secs = if is_bundled_app(&app_handle) { 300 } else { 120 };
+                // 开发模式缩短超时时间，快速失败
+                let timeout_secs = if is_bundled_app(&app_handle) { 300 } else { 30 };
+                eprintln!("[start_python_service] Waiting for RPC ready (timeout: {}s)...", timeout_secs);
                 
                 match wait_for_python_rpc_ready(&service, &mut child, timeout_secs).await {
                     Ok(()) => {
                         *service.child.lock().unwrap() = Some(child);
-                        if !*service.rpc_ready.lock().unwrap() {
+                        let rpc_ready = *service.rpc_ready.lock().unwrap();
+                        eprintln!("[start_python_service] RPC ready status: {}", rpc_ready);
+                        if !rpc_ready {
+                            eprintln!("[start_python_service] Warning: rpc_ready is false but wait returned Ok");
+                            *service.rpc_ready.lock().unwrap() = true;
                             let _ = app_handle.emit_all("python-service-ready", ());
                         }
                         eprintln!("[start_python_service] Python service started successfully");
                         return Ok(());
                     }
                     Err(e) => {
+                        eprintln!("[start_python_service] Failed to wait for RPC ready: {}", e);
                         last_error = e;
                         // 清理失败的进程
                         let _ = child.kill().await;
                         *service.initialized.lock().unwrap() = false;
                         *service.rpc_ready.lock().unwrap() = false;
+                        *service.request_tx.lock().unwrap() = None;
                     }
                 }
             }

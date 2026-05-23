@@ -988,11 +988,12 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 match start_python_service_with_retry(app_handle.clone(), service.clone(), 3).await {
                     Ok(()) => {
-                        // 启动健康监控
-                        tauri::async_runtime::spawn(service_health_monitor(
-                            app_handle.clone(),
-                            service.clone(),
-                        ));
+                        eprintln!("[main] Python service started successfully");
+                        // TODO: 健康监控需要重构以支持 Send bound
+                        // tauri::async_runtime::spawn(service_health_monitor(
+                        //     app_handle.clone(),
+                        //     service.clone(),
+                        // ));
                     }
                     Err(e) => {
                         eprintln!("Failed to initialize Python service: {}", e);

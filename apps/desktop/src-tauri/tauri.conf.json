@@ -74,8 +74,7 @@
       "resources": [
         "resources/gjj-ocr-server.exe",
         "resources/config.yaml",
-        "resources/poppler/**",
-        "resources/sample-data/**"
+        "resources/poppler/**"
       ]
     }
   }

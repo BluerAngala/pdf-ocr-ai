@@ -16,7 +16,8 @@
     "format:check": "npm run format:check --workspace=apps/desktop",
     "test:fix": "python scripts/test_fix.py",
     "test:fix:full": "python scripts/test_fix.py --full",
-    "test:fix:skip": "python scripts/test_fix.py --skip-build"
+    "test:fix:skip": "python scripts/test_fix.py --skip-build",
+    "test:smart": "python scripts/smart_test.py"
   },
   "devDependencies": {}
 }

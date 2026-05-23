@@ -262,31 +262,72 @@ class JsonRpcServer:
     # ============ OCR 模块 ============
 
     _warmed_up = False
+    _ocr_engine_available = False
 
     def _ocr_warmup(self, params: Dict, id: Any) -> Dict:
-        """OCR 预热 - 简化版：立即返回成功，延迟加载模型"""
-        if JsonRpcServer._warmed_up:
-            return {"status": "already_warm"}
+        """OCR 预热 - 真正加载模型验证引擎可用性"""
+        import time
+        start_time = time.time()
         
-        # 简化处理：立即返回成功，模型将在第一次实际 OCR 时自动加载
-        JsonRpcServer._warmed_up = True
-        print(
-            _safe_json_dumps(
-                {
-                    "jsonrpc": "2.0",
-                    "method": "notify.log",
-                    "params": {"level": "info", "message": "OCR 引擎就绪（延迟加载模式）"},
-                }
-            ),
-            file=sys.stderr,
-            flush=True,
-        )
-        return {
-            "status": "warm",
-            "duration_seconds": 0.01,
-            "provider": "auto",
-            "provider_info": "延迟加载模式：模型将在首次识别时自动初始化",
-        }
+        if JsonRpcServer._warmed_up and JsonRpcServer._ocr_engine_available:
+            return {"status": "already_warm", "duration_seconds": 0.01}
+        
+        try:
+            # 真正尝试加载 OCR 引擎来验证可用性
+            print(
+                _safe_json_dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notify.log",
+                        "params": {"level": "info", "message": "正在初始化 OCR 引擎..."},
+                    }
+                ),
+                file=sys.stderr,
+                flush=True,
+            )
+            
+            from core.pdf_ocr_ultra import UltraFastOCR, OCRConfig
+            config = OCRConfig()
+            # 不跳过预热，真正加载模型
+            ocr = UltraFastOCR(config, skip_warmup=False)
+            
+            JsonRpcServer._warmed_up = True
+            JsonRpcServer._ocr_engine_available = True
+            
+            duration = time.time() - start_time
+            print(
+                _safe_json_dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notify.log",
+                        "params": {"level": "info", "message": f"OCR 引擎初始化完成（耗时 {duration:.2f}s）"},
+                    }
+                ),
+                file=sys.stderr,
+                flush=True,
+            )
+            
+            return {
+                "status": "warm",
+                "duration_seconds": duration,
+                "provider": "RapidOCR",
+                "provider_info": "OCR 引擎已就绪",
+            }
+        except Exception as e:
+            JsonRpcServer._ocr_engine_available = False
+            error_msg = f"OCR 引擎初始化失败: {str(e)}"
+            print(
+                _safe_json_dumps(
+                    {
+                        "jsonrpc": "2.0",
+                        "method": "notify.log",
+                        "params": {"level": "error", "message": error_msg},
+                    }
+                ),
+                file=sys.stderr,
+                flush=True,
+            )
+            raise Exception(error_msg)
 
     def _ocr_clear_cache(self, params: Dict, id: Any) -> Dict:
         """清除 OCR 结果缓存"""
@@ -1044,15 +1085,16 @@ class JsonRpcServer:
     def _system_get_status(self, params: Dict, id: Any) -> Dict:
         """获取系统状态"""
         import platform
-        ocr_ready = False
         poppler_installed = False
         ocr_version = ''
+        
+        # 使用预热后的状态，而不是每次都重新检测
+        ocr_ready = JsonRpcServer._ocr_engine_available
+        
         try:
             from core.pdf_ocr_ultra import check_poppler_installed, OCRConfig
             cfg = OCRConfig()
             poppler_installed = check_poppler_installed(cfg.poppler_path)
-            from core.pdf_ocr_ultra import HAS_RAPIDOCR
-            ocr_ready = HAS_RAPIDOCR
             if ocr_ready:
                 try:
                     import importlib.metadata

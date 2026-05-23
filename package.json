@@ -13,7 +13,10 @@
     "lint": "npm run lint --workspace=apps/desktop",
     "lint:fix": "npm run lint:fix --workspace=apps/desktop",
     "format": "npm run format --workspace=apps/desktop",
-    "format:check": "npm run format:check --workspace=apps/desktop"
+    "format:check": "npm run format:check --workspace=apps/desktop",
+    "test:fix": "python scripts/test_fix.py",
+    "test:fix:full": "python scripts/test_fix.py --full",
+    "test:fix:skip": "python scripts/test_fix.py --skip-build"
   },
   "devDependencies": {}
 }

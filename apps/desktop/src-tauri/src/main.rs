@@ -21,6 +21,10 @@ struct PythonService {
     /// Python 已打印「JSON-RPC 服务已启动」，可安全收发 RPC
     rpc_ready: Arc<Mutex<bool>>,
     error_message: Arc<Mutex<Option<String>>>,
+    /// 请求发送失败计数（用于检测 channel 问题）
+    send_fail_count: Arc<Mutex<u32>>,
+    /// 最后一次成功通信时间
+    last_success_time: Arc<Mutex<std::time::Instant>>,
 }
 
 impl PythonService {
@@ -32,7 +36,51 @@ impl PythonService {
             initialized: Arc::new(Mutex::new(false)),
             rpc_ready: Arc::new(Mutex::new(false)),
             error_message: Arc::new(Mutex::new(None)),
+            send_fail_count: Arc::new(Mutex::new(0)),
+            last_success_time: Arc::new(Mutex::new(std::time::Instant::now())),
         }
+    }
+
+    /// 检查服务是否健康（进程存活 + channel 可用）
+    fn is_healthy(&self) -> bool {
+        // 检查 rpc_ready 标志
+        if !*self.rpc_ready.lock().unwrap_or_else(|e| e.into_inner()) {
+            return false;
+        }
+
+        // 检查进程是否还在运行
+        if let Some(child) = self.child.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
+            match child.try_wait() {
+                Ok(None) => {} // 进程还在运行
+                Ok(Some(_)) => return false, // 进程已退出
+                Err(_) => return false,
+            }
+        } else {
+            return false;
+        }
+
+        // 检查 channel 是否可用
+        if self.request_tx.lock().unwrap_or_else(|e| e.into_inner()).is_none() {
+            return false;
+        }
+
+        // 检查失败次数
+        if *self.send_fail_count.lock().unwrap_or_else(|e| e.into_inner()) > 5 {
+            return false;
+        }
+
+        true
+    }
+
+    /// 记录发送成功
+    fn record_send_success(&self) {
+        *self.send_fail_count.lock().unwrap_or_else(|e| e.into_inner()) = 0;
+        *self.last_success_time.lock().unwrap_or_else(|e| e.into_inner()) = std::time::Instant::now();
+    }
+
+    /// 记录发送失败
+    fn record_send_failure(&self) {
+        *self.send_fail_count.lock().unwrap_or_else(|e| e.into_inner()) += 1;
     }
 }
 
@@ -537,13 +585,10 @@ fn is_production_bundle(app: AppHandle) -> bool {
 
 #[tauri::command]
 fn is_python_service_ready(service: State<'_, PythonService>) -> bool {
-    *service
-        .rpc_ready
-        .lock()
-        .unwrap_or_else(|e| e.into_inner())
+    service.is_healthy()
 }
 
-// Tauri 命令：发送 JSON-RPC 请求
+// Tauri 命令：发送 JSON-RPC 请求（带重试机制）
 #[tauri::command]
 async fn send_jsonrpc_request(
     service: State<'_, PythonService>,
@@ -551,43 +596,75 @@ async fn send_jsonrpc_request(
     params: serde_json::Value,
     id: u64,
 ) -> Result<(), String> {
-    let rpc_ready = *service
-        .rpc_ready
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?;
-    if !rpc_ready {
+    // 首先检查服务健康状态
+    if !service.is_healthy() {
         let err = service
             .error_message
             .lock()
             .ok()
             .and_then(|g| g.clone())
-            .unwrap_or_else(|| "后端正在启动，请稍候（打包版首次启动可能需 1–3 分钟）".to_string());
-        return Err(format!("Python service not ready: {}", err));
+            .unwrap_or_else(|| "后端服务异常，请重启应用或等待服务恢复".to_string());
+        return Err(format!("Python service unhealthy: {}", err));
     }
 
     let request = JsonRpcRequest {
         jsonrpc: "2.0".to_string(),
-        method,
-        params,
+        method: method.clone(),
+        params: params.clone(),
         id,
     };
 
     let request_json = serde_json::to_string(&request)
         .map_err(|e| format!("Failed to serialize request: {}", e))?;
 
-    eprintln!("[send_jsonrpc_request] Sending request: {}", request_json);
+    eprintln!("[send_jsonrpc_request] Sending request: method={}, id={}", method, id);
 
-    let tx = service
-        .request_tx
-        .lock()
-        .map_err(|e| format!("Lock error: {}", e))?
-        .clone()
-        .ok_or("Python service request channel not available")?;
-    tx.send(request_json)
-        .map_err(|e| format!("Failed to send request: {}", e))?;
-    eprintln!("[send_jsonrpc_request] Request queued successfully");
-
-    Ok(())
+    // 尝试发送，带重试逻辑
+    let max_retries = 3;
+    let mut last_error = String::new();
+    
+    for attempt in 0..max_retries {
+        let tx = service
+            .request_tx
+            .lock()
+            .map_err(|e| format!("Lock error: {}", e))?
+            .clone();
+        
+        match tx {
+            Some(channel) => {
+                match channel.send(request_json.clone()) {
+                    Ok(()) => {
+                        eprintln!("[send_jsonrpc_request] Request queued successfully (attempt {})", attempt + 1);
+                        service.record_send_success();
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        last_error = format!("Failed to send request: {}", e);
+                        eprintln!("[send_jsonrpc_request] Attempt {} failed: {}", attempt + 1, last_error);
+                        service.record_send_failure();
+                        
+                        // 如果是 channel closed，可能需要重启服务
+                        if e.to_string().contains("channel closed") {
+                            eprintln!("[send_jsonrpc_request] Channel closed detected, service may need restart");
+                            // 标记服务为不健康
+                            *service.rpc_ready.lock().unwrap_or_else(|e| e.into_inner()) = false;
+                        }
+                    }
+                }
+            }
+            None => {
+                last_error = "Python service request channel not available".to_string();
+                eprintln!("[send_jsonrpc_request] Attempt {} failed: {}", attempt + 1, last_error);
+            }
+        }
+        
+        // 等待后重试
+        if attempt < max_retries - 1 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+    }
+    
+    Err(format!("Failed to send request after {} attempts: {}", max_retries, last_error))
 }
 
 // Tauri 命令：强制终止 Python 进程
@@ -795,6 +872,108 @@ fn check_and_clear_cache_on_upgrade(app: &tauri::AppHandle) {
     }
 }
 
+// 启动 Python 服务（带重试逻辑）
+async fn start_python_service_with_retry(
+    app_handle: tauri::AppHandle,
+    service: PythonService,
+    max_retries: u32,
+) -> Result<(), String> {
+    let mut last_error = String::new();
+    
+    for attempt in 0..max_retries {
+        if attempt > 0 {
+            eprintln!("[start_python_service] Retry attempt {}/{}", attempt, max_retries);
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+        
+        let _ = app_handle.emit_all(
+            "backend-init-progress",
+            serde_json::json!({ "step": "python", "attempt": attempt + 1 }),
+        );
+        
+        match init_python_service(app_handle.clone(), service.clone()).await {
+            Ok((mut child, pid, request_tx)) => {
+                *service.pid.lock().unwrap() = Some(pid);
+                *service.request_tx.lock().unwrap() = Some(request_tx);
+                *service.initialized.lock().unwrap() = true;
+                *service.error_message.lock().unwrap() = None;
+                
+                let timeout_secs = if is_bundled_app(&app_handle) { 300 } else { 120 };
+                
+                match wait_for_python_rpc_ready(&service, &mut child, timeout_secs).await {
+                    Ok(()) => {
+                        *service.child.lock().unwrap() = Some(child);
+                        if !*service.rpc_ready.lock().unwrap() {
+                            let _ = app_handle.emit_all("python-service-ready", ());
+                        }
+                        eprintln!("[start_python_service] Python service started successfully");
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        last_error = e;
+                        // 清理失败的进程
+                        let _ = child.kill().await;
+                        *service.initialized.lock().unwrap() = false;
+                        *service.rpc_ready.lock().unwrap() = false;
+                    }
+                }
+            }
+            Err(e) => {
+                last_error = e;
+            }
+        }
+    }
+    
+    Err(format!("Failed to start Python service after {} attempts: {}", max_retries, last_error))
+}
+
+// 服务健康监控任务
+async fn service_health_monitor(
+    app_handle: tauri::AppHandle,
+    service: PythonService,
+) {
+    let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
+    
+    loop {
+        interval.tick().await;
+        
+        // 检查服务健康状态
+        if !service.is_healthy() {
+            eprintln!("[health_monitor] Python service unhealthy detected");
+            
+            // 发送服务异常事件
+            let _ = app_handle.emit_all("python-service-unhealthy", ());
+            
+            // 尝试重启服务
+            eprintln!("[health_monitor] Attempting to restart Python service...");
+            
+            // 先停止现有服务
+            if let Some(mut child) = service.child.lock().unwrap().take() {
+                let _ = child.kill().await;
+            }
+            *service.initialized.lock().unwrap() = false;
+            *service.rpc_ready.lock().unwrap() = false;
+            *service.request_tx.lock().unwrap() = None;
+            *service.pid.lock().unwrap() = None;
+            
+            // 等待后重启
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+            
+            match start_python_service_with_retry(app_handle.clone(), service.clone(), 3).await {
+                Ok(()) => {
+                    eprintln!("[health_monitor] Python service restarted successfully");
+                    let _ = app_handle.emit_all("python-service-restarted", ());
+                }
+                Err(e) => {
+                    eprintln!("[health_monitor] Failed to restart Python service: {}", e);
+                    *service.error_message.lock().unwrap() = Some(e.clone());
+                    let _ = app_handle.emit_all("python-service-error", e);
+                }
+            }
+        }
+    }
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -805,29 +984,15 @@ fn main() {
             let service = PythonService::placeholder();
             app.manage(service.clone());
 
+            // 启动 Python 服务
             tauri::async_runtime::spawn(async move {
-                let _ = app_handle.emit_all(
-                    "backend-init-progress",
-                    serde_json::json!({ "step": "python" }),
-                );
-                match init_python_service(app_handle.clone(), service.clone()).await {
-                    Ok((mut child, pid, request_tx)) => {
-                        *service.pid.lock().unwrap() = Some(pid);
-                        *service.request_tx.lock().unwrap() = Some(request_tx);
-                        *service.initialized.lock().unwrap() = true;
-                        *service.error_message.lock().unwrap() = None;
-                        let timeout_secs = if is_bundled_app(&app_handle) { 300 } else { 120 };
-                        if let Err(e) =
-                            wait_for_python_rpc_ready(&service, &mut child, timeout_secs).await
-                        {
-                            *service.error_message.lock().unwrap() = Some(e.clone());
-                            let _ = app_handle.emit_all("python-service-error", e);
-                        } else {
-                            *service.child.lock().unwrap() = Some(child);
-                            if !*service.rpc_ready.lock().unwrap() {
-                                let _ = app_handle.emit_all("python-service-ready", ());
-                            }
-                        }
+                match start_python_service_with_retry(app_handle.clone(), service.clone(), 3).await {
+                    Ok(()) => {
+                        // 启动健康监控
+                        tauri::async_runtime::spawn(service_health_monitor(
+                            app_handle.clone(),
+                            service.clone(),
+                        ));
                     }
                     Err(e) => {
                         eprintln!("Failed to initialize Python service: {}", e);

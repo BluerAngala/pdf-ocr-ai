@@ -265,31 +265,35 @@ class JsonRpcServer:
     _ocr_engine_available = False
 
     def _ocr_warmup(self, params: Dict, id: Any) -> Dict:
-        """OCR 预热 - 真正加载模型验证引擎可用性"""
         import time
         start_time = time.time()
+        
+        skip_gpu_probe = params.get('skip_gpu_probe', False)
+        full_probe = params.get('full_probe', False)
         
         if JsonRpcServer._warmed_up and JsonRpcServer._ocr_engine_available:
             return {"status": "already_warm", "duration_seconds": 0.01}
         
         try:
-            # 真正尝试加载 OCR 引擎来验证可用性
             print(
                 _safe_json_dumps(
                     {
                         "jsonrpc": "2.0",
                         "method": "notify.log",
-                        "params": {"level": "info", "message": "正在初始化 OCR 引擎..."},
+                        "params": {"level": "info", "message": f"正在初始化 OCR 引擎{'（快速模式）' if skip_gpu_probe else ''}..."},
                     }
                 ),
                 file=sys.stderr,
                 flush=True,
             )
             
-            from core.pdf_ocr_ultra import UltraFastOCR, OCRConfig
-            config = OCRConfig()
-            # 不跳过预热，真正加载模型
-            ocr = UltraFastOCR(config, skip_warmup=False)
+            from core.pdf_ocr_ultra import get_ocr_engine
+            engine = get_ocr_engine(skip_gpu_probe=skip_gpu_probe)
+            
+            import numpy as np
+            from PIL import Image
+            dummy_img = Image.new('RGB', (100, 100), color='white')
+            engine(dummy_img)
             
             JsonRpcServer._warmed_up = True
             JsonRpcServer._ocr_engine_available = True

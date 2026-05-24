@@ -1,6 +1,34 @@
 {
-  "version": "1.0.4",
+  "version": "1.0.6",
   "releases": [
+    {
+      "version": "1.0.6",
+      "date": "2026-05-23",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "修复首次安装后 OCR 加载超时的问题：增加快速预热超时至120秒，超时后自动轮询等待后台初始化完成"
+        },
+        {
+          "type": "fix",
+          "description": "修复 OCR 预热不尊重 skip_gpu_probe 参数，首次启动做了不必要的完整 GPU 探测"
+        }
+      ]
+    },
+    {
+      "version": "1.0.5",
+      "date": "2026-05-23",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "修复打印完成后预览面板一直显示加载中的问题"
+        },
+        {
+          "type": "fix",
+          "description": "修复打印结果中预览模式标记不正确的问题"
+        }
+      ]
+    },
     {
       "version": "1.0.4",
       "date": "2026-05-23",

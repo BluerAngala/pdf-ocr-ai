@@ -44,8 +44,8 @@ async function pollPythonRpcReady(): Promise<boolean> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-const OCR_FAST_WARMUP_TIMEOUT_MS = 60_000;
-const OCR_FULL_WARMUP_TIMEOUT_MS = 120_000;
+const OCR_FAST_WARMUP_TIMEOUT_MS = 120_000;
+const OCR_FULL_WARMUP_TIMEOUT_MS = 180_000;
 
 function requestWithTimeout<T>(
   method: string,
@@ -315,7 +315,18 @@ export async function runBackgroundOcrWarmup(
         });
       }
     }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    onProgress?.({ label: "快速预热超时，等待后台初始化完成…", detail: msg });
+    const polled = await pollOcrReady(onProgress, 180_000);
+    if (polled) {
+      onFastReady?.();
+    } else {
+      return { ok: false, error: "OCR 预热超时，请重启应用重试" };
+    }
+  }
 
+  try {
     const full = (await requestWithTimeoutWhenReady<{
       status?: string;
       duration_seconds?: number;
@@ -342,7 +353,38 @@ export async function runBackgroundOcrWarmup(
     return { ok: true, durationSeconds: full.duration_seconds };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
+    if (onFastReady) {
+      onProgress?.({ label: "GPU 探测未完成，将使用快速模式", detail: msg });
+      return { ok: true };
+    }
     onProgress?.({ label: "OCR 预热未完成", detail: msg });
     return { ok: false, error: msg };
   }
+}
+
+async function pollOcrReady(
+  onProgress?: (p: OcrWarmupProgress) => void,
+  timeoutMs: number = 180_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const status = (await requestWithTimeout<{
+        ocr_engine_ready?: boolean;
+      }>("system.get_status", {}, 10_000)) as {
+        ocr_engine_ready?: boolean;
+      };
+      if (status.ocr_engine_ready) {
+        return true;
+      }
+    } catch {
+      // ignore
+    }
+    onProgress?.({
+      label: "正在等待 OCR 引擎初始化…",
+      detail: "首次加载较慢，请耐心等待",
+    });
+    await sleep(3000);
+  }
+  return false;
 }

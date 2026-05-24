@@ -14,6 +14,7 @@ import type {
   PrintTaskStatus,
   PausedTaskSession,
   ModuleTaskUiState,
+  PreviewState,
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { createInitialModuleTaskState, resolveTaskModule } from "./moduleTaskState";
@@ -778,6 +779,8 @@ export default function App() {
           return next;
         });
         patchModuleTask("print", (prev) => ({
+          previewState: "result" as PreviewState,
+          running: false,
           result: {
             ...prev.result,
             printer_used: rawResult.printer_used || prev.result?.printer_used || "",
@@ -819,7 +822,7 @@ export default function App() {
         });
       } finally {
         if (moduleTaskStateRef.current.print.taskId === taskId) {
-          patchModuleTask("print", { running: false, cancelling: false });
+          patchModuleTask("print", { running: false, cancelling: false, previewState: "result" });
         }
         // 3秒后清除标记，允许自动预览再次触发
         setTimeout(() => {
@@ -1077,7 +1080,7 @@ export default function App() {
           print_task_id: printTaskId,
           print_errors: rawResult.errors || [],
           print_match_results: printPrev?.print_match_results || rawResult.match_results || [],
-          print_dry_run: true,
+          print_dry_run: false,
           summary: { result_root: sampleRoot },
         };
       }

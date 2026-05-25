@@ -47,98 +47,94 @@ def build_output_excel(
 
     输出两个Sheet：
       - Sheet1 "匹配数据": 台账中有且匹配到PDF的
-      - Sheet2 "PDF独有": 台账中没有但PDF中有的责令号
+      - Sheet2 "PDF独有": 台账中没有但PDF中有的责令号/案号
+
+    匹配策略（与 compute_enforcement_match_stats 一致，按 PDF 聚合）：
+      1. 通过责令号匹配
+      2. 通过被执行人匹配
+      3. 通过法院案号匹配
 
     输出列：
       区号 | 行政审查案号 | 责令号 | 被执行人 | 职工姓名 | 金额 | 法官/法官助理 | 执行时间 | 裁定结果 | 备注
     """
-    # 调试信息
     print(f"[DEBUG] build_output_excel: 台账行数={len(registry.cases)}, PDF数={len(pdf_results)}")
     for case in registry.cases:
         print(f"[DEBUG]   台账: {case.notice_number} (区号: {case.region})")
     for pdf_key, info in pdf_results.items():
         print(f"[DEBUG]   PDF: {pdf_key} -> 责令号: {info.notice_numbers}")
-    
-    # 收集匹配信息
-    matched_rows = []  # 台账匹配到的
-    pdf_matched_notices: Set[str] = set()  # 记录PDF中哪些责令号被匹配到了
 
-    for case in registry.cases:
-        matched_info, matched_notice = _match_case_to_pdf_with_notice(case, pdf_results)
-        if matched_info:
-            pdf_matched_notices.add(matched_notice)
+    matched_rows = []
+    pdf_matched_keys: Set[str] = set()
+
+    for pdf_key, info in pdf_results.items():
+        cases = registry.match_ruling_info(info)
+        if not cases:
+            continue
+        pdf_matched_keys.add(pdf_key)
+        for case in cases:
             row = {
                 '区号': case.region or '',
-                '行政审查案号': matched_info.court_case_number or '',
+                '行政审查案号': info.court_case_number or '',
                 '责令号': case.notice_number or '',
                 '被执行人': case.respondent or '',
                 '职工姓名': case.employee or '',
                 '金额': _format_amount(case.amount),
                 '法官/法官助理': '',
-                '执行时间': _format_date(matched_info.ruling_date) or '',
-                '裁定结果': matched_info.ruling_result or '',
+                '执行时间': _format_date(info.ruling_date) or '',
+                '裁定结果': info.ruling_result or '',
                 '备注': '',
             }
             judge_parts = []
-            if matched_info.judge:
-                judge_parts.append(matched_info.judge)
-            if matched_info.clerk:
-                judge_parts.append(matched_info.clerk)
+            if info.judge:
+                judge_parts.append(info.judge)
+            if info.clerk:
+                judge_parts.append(info.clerk)
             row['法官/法官助理'] = '/'.join(judge_parts) if judge_parts else ''
             matched_rows.append(row)
 
-    # 收集PDF独有的责令号
     pdf_only_rows = []
-    for info in pdf_results.values():
-        for notice in info.notice_numbers:
-            norm_notice = _normalize_for_match(notice)
-            # 检查这个责令号是否被匹配到了台账
-            if norm_notice not in pdf_matched_notices:
-                # 检查是否已经在pdf_only_rows中
-                if not any(_normalize_for_match(r['责令号']) == norm_notice for r in pdf_only_rows):
-                    row = {
-                        '区号': '',
-                        '行政审查案号': info.court_case_number or '',
-                        '责令号': notice,
-                        '被执行人': '',
-                        '职工姓名': '',
-                        '金额': '',
-                        '法官/法官助理': '',
-                        '执行时间': _format_date(info.ruling_date) or '',
-                        '裁定结果': info.ruling_result or '',
-                        '备注': 'PDF独有',
-                    }
-                    judge_parts = []
-                    if info.judge:
-                        judge_parts.append(info.judge)
-                    if info.clerk:
-                        judge_parts.append(info.clerk)
-                    row['法官/法官助理'] = '/'.join(judge_parts) if judge_parts else ''
-                    pdf_only_rows.append(row)
+    pdf_only_seen: Set[str] = set()
 
-    # 排序
+    for pdf_key, info in pdf_results.items():
+        if pdf_key in pdf_matched_keys:
+            continue
+        if info.notice_numbers:
+            for notice in info.notice_numbers:
+                norm_notice = _normalize_for_match(notice)
+                if norm_notice in pdf_only_seen:
+                    continue
+                pdf_only_seen.add(norm_notice)
+                row = _build_pdf_only_row(info, notice)
+                pdf_only_rows.append(row)
+        else:
+            dedup_key = info.court_case_number or pdf_key
+            if dedup_key in pdf_only_seen:
+                continue
+            pdf_only_seen.add(dedup_key)
+            row = _build_pdf_only_row(info, '')
+            row['责令号'] = info.court_case_number or pdf_key
+            row['备注'] = 'PDF独有（责令号未识别）'
+            pdf_only_rows.append(row)
+
     _sort_rows_by_region(matched_rows)
 
     columns_order = ['区号', '行政审查案号', '责令号', '被执行人', '职工姓名', '金额', '法官/法官助理', '执行时间', '裁定结果', '备注']
 
-    # 使用 openpyxl 直接写入，避免 pandas.ExcelWriter 在 PyInstaller 下的问题
     from openpyxl import Workbook
-    
+
     wb = Workbook()
-    
-    # Sheet1: 匹配数据
+
     ws_matched = wb.active
     ws_matched.title = '匹配数据'
     _write_sheet_data(ws_matched, matched_rows, columns_order)
     _auto_fit_columns(ws_matched)
     _apply_header_style(ws_matched)
-    
-    # Sheet2: PDF独有
+
     ws_pdf_only = wb.create_sheet('PDF独有')
     _write_sheet_data(ws_pdf_only, pdf_only_rows, columns_order)
     _auto_fit_columns(ws_pdf_only)
     _apply_header_style(ws_pdf_only)
-    
+
     wb.save(str(output_path))
 
     print(f"[DEBUG] Excel导出完成: {output_path}")
@@ -146,8 +142,30 @@ def build_output_excel(
     print(f"[DEBUG]   - PDF独有: {len(pdf_only_rows)} 条")
     for row in pdf_only_rows:
         print(f"[DEBUG]     PDF独有: {row['责令号']}")
-    
+
     return output_path
+
+
+def _build_pdf_only_row(info: RulingInfo, notice: str) -> Dict[str, str]:
+    row = {
+        '区号': '',
+        '行政审查案号': info.court_case_number or '',
+        '责令号': notice,
+        '被执行人': '',
+        '职工姓名': '',
+        '金额': '',
+        '法官/法官助理': '',
+        '执行时间': _format_date(info.ruling_date) or '',
+        '裁定结果': info.ruling_result or '',
+        '备注': 'PDF独有',
+    }
+    judge_parts = []
+    if info.judge:
+        judge_parts.append(info.judge)
+    if info.clerk:
+        judge_parts.append(info.clerk)
+    row['法官/法官助理'] = '/'.join(judge_parts) if judge_parts else ''
+    return row
 
 
 def _match_case_to_pdf_with_notice(case, pdf_results: Dict[str, RulingInfo]) -> tuple[Optional[RulingInfo], str]:
@@ -210,7 +228,7 @@ def _write_sheet_data(ws, rows: List[Dict], columns: List[str]):
     for row_idx, row_data in enumerate(rows, 2):
         for col_idx, col_name in enumerate(columns, 1):
             value = row_data.get(col_name, '')
-            cell = ws.cell(row=row_idx, column=col_idx, value=value if value else '')
+            cell = ws.cell(row=row_idx, column=col_idx, value=value if value is not None and value != '' else '')
             cell.font = Font(name='微软雅黑', size=10)
             cell.alignment = Alignment(horizontal='left', vertical='center')
 
@@ -324,14 +342,10 @@ def run_enforcement_extraction(
 def _match_and_stats(registry: EnforcementCaseRegistry, pdf_results: Dict[str, RulingInfo]) -> Dict[str, Any]:
     matched = set()
     withdraw_count = sum(1 for info in pdf_results.values() if info.is_withdraw)
-    for case in registry.cases:
-        for info in pdf_results.values():
-            for ocr_notice in info.notice_numbers:
-                norm_ocr = _normalize_for_match(ocr_notice)
-                norm_excel = _normalize_for_match(case.notice_number)
-                if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
-                    matched.add(case.notice_number)
-                    break
+    for pdf_key, info in pdf_results.items():
+        cases = registry.match_ruling_info(info)
+        for case in cases:
+            matched.add(case.notice_number)
 
     return {
         'total_pdfs': len(pdf_results),
@@ -364,26 +378,26 @@ def _export_summary(registry: EnforcementCaseRegistry, pdf_results: Dict[str, Ru
     }
 
     matched_excel = set()
+    matched_pdf_keys = set()
+    for pdf_key, info in pdf_results.items():
+        cases = registry.match_ruling_info(info)
+        if not cases:
+            continue
+        matched_pdf_keys.add(pdf_key)
+        for case in cases:
+            if case.notice_number in matched_excel:
+                continue
+            matched_excel.add(case.notice_number)
+            summary['matched'].append({
+                '责令号': case.notice_number,
+                '职工': case.employee,
+                '行审案号': info.court_case_number,
+                '法官': info.judge,
+                '日期': info.ruling_date,
+            })
+
     for case in registry.cases:
-        found = False
-        for info in pdf_results.values():
-            for ocr_notice in info.notice_numbers:
-                norm_ocr = _normalize_for_match(ocr_notice)
-                norm_excel = _normalize_for_match(case.notice_number)
-                if norm_ocr.endswith(norm_excel) or norm_excel.endswith(norm_ocr):
-                    found = True
-                    matched_excel.add(case.notice_number)
-                    summary['matched'].append({
-                        '责令号': case.notice_number,
-                        '职工': case.employee,
-                        '行审案号': info.court_case_number,
-                        '法官': info.judge,
-                        '日期': info.ruling_date,
-                    })
-                    break
-            if found:
-                break
-        if not found:
+        if case.notice_number not in matched_excel:
             summary['unmatched_excel'].append({
                 '责令号': case.notice_number,
                 '被执行人': case.respondent,
@@ -391,7 +405,7 @@ def _export_summary(registry: EnforcementCaseRegistry, pdf_results: Dict[str, Ru
             })
 
     for key, info in pdf_results.items():
-        if not any(m['行审案号'] == info.court_case_number for m in summary['matched']):
+        if key not in matched_pdf_keys:
             summary['unmatched_pdfs'].append({
                 '文件': key,
                 '行审案号': info.court_case_number,

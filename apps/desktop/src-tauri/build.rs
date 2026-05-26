@@ -169,8 +169,7 @@ fn sync_resources() -> std::io::Result<()> {
         sync_sample_data(project_root, &tauri_sample, BUNDLE_SAMPLE_MAPPINGS)?;
         verify_sample_data_bundle(&tauri_sample)?;
     } else if tauri_sample.exists() {
-        fs::remove_dir_all(&tauri_sample)?;
-        eprintln!("[build] dev: removed sample-data from tauri resources to prevent watch loop");
+        eprintln!("[build] dev: keeping existing sample-data in tauri resources");
     }
 
     Ok(())
@@ -327,18 +326,84 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
     Ok(())
 }
 
+/// dev 模式下删除 tauri.conf.json 中的 `resources/sample-data/**` 条目，
+/// 避免 tauri_build::build() 在 sample-data 缺失时报错退出。
+/// 返回原始 resources 数组（用于恢复）。
+fn patch_tauri_conf_for_dev(tauri_dir: &Path) -> Option<Vec<serde_json::Value>> {
+    let conf_path = tauri_dir.join("tauri.conf.json");
+    let content = fs::read_to_string(&conf_path).ok()?;
+    let mut doc: serde_json::Value = serde_json::from_str(&content).ok()?;
+
+    let resources = doc
+        .get_mut("tauri")?
+        .get_mut("bundle")?
+        .get_mut("resources")?
+        .as_array_mut()?;
+
+    let original = resources.clone();
+    resources.retain(|r| {
+        !r.as_str()
+            .map(|s| s.starts_with("resources/sample-data/"))
+            .unwrap_or(false)
+    });
+
+    fs::write(&conf_path, serde_json::to_string_pretty(&doc).unwrap()).ok()?;
+    Some(original)
+}
+
+/// 恢复 tauri.conf.json 中原始的 resources 数组
+fn restore_tauri_conf(tauri_dir: &Path, original: Vec<serde_json::Value>) {
+    let conf_path = tauri_dir.join("tauri.conf.json");
+    if let Ok(content) = fs::read_to_string(&conf_path) {
+        if let Ok(mut doc) = serde_json::from_str::<serde_json::Value>(&content) {
+            if let Some(resources) = doc
+                .get_mut("tauri")
+                .and_then(|d| d.get_mut("bundle"))
+                .and_then(|d| d.get_mut("resources"))
+                .and_then(|r| r.as_array_mut())
+            {
+                *resources = original;
+                let _ = fs::write(&conf_path, serde_json::to_string_pretty(&doc).unwrap());
+            }
+        }
+    }
+}
+
 fn main() {
     if let Err(err) = sync_resources() {
         panic!("failed to sync tauri resources: {err}");
     }
 
+    let profile = std::env::var("PROFILE").unwrap_or_default();
+    let is_release = profile == "release";
+
     let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR");
     let tauri_dir = Path::new(&manifest_dir);
     let project_root = tauri_dir.parent().unwrap().parent().unwrap().parent().unwrap();
     let resources_dir = tauri_dir.join("resources");
-    if let Err(err) = bundle_python_server_onefile(project_root, &resources_dir) {
-        panic!("failed to bundle python server (onefile): {err}");
+
+    if is_release {
+        if let Err(err) = bundle_python_server_onefile(project_root, &resources_dir) {
+            panic!("failed to bundle python server (onefile): {err}");
+        }
+    } else {
+        eprintln!("[build] dev: skip PyInstaller bundle (use GJJ_FORCE_SERVER_BUNDLE=1 to override)");
+        if std::env::var("GJJ_FORCE_SERVER_BUNDLE").ok().as_deref() == Some("1") {
+            if let Err(err) = bundle_python_server_onefile(project_root, &resources_dir) {
+                panic!("failed to bundle python server (onefile): {err}");
+            }
+        }
     }
 
-    tauri_build::build()
+    let saved_resources = if !is_release {
+        patch_tauri_conf_for_dev(tauri_dir)
+    } else {
+        None
+    };
+
+    tauri_build::build();
+
+    if let Some(original) = saved_resources {
+        restore_tauri_conf(tauri_dir, original);
+    }
 }

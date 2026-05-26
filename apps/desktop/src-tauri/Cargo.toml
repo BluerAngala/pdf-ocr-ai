@@ -10,6 +10,7 @@ rust-version = "1.70"
 
 [build-dependencies]
 tauri-build = { version = "1.5.1", features = [] }
+serde_json = "1.0"
 
 [dependencies]
 tauri = { version = "1.5.4", features = [ "dialog-message", "fs-copy-file", "fs-remove-dir", "fs-read-file", "fs-exists", "process-relaunch", "fs-create-dir", "fs-rename-file", "fs-read-dir", "fs-write-file", "fs-remove-file", "path-all", "os-all", "dialog-open", "dialog-save", "shell-open"] }

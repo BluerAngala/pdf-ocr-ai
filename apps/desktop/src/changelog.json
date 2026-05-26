@@ -1,6 +1,16 @@
 {
-  "version": "1.0.6",
+  "version": "1.0.7",
   "releases": [
+    {
+      "version": "1.0.7",
+      "date": "2026-05-26",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "修复并发 OCR 预热导致引擎死锁、桌面端一直显示「OCR引擎准备中」的问题"
+        }
+      ]
+    },
     {
       "version": "1.0.6",
       "date": "2026-05-23",
@@ -92,7 +102,7 @@
       ]
     },
     {
-      "version": "1.2.0",
+      "version": "1.0.1",
       "date": "2026-05-12",
       "changes": [
         {
@@ -102,28 +112,6 @@
         {
           "type": "improvement",
           "description": "优化主页布局，右上角新增功能入口"
-        }
-      ]
-    },
-    {
-      "version": "1.1.0",
-      "date": "2026-05-01",
-      "changes": [
-        {
-          "type": "feature",
-          "description": "新增企业信息查询模块"
-        },
-        {
-          "type": "feature",
-          "description": "支持批量查询企业工商信息"
-        },
-        {
-          "type": "improvement",
-          "description": "OCR 识别速度提升 30%"
-        },
-        {
-          "type": "fix",
-          "description": "修复非诉审查模块 PDF 切分异常问题"
         }
       ]
     },

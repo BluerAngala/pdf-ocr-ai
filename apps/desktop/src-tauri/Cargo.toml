@@ -1,6 +1,6 @@
 [package]
 name = "gjj-ocr-desktop"
-version = "1.0.6"
+version = "1.0.7"
 description = "公积金 OCR 工具 - Tauri 桌面版"
 authors = ["you"]
 license = "MIT"

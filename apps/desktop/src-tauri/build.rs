@@ -23,7 +23,6 @@ fn copy_dir_all(src: &Path, dst: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// 安装包内嵌样本（与各模块「测试示例」 preset_id 对应）
 const BUNDLE_SAMPLE_MAPPINGS: &[(&[&str], &str)] = &[
     (&["非诉组自动化样本材料"], "non-litigation-batch1"),
     (&["非诉组自动化样本材料（第2批）"], "non-litigation-batch2"),
@@ -125,35 +124,31 @@ fn verify_sample_data_bundle(dst_sample_data: &Path) -> std::io::Result<()> {
     ))
 }
 
-fn sync_resources() -> std::io::Result<()> {
-    let profile = std::env::var("PROFILE").unwrap_or_default();
-    let is_release = profile == "release";
+fn file_content_eq(a: &Path, b: &Path) -> bool {
+    let Ok(a_bytes) = fs::read(a) else {
+        return false;
+    };
+    let Ok(b_bytes) = fs::read(b) else {
+        return false;
+    };
+    a_bytes == b_bytes
+}
 
-    let manifest_dir = std::env::var("CARGO_MANIFEST_DIR")
-        .map_err(|err| std::io::Error::new(std::io::ErrorKind::Other, err))?;
-    let tauri_dir = Path::new(&manifest_dir);
-    let desktop_dir = tauri_dir.parent().unwrap();
-    let apps_dir = desktop_dir.parent().unwrap();
-    let project_root = apps_dir.parent().unwrap();
-    let resources_dir = tauri_dir.join("resources");
+fn sync_resources_release(
+    _tauri_dir: &Path,
+    project_root: &Path,
+    resources_dir: &Path,
+) -> std::io::Result<()> {
     let server_src_dst = resources_dir.join("server_src");
-    let server_src_src = apps_dir.join("server").join("src");
+    let server_src_src = project_root.join("apps").join("server").join("src");
     let config_src = project_root.join("config.yaml");
     let config_dst = resources_dir.join("config.yaml");
 
-    // dev 模式：不复制 server_src / sample-data 到 src-tauri/resources/，
-    // 避免 Tauri CLI 监听到文件变更触发无限重建循环。
-    // Python 通过 GJJ_OCR_RESOURCES 环境变量直接从项目根目录读取。
-    if is_release {
-        if server_src_dst.exists() {
-            fs::remove_dir_all(&server_src_dst)?;
-        }
-        copy_dir_all(&server_src_src, &server_src_dst)?;
-        eprintln!("[build] release: synced server_src -> {:?}", server_src_dst);
-    } else if server_src_dst.exists() {
+    if server_src_dst.exists() {
         fs::remove_dir_all(&server_src_dst)?;
-        eprintln!("[build] dev: removed server_src from tauri resources to prevent watch loop");
     }
+    copy_dir_all(&server_src_src, &server_src_dst)?;
+    eprintln!("[build] release: synced server_src -> {:?}", server_src_dst);
 
     if let Some(parent) = config_dst.parent() {
         fs::create_dir_all(parent)?;
@@ -161,15 +156,55 @@ fn sync_resources() -> std::io::Result<()> {
     fs::copy(&config_src, &config_dst)?;
 
     let tauri_sample = resources_dir.join("sample-data");
-    if is_release {
-        if tauri_sample.exists() {
-            fs::remove_dir_all(&tauri_sample)?;
+    if tauri_sample.exists() {
+        fs::remove_dir_all(&tauri_sample)?;
+    }
+    fs::create_dir_all(&tauri_sample)?;
+    sync_sample_data(project_root, &tauri_sample, BUNDLE_SAMPLE_MAPPINGS)?;
+    verify_sample_data_bundle(&tauri_sample)?;
+
+    Ok(())
+}
+
+/// dev 模式：仅确保 tauri_build::build() 所需的资源文件存在。
+/// 关键约束：绝不修改已有文件内容，避免触发 Tauri CLI watch 重建循环。
+fn sync_resources_dev(
+    _tauri_dir: &Path,
+    project_root: &Path,
+    resources_dir: &Path,
+) -> std::io::Result<()> {
+    let server_src_dst = resources_dir.join("server_src");
+    if server_src_dst.exists() {
+        fs::remove_dir_all(&server_src_dst)?;
+        eprintln!("[build] dev: removed server_src (not needed, prevents watch loop)");
+    }
+
+    let config_src = project_root.join("config.yaml");
+    let config_dst = resources_dir.join("config.yaml");
+    if !config_dst.exists() || !file_content_eq(&config_src, &config_dst) {
+        if let Some(parent) = config_dst.parent() {
+            fs::create_dir_all(parent)?;
         }
+        fs::copy(&config_src, &config_dst)?;
+        eprintln!("[build] dev: updated config.yaml (content changed)");
+    } else {
+        eprintln!("[build] dev: config.yaml unchanged, skipped copy");
+    }
+
+    let tauri_sample = resources_dir.join("sample-data");
+    if !tauri_sample.is_dir() {
         fs::create_dir_all(&tauri_sample)?;
-        sync_sample_data(project_root, &tauri_sample, BUNDLE_SAMPLE_MAPPINGS)?;
-        verify_sample_data_bundle(&tauri_sample)?;
-    } else if tauri_sample.exists() {
-        eprintln!("[build] dev: keeping existing sample-data in tauri resources");
+        let repo_sample = project_root.join("resources").join("sample-data");
+        if repo_sample.is_dir() {
+            copy_dir_all(&repo_sample, &tauri_sample)?;
+            eprintln!("[build] dev: copied sample-data from resources/sample-data");
+        } else {
+            let placeholder = tauri_sample.join(".gitkeep");
+            fs::write(&placeholder, "")?;
+            eprintln!("[build] dev: created sample-data placeholder");
+        }
+    } else {
+        eprintln!("[build] dev: sample-data exists, skipped");
     }
 
     Ok(())
@@ -205,7 +240,6 @@ fn run_onefile_verify(
     Ok(status.success())
 }
 
-/// PyInstaller onefile -> resources/gjj-ocr-server.exe（打包后 OCR 冒烟校验）
 fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> std::io::Result<()> {
     if std::env::var("GJJ_SKIP_SERVER_BUNDLE").ok().as_deref() == Some("1") {
         eprintln!("[build] GJJ_SKIP_SERVER_BUNDLE=1, skip PyInstaller");
@@ -326,54 +360,7 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
     Ok(())
 }
 
-/// dev 模式下删除 tauri.conf.json 中的 `resources/sample-data/**` 条目，
-/// 避免 tauri_build::build() 在 sample-data 缺失时报错退出。
-/// 返回原始 resources 数组（用于恢复）。
-fn patch_tauri_conf_for_dev(tauri_dir: &Path) -> Option<Vec<serde_json::Value>> {
-    let conf_path = tauri_dir.join("tauri.conf.json");
-    let content = fs::read_to_string(&conf_path).ok()?;
-    let mut doc: serde_json::Value = serde_json::from_str(&content).ok()?;
-
-    let resources = doc
-        .get_mut("tauri")?
-        .get_mut("bundle")?
-        .get_mut("resources")?
-        .as_array_mut()?;
-
-    let original = resources.clone();
-    resources.retain(|r| {
-        !r.as_str()
-            .map(|s| s.starts_with("resources/sample-data/"))
-            .unwrap_or(false)
-    });
-
-    fs::write(&conf_path, serde_json::to_string_pretty(&doc).unwrap()).ok()?;
-    Some(original)
-}
-
-/// 恢复 tauri.conf.json 中原始的 resources 数组
-fn restore_tauri_conf(tauri_dir: &Path, original: Vec<serde_json::Value>) {
-    let conf_path = tauri_dir.join("tauri.conf.json");
-    if let Ok(content) = fs::read_to_string(&conf_path) {
-        if let Ok(mut doc) = serde_json::from_str::<serde_json::Value>(&content) {
-            if let Some(resources) = doc
-                .get_mut("tauri")
-                .and_then(|d| d.get_mut("bundle"))
-                .and_then(|d| d.get_mut("resources"))
-                .and_then(|r| r.as_array_mut())
-            {
-                *resources = original;
-                let _ = fs::write(&conf_path, serde_json::to_string_pretty(&doc).unwrap());
-            }
-        }
-    }
-}
-
 fn main() {
-    if let Err(err) = sync_resources() {
-        panic!("failed to sync tauri resources: {err}");
-    }
-
     let profile = std::env::var("PROFILE").unwrap_or_default();
     let is_release = profile == "release";
 
@@ -383,11 +370,17 @@ fn main() {
     let resources_dir = tauri_dir.join("resources");
 
     if is_release {
+        if let Err(err) = sync_resources_release(tauri_dir, project_root, &resources_dir) {
+            panic!("failed to sync tauri resources: {err}");
+        }
         if let Err(err) = bundle_python_server_onefile(project_root, &resources_dir) {
             panic!("failed to bundle python server (onefile): {err}");
         }
     } else {
-        eprintln!("[build] dev: skip PyInstaller bundle (use GJJ_FORCE_SERVER_BUNDLE=1 to override)");
+        if let Err(err) = sync_resources_dev(tauri_dir, project_root, &resources_dir) {
+            panic!("failed to sync tauri resources (dev): {err}");
+        }
+        eprintln!("[build] dev: skip PyInstaller (use GJJ_FORCE_SERVER_BUNDLE=1 to override)");
         if std::env::var("GJJ_FORCE_SERVER_BUNDLE").ok().as_deref() == Some("1") {
             if let Err(err) = bundle_python_server_onefile(project_root, &resources_dir) {
                 panic!("failed to bundle python server (onefile): {err}");
@@ -395,15 +388,5 @@ fn main() {
         }
     }
 
-    let saved_resources = if !is_release {
-        patch_tauri_conf_for_dev(tauri_dir)
-    } else {
-        None
-    };
-
-    tauri_build::build();
-
-    if let Some(original) = saved_resources {
-        restore_tauri_conf(tauri_dir, original);
-    }
+    tauri_build::build()
 }

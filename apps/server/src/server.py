@@ -263,75 +263,82 @@ class JsonRpcServer:
 
     _warmed_up = False
     _ocr_engine_available = False
+    _warmup_lock = threading.Lock()
 
     def _ocr_warmup(self, params: Dict, id: Any) -> Dict:
         import time
-        start_time = time.time()
-        
+
         skip_gpu_probe = params.get('skip_gpu_probe', False)
         full_probe = params.get('full_probe', False)
-        
-        if JsonRpcServer._warmed_up and JsonRpcServer._ocr_engine_available:
+
+        if not JsonRpcServer._warmup_lock.acquire(blocking=True, timeout=180):
             return {"status": "already_warm", "duration_seconds": 0.01}
-        
+
         try:
-            print(
-                _safe_json_dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "notify.log",
-                        "params": {"level": "info", "message": f"正在初始化 OCR 引擎{'（快速模式）' if skip_gpu_probe else ''}..."},
-                    }
-                ),
-                file=sys.stderr,
-                flush=True,
-            )
-            
-            from core.pdf_ocr_ultra import get_ocr_engine
-            engine = get_ocr_engine(skip_gpu_probe=skip_gpu_probe)
-            
-            import numpy as np
-            from PIL import Image
-            dummy_img = Image.new('RGB', (100, 100), color='white')
-            engine(dummy_img)
-            
-            JsonRpcServer._warmed_up = True
-            JsonRpcServer._ocr_engine_available = True
-            
-            duration = time.time() - start_time
-            print(
-                _safe_json_dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "notify.log",
-                        "params": {"level": "info", "message": f"OCR 引擎初始化完成（耗时 {duration:.2f}s）"},
-                    }
-                ),
-                file=sys.stderr,
-                flush=True,
-            )
-            
-            return {
-                "status": "warm",
-                "duration_seconds": duration,
-                "provider": "RapidOCR",
-                "provider_info": "OCR 引擎已就绪",
-            }
-        except Exception as e:
-            JsonRpcServer._ocr_engine_available = False
-            error_msg = f"OCR 引擎初始化失败: {str(e)}"
-            print(
-                _safe_json_dumps(
-                    {
-                        "jsonrpc": "2.0",
-                        "method": "notify.log",
-                        "params": {"level": "error", "message": error_msg},
-                    }
-                ),
-                file=sys.stderr,
-                flush=True,
-            )
-            raise Exception(error_msg)
+            if JsonRpcServer._warmed_up and JsonRpcServer._ocr_engine_available:
+                return {"status": "already_warm", "duration_seconds": 0.01}
+
+            start_time = time.time()
+            try:
+                print(
+                    _safe_json_dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "notify.log",
+                            "params": {"level": "info", "message": f"正在初始化 OCR 引擎{'（快速模式）' if skip_gpu_probe else ''}..."},
+                        }
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+                from core.pdf_ocr_ultra import get_ocr_engine
+                engine = get_ocr_engine(skip_gpu_probe=skip_gpu_probe)
+
+                import numpy as np
+                from PIL import Image
+                dummy_img = Image.new('RGB', (100, 100), color='white')
+                engine(dummy_img)
+
+                JsonRpcServer._warmed_up = True
+                JsonRpcServer._ocr_engine_available = True
+
+                duration = time.time() - start_time
+                print(
+                    _safe_json_dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "notify.log",
+                            "params": {"level": "info", "message": f"OCR 引擎初始化完成（耗时 {duration:.2f}s）"},
+                        }
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+
+                return {
+                    "status": "warm",
+                    "duration_seconds": duration,
+                    "provider": "RapidOCR",
+                    "provider_info": "OCR 引擎已就绪",
+                }
+            except Exception as e:
+                JsonRpcServer._ocr_engine_available = False
+                error_msg = f"OCR 引擎初始化失败: {str(e)}"
+                print(
+                    _safe_json_dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "notify.log",
+                            "params": {"level": "error", "message": error_msg},
+                        }
+                    ),
+                    file=sys.stderr,
+                    flush=True,
+                )
+                raise Exception(error_msg)
+        finally:
+            JsonRpcServer._warmup_lock.release()
 
     def _ocr_clear_cache(self, params: Dict, id: Any) -> Dict:
         """清除 OCR 结果缓存"""

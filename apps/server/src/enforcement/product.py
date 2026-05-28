@@ -9,6 +9,7 @@
 3. 支持通过责令号或法院案号关联裁定信息
 """
 
+import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -186,63 +187,106 @@ class EnforcementCaseRegistry:
         normalized = self._normalize_court_case_number(case_number)
         return self._court_case_index.get(normalized)
     
+    @staticmethod
+    def _normalize_respondent_name(name: str) -> str:
+        return re.sub(r'[\s\u3000]+', '', str(name).strip())
+
     def find_by_respondent(self, respondent: str) -> List[EnforcementCase]:
-        """通过被执行人查找案件"""
-        return self._respondent_index.get(respondent, [])
-    
+        norm = self._normalize_respondent_name(respondent)
+        cases = self._respondent_index.get(respondent, [])
+        if cases:
+            return cases
+        if norm != respondent:
+            cases = self._respondent_index.get(norm, [])
+            if cases:
+                return cases
+        for key, val in self._respondent_index.items():
+            if self._normalize_respondent_name(key) == norm:
+                return val
+        return []
+
     def find_by_respondent_fuzzy(self, respondent: str, threshold: float = 0.8) -> List[EnforcementCase]:
-        """模糊匹配被执行人"""
         from difflib import SequenceMatcher
-        
+        norm_query = self._normalize_respondent_name(respondent)
         results = []
         for name, cases in self._respondent_index.items():
-            similarity = SequenceMatcher(None, respondent, name).ratio()
+            norm_name = self._normalize_respondent_name(name)
+            similarity = SequenceMatcher(None, norm_query, norm_name).ratio()
             if similarity >= threshold:
                 results.extend(cases)
         return results
-    
+
     def match_ruling_info(self, ruling_info) -> List[EnforcementCase]:
-        """
-        根据裁定信息匹配案件
-        
-        匹配策略：
-        1. 优先通过责令号匹配
-        2. 其次通过被执行人名称匹配
-        3. 最后通过法院案号匹配（如果台账中已有）
-        """
-        matched_cases = []
-        
-        # 1. 通过责令号匹配（支持一个裁定对应多行台账）
+        matched_by_notice = []
         for notice_number in getattr(ruling_info, 'notice_numbers', []):
             cases = self.find_all_by_notice_number(notice_number)
             for case in cases:
-                if case not in matched_cases:
-                    matched_cases.append(case)
-        
-        if matched_cases:
-            return matched_cases
-        
-        # 2. 通过被执行人匹配
+                if case not in matched_by_notice:
+                    matched_by_notice.append(case)
+
+        if matched_by_notice:
+            ocr_respondents = [
+                r.get('name', '')
+                for r in getattr(ruling_info, 'respondents', [])
+                if r.get('name')
+            ]
+            if ocr_respondents:
+                filtered = []
+                for case in matched_by_notice:
+                    for resp_name in ocr_respondents:
+                        if self._respondent_name_matches(case.respondent, resp_name):
+                            filtered.append(case)
+                            break
+                if filtered:
+                    return filtered
+            return matched_by_notice
+
+        respondent_matches = []
         for respondent in getattr(ruling_info, 'respondents', []):
             name = respondent.get('name', '')
-            if name:
-                # 先精确匹配
-                cases = self.find_by_respondent(name)
-                if cases:
-                    return cases
-                # 再模糊匹配
+            if not name:
+                continue
+            cases = self.find_by_respondent(name)
+            if not cases:
                 cases = self.find_by_respondent_fuzzy(name)
-                if cases:
-                    return cases
-        
-        # 3. 通过法院案号匹配
+            if cases:
+                respondent_matches.extend(cases)
+        seen = set()
+        deduped = []
+        for c in respondent_matches:
+            if id(c) not in seen:
+                seen.add(id(c))
+                deduped.append(c)
+        respondent_matches = deduped
+
+        if respondent_matches:
+            court_case = getattr(ruling_info, 'court_case_number', '')
+            if court_case:
+                court_matched = self.find_by_court_case_number(court_case)
+                if court_matched and court_matched in respondent_matches:
+                    return [court_matched]
+            if len(respondent_matches) <= 3:
+                return respondent_matches
+            return []
+
         court_case = getattr(ruling_info, 'court_case_number', '')
         if court_case:
             case = self.find_by_court_case_number(court_case)
             if case:
                 return [case]
-        
+
         return []
+
+    @staticmethod
+    def _respondent_name_matches(ledger_name: str, ocr_name: str) -> bool:
+        norm_ledger = EnforcementCaseRegistry._normalize_respondent_name(ledger_name)
+        norm_ocr = EnforcementCaseRegistry._normalize_respondent_name(ocr_name)
+        if norm_ledger == norm_ocr:
+            return True
+        if norm_ledger in norm_ocr or norm_ocr in norm_ledger:
+            return True
+        from difflib import SequenceMatcher
+        return SequenceMatcher(None, norm_ledger, norm_ocr).ratio() >= 0.85
     
     def update_case_from_ruling(self, case: EnforcementCase, ruling_info) -> None:
         """用裁定信息更新案件数据"""

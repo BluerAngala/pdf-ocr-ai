@@ -244,6 +244,187 @@ def normalize_notice_number(text: str) -> str:
     return text
 
 
+_RELAXED_NOTICE_PATTERN = re.compile(
+    r'([\u4e00-\u9fff]{1,2}公积金中心[\u4e00-\u9fff]{2,4}[责贵]字'
+    r'[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号)'
+)
+
+_KNOWN_DISTRICTS = [
+    '天河', '海珠', '荔湾', '越秀', '白云', '黄埔', '番禺', '南沙',
+    '萝岗', '花都', '增城', '从化', '开发',
+]
+
+_DISTRICT_VARIANTS = {
+    '番禹': '番禺', '香禹': '番禺', '步禹': '番禺',
+    '萝岗': '萝岗', '罗岗': '萝岗',
+    '海珠': '海珠', '海蛛': '海珠',
+    '越秀': '越秀', '越矛': '越秀',
+    '南沙': '南沙', '南沙': '南沙',
+}
+
+_PREFIX_VARIANTS = {
+    '穗公积金中心', '稳公积金中心', '德公积金中心', '稍公积金中心',
+}
+
+_FUZZY_MATCH_THRESHOLD = 75.0
+
+_NOTICE_STRUCT_PATTERN = re.compile(
+    r'([\u4e00-\u9fff]{1,2}公积金中心)([\u4e00-\u9fff]{2,4})([责贵]字[〔\[(［【])(\d{4})([〕\)\]］】])(\d+(?:-\d+)?)(号)'
+)
+
+
+def _parse_notice_components(notice: str) -> Optional[Dict]:
+    m = _NOTICE_STRUCT_PATTERN.match(notice)
+    if not m:
+        return None
+    return {
+        'prefix': m.group(1),
+        'district': m.group(2),
+        'prefix2': m.group(3),
+        'year': m.group(4),
+        'suffix_bracket': m.group(5),
+        'number': m.group(6),
+        'trailing': m.group(7),
+    }
+
+
+def _extract_notice_candidates_relaxed(text: str) -> List[str]:
+    return _RELAXED_NOTICE_PATTERN.findall(text)
+
+
+def _structural_correct_notice(raw: str) -> str:
+    s = raw
+    for wrong_prefix in _PREFIX_VARIANTS:
+        if s.startswith(wrong_prefix):
+            s = '穗公积金中心' + s[len(wrong_prefix):]
+            break
+    s = s.replace('贵字', '责字')
+    for variant, correct in _DISTRICT_VARIANTS.items():
+        if variant != correct and variant in s:
+            s = s.replace(variant, correct)
+    return s
+
+
+def _match_notice_from_ocr_text(
+    combined_text: str,
+    post_processor: TextPostProcessor,
+    notice_to_target: Dict[str, str],
+    ledger_notices: List[str],
+) -> Dict[str, Optional[str]]:
+    """
+    三级责令号匹配策略，确保准确性：
+    
+    Level 1 - 严格正则：直接匹配标准格式，精确对应台账
+    Level 2 - 宽松正则 + 模糊匹配：容忍 OCR 误识，通过 rapidfuzz 与台账比对纠错
+    Level 3 - 结构化纠错：不在台账中的责令号，按固定结构（前缀+区名+责字）修正
+    
+    返回: {'source': str, 'notice_number': str|None, 'target_name': str|None}
+    """
+    # Level 1: 严格正则（经 apply_ocr_corrections 预纠错后）
+    corrected = apply_ocr_corrections(combined_text, doc_type=None)
+    normalized_text = post_processor.normalize_brackets(corrected)
+    strict_numbers = post_processor.extract_decision_numbers(normalized_text)
+
+    for dn in strict_numbers:
+        n = normalize_notice_number(dn)
+        if n in notice_to_target:
+            return {'source': '严格匹配', 'notice_number': dn, 'target_name': notice_to_target[n]}
+
+    # Level 2: 宽松正则 + 模糊匹配台账（保证准确性：用台账原文替换 OCR 结果）
+    relaxed_candidates = _extract_notice_candidates_relaxed(combined_text)
+    if not relaxed_candidates:
+        relaxed_candidates = _extract_notice_candidates_relaxed(corrected)
+
+    for raw_candidate in relaxed_candidates:
+        structured = _structural_correct_notice(raw_candidate)
+        ledger_match = fuzzy_match_notice_number(structured, ledger_notices)
+        if ledger_match:
+            n = normalize_notice_number(ledger_match)
+            target = notice_to_target.get(n)
+            return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target}
+
+    # Level 2.5: 用严格正则提取到的但不在台账中的，也尝试模糊匹配
+    for dn in strict_numbers:
+        ledger_match = fuzzy_match_notice_number(dn, ledger_notices)
+        if ledger_match:
+            n = normalize_notice_number(ledger_match)
+            target = notice_to_target.get(n)
+            return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target}
+
+    # Level 3: 结构化纠错（不在台账中的责令号）
+    # 优先用严格正则结果（已通过纠错），其次用宽松正则+结构纠错
+    if strict_numbers:
+        corrected = _structural_correct_notice(strict_numbers[0])
+        return {'source': '结构纠错', 'notice_number': corrected, 'target_name': None}
+
+    for raw_candidate in relaxed_candidates:
+        corrected_notice = _structural_correct_notice(raw_candidate)
+        return {'source': '结构纠错', 'notice_number': corrected_notice, 'target_name': None}
+
+    return {'source': 'unknown', 'notice_number': None, 'target_name': None}
+
+
+def _resolve_district(raw_district: str) -> Optional[str]:
+    for district in _KNOWN_DISTRICTS:
+        try:
+            from rapidfuzz import fuzz as rf_fuzz
+            if rf_fuzz.ratio(raw_district, district, score_cutoff=70.0):
+                return district
+        except ImportError:
+            if raw_district in _DISTRICT_VARIANTS:
+                return _DISTRICT_VARIANTS[raw_district]
+    return _DISTRICT_VARIANTS.get(raw_district)
+
+
+def _structured_match_notice(
+    candidate: str,
+    ledger_notices: List[str],
+) -> Optional[str]:
+    """
+    结构化责令号匹配：按组件（年+编号+区名）逐一比对。
+    
+    匹配逻辑：
+    1. 解析候选和台账的责令号为结构组件
+    2. 年份必须完全一致
+    3. 数字编号必须完全一致
+    4. 区名通过模糊匹配纠错（容忍番禹→番禺等 OCR 误识）
+    5. 满足以上条件 → 采用台账原文（保证准确性）
+    """
+    corrected = _structural_correct_notice(candidate)
+    cand_parts = _parse_notice_components(corrected)
+    if not cand_parts:
+        return None
+
+    cand_district = _resolve_district(cand_parts['district'])
+    cand_year = cand_parts['year']
+    cand_number = cand_parts['number']
+
+    for ledger in ledger_notices:
+        ledger_parts = _parse_notice_components(ledger)
+        if not ledger_parts:
+            continue
+        if ledger_parts['year'] != cand_year:
+            continue
+        if ledger_parts['number'] != cand_number:
+            continue
+        if cand_district and ledger_parts['district'] != cand_district:
+            continue
+        return ledger
+
+    return None
+
+
+def fuzzy_match_notice_number(
+    candidate: str,
+    ledger_notices: List[str],
+    threshold: float = _FUZZY_MATCH_THRESHOLD,
+) -> Optional[str]:
+    match = _structured_match_notice(candidate, ledger_notices)
+    if match:
+        return match
+    return None
+
+
 def _get_notice_root_number(notice_number: str) -> str:
     normalized = normalize_notice_number(notice_number)
     return re.sub(r'(\d+)-\d+号$', r'\1号', normalized)
@@ -1836,25 +2017,27 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
     if len(ranges) != expected_cases:
         _log(f"  [INFO] 按实际识别到 {len(ranges)} 个案件处理（台账 {expected_cases} 个）")
 
-    # 构建责令号 → target_name 的查找表（从 Excel 台账）
+    # 构建台账责令号查找表
     post_processor = TextPostProcessor()
     notice_to_target: Dict[str, str] = {}
+    ledger_notices: List[str] = []
     for target_name in target_names:
-        # 从文件名中提取责令号，格式: {seq}-申请书pdf-{notice_number}.pdf
         stem = Path(target_name).stem
-        # 责令号在最后一个 '-' 或 'pdf-' 之后
         parts = stem.split('-申请书pdf-', 1)
         if len(parts) == 2:
             notice_str = parts[1]
             normalized = normalize_notice_number(notice_str)
             if normalized not in notice_to_target:
                 notice_to_target[normalized] = target_name
+                ledger_notices.append(notice_str)
 
-    # 从 OCR 文本中为每个页面范围提取责令号，匹配正确的 target_name
+    # 提取 OCR 文本并为每个页面范围匹配责令号
     data = _get_ocr_result(ocr_results, '申请书')
     result_names: List[str] = []
-    ocr_match_count = 0
-    ocr_construct_count = 0
+    ledger_match_count = 0
+    fuzzy_match_count = 0
+    structural_correct_count = 0
+    unknown_count = 0
 
     if data and data.get('pages'):
         for range_idx, (start_page, end_page) in enumerate(ranges):
@@ -1867,34 +2050,35 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
                         case_texts.append(text)
 
             combined = '\n'.join(case_texts)
-            combined = apply_ocr_corrections(combined, doc_type=None)
-            combined_normalized = post_processor.normalize_brackets(combined)
-            decision_numbers = post_processor.extract_decision_numbers(combined_normalized)
 
-            matched = None
-            for dn in decision_numbers:
-                normalized = normalize_notice_number(dn)
-                if normalized in notice_to_target:
-                    matched = notice_to_target[normalized]
-                    break
+            # 三级匹配：严格正则 → 宽松正则+模糊匹配 → 结构化纠错
+            final_notice = _match_notice_from_ocr_text(
+                combined, post_processor, notice_to_target, ledger_notices
+            )
+            src_label = final_notice.get('source', 'unknown')
+            notice_number = final_notice.get('notice_number')
+            target_name_matched = final_notice.get('target_name')
 
-            if matched:
-                result_names.append(matched)
-                ocr_match_count += 1
-                _log(f"    [OK] 第 {start_page+1}-{end_page} 页 → {matched}")
-            elif decision_numbers:
-                ocr_notice = decision_numbers[0]
-                constructed = f"{range_idx + 1}-申请书pdf-{ocr_notice}.pdf"
+            if target_name_matched:
+                result_names.append(target_name_matched)
+                ledger_match_count += 1
+                _log(f"    [{src_label}] 第 {start_page+1}-{end_page} 页 → {target_name_matched}")
+            elif notice_number:
+                constructed = f"{range_idx + 1}-申请书pdf-{notice_number}.pdf"
                 result_names.append(constructed)
-                ocr_construct_count += 1
-                _log(f"    [OCR] 第 {start_page+1}-{end_page} 页 → OCR提取责令号 {ocr_notice}（不在台账中，已用OCR责令号命名）")
+                if src_label == 'fuzzy':
+                    fuzzy_match_count += 1
+                else:
+                    structural_correct_count += 1
+                _log(f"    [{src_label}] 第 {start_page+1}-{end_page} 页 → {notice_number}")
             else:
                 fallback_name = f"{range_idx + 1}-申请书pdf-未知责令号.pdf"
                 result_names.append(fallback_name)
+                unknown_count += 1
                 _log(f"    [WARN] 第 {start_page+1}-{end_page} 页未提取到责令号")
 
     if result_names:
-        _log(f"  [INFO] 申请书命名结果: 台账匹配 {ocr_match_count}, OCR提取 {ocr_construct_count}, 未识别 {len(ranges) - ocr_match_count - ocr_construct_count}")
+        _log(f"  [INFO] 申请书命名: 台账匹配 {ledger_match_count}, 模糊匹配 {fuzzy_match_count}, 结构纠错 {structural_correct_count}, 未识别 {unknown_count}")
         return export_pdf_ranges(source_pdf, ranges, output_dir, result_names)
 
     _log(f"  [WARN] 无 OCR 数据，按台账顺序命名（可能不准确）")

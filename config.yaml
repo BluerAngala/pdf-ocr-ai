@@ -435,6 +435,24 @@ enforcement:
     correct: 二〇二
   - wrong: 二零二
     correct: 二〇二
+  - wrong: 贵字〔
+    correct: 责字〔
+  - wrong: 贵字[
+    correct: 责字[
+  - wrong: 贵字（
+    correct: 责字（
+  - wrong: 贵字【
+    correct: 责字【
+  - wrong: 贵字［
+    correct: 责字［
+  - wrong: 稳公积金
+    correct: 穗公积金
+  - wrong: 德公积金
+    correct: 穗公积金
+  - wrong: 公基金
+    correct: 公积金
+  - wrong: 责行
+    correct: 责令
 company_query:
   api_url: https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/search_company_info
   userid: test_user_001

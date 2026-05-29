@@ -27,6 +27,45 @@ _enforcement_cfg = _cfg.raw_config.get('enforcement', {})
 _extraction_cfg = _enforcement_cfg.get('extraction', {})
 
 
+_RELAXED_NOTICE_PATTERN = re.compile(
+    r'([\u4e00-\u9fff]{1,2}公积金中心[\u4e00-\u9fff]{2,4}[责贵]字'
+    r'[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号)'
+)
+
+_NOTICE_STRUCT_PATTERN = re.compile(
+    r'([\u4e00-\u9fff]{1,2}公积金中心)([\u4e00-\u9fff]{2,4})([责贵]字[〔\[(［【])(\d{4})([〕\)\]］】])(\d+(?:-\d+)?)(号)'
+)
+
+_KNOWN_DISTRICTS = [
+    '天河', '海珠', '荔湾', '越秀', '白云', '黄埔', '番禺', '南沙',
+    '萝岗', '花都', '增城', '从化', '开发',
+]
+
+_DISTRICT_VARIANTS = {
+    '番禹': '番禺', '香禹': '番禺', '步禹': '番禺',
+    '罗岗': '萝岗',
+    '海蛛': '海珠',
+    '越矛': '越秀',
+}
+
+_PREFIX_VARIANTS = {
+    '穗公积金中心', '稳公积金中心', '德公积金中心', '稍公积金中心',
+}
+
+
+def structural_correct_notice(raw: str) -> str:
+    s = raw
+    for wrong_prefix in _PREFIX_VARIANTS:
+        if wrong_prefix in s:
+            s = s.replace(wrong_prefix, '穗公积金中心', 1)
+            break
+    s = s.replace('贵字', '责字')
+    for variant, correct in _DISTRICT_VARIANTS.items():
+        if variant != correct and variant in s:
+            s = s.replace(variant, correct)
+    return s
+
+
 CJK_RANGE = re.compile(r'([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])\s+([\u4e00-\u9fff\u3000-\u303f\uff00-\uffef])')
 CJK_PUNCT = re.compile(r'([\u4e00-\u9fff])\s+([，。；：、！？…——（）《》〔〕【】［］""])')
 CJK_DIGIT_BEFORE = re.compile(r'([\u4e00-\u9fff])\s+(\d)')
@@ -395,6 +434,9 @@ class RulingTextExtractor:
         notice_results = self.notice_extractor.extract_all(compact_text)
         info.notice_numbers = self._normalize_notice_numbers(notice_results)
 
+        if not info.notice_numbers:
+            info.notice_numbers = self._extract_notice_relaxed(compact_text)
+
         range_notices = self._expand_notice_ranges(compact_text)
         for rn in range_notices:
             normalized = self._normalize_notice_number(rn)
@@ -467,6 +509,21 @@ class RulingTextExtractor:
         case_num = case_num.replace('(', '（').replace(')', '）')
         case_num = case_num.replace('[', '（').replace(']', '）')
         return case_num
+
+    def _extract_notice_relaxed(self, text: str) -> List[str]:
+        """宽松正则 + 结构化纠错兜底：容忍 贵→责、稳→穗、番禹→番禺 等 OCR 误识"""
+        candidates = _RELAXED_NOTICE_PATTERN.findall(text)
+        if not candidates:
+            return []
+        results = []
+        seen = set()
+        for raw in candidates:
+            corrected = structural_correct_notice(raw)
+            normalized = self._normalize_notice_number(corrected)
+            if normalized not in seen:
+                seen.add(normalized)
+                results.append(corrected)
+        return results
 
     def _normalize_notice_number(self, num: str) -> str:
         """标准化责令号：统一括号为〔〕"""

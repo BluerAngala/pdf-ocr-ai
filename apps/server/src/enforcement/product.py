@@ -21,6 +21,11 @@ from core.paths import ROOT
 
 from core.config_loader import load_config
 
+from enforcement.extractor import (
+    _NOTICE_STRUCT_PATTERN, _KNOWN_DISTRICTS, _DISTRICT_VARIANTS,
+    structural_correct_notice,
+)
+
 _cfg = load_config()
 _enforcement_cfg = _cfg.raw_config.get('enforcement', {})
 _excel_cfg = _enforcement_cfg.get('excel_parsing', {})
@@ -159,7 +164,7 @@ class EnforcementCaseRegistry:
             return None
     
     def find_by_notice_number(self, notice_number: str) -> Optional[EnforcementCase]:
-        """通过责令号查找案件（支持长短格式匹配）"""
+        """通过责令号查找案件（支持长短格式 + 结构化模糊匹配）"""
         normalized = self._normalize_notice_number(notice_number)
         if normalized in self._notice_index:
             return self._notice_index[normalized]
@@ -167,10 +172,13 @@ class EnforcementCaseRegistry:
             excel_norm = self._normalize_notice_number(excel_notice)
             if normalized.endswith(excel_norm) or excel_norm.endswith(normalized):
                 return case
+        match = self._structured_match_notice(notice_number)
+        if match:
+            return match
         return None
     
     def find_all_by_notice_number(self, notice_number: str) -> List[EnforcementCase]:
-        """通过责令号查找所有匹配案件（支持长短格式匹配）"""
+        """通过责令号查找所有匹配案件（支持长短格式 + 结构化模糊匹配）"""
         normalized = self._normalize_notice_number(notice_number)
         results = []
         if normalized in self._notice_index:
@@ -180,7 +188,66 @@ class EnforcementCaseRegistry:
             if excel_norm != normalized:
                 if normalized.endswith(excel_norm) or excel_norm.endswith(normalized):
                     results.append(case)
+        if not results:
+            match = self._structured_match_notice(notice_number)
+            if match:
+                results.append(match)
         return results
+    
+    def _structured_match_notice(self, candidate: str) -> Optional[EnforcementCase]:
+        """
+        结构化责令号匹配：解析年+编号+区名，按组件比对台账。
+        纠正 OCR 误识后与台账精确比对，保证匹配准确性。
+        """
+        corrected = structural_correct_notice(candidate)
+        cand_parts = self._parse_notice_components(corrected)
+        if not cand_parts:
+            return None
+
+        cand_district = self._resolve_district(cand_parts['district'])
+        cand_year = cand_parts['year']
+        cand_number = cand_parts['number']
+
+        for excel_notice, case in self._notice_index.items():
+            excel_parts = self._parse_notice_components(excel_notice)
+            if not excel_parts:
+                continue
+            if excel_parts['year'] != cand_year:
+                continue
+            if excel_parts['number'] != cand_number:
+                continue
+            if cand_district and excel_parts['district'] != cand_district:
+                continue
+            return case
+
+        return None
+
+    @staticmethod
+    def _parse_notice_components(notice: str) -> Optional[Dict[str, str]]:
+        m = _NOTICE_STRUCT_PATTERN.match(notice)
+        if not m:
+            return None
+        return {
+            'prefix': m.group(1),
+            'district': m.group(2),
+            'year': m.group(4),
+            'number': m.group(6),
+        }
+
+    @staticmethod
+    def _resolve_district(raw_district: str) -> Optional[str]:
+        if raw_district in _DISTRICT_VARIANTS:
+            return _DISTRICT_VARIANTS[raw_district]
+        if raw_district in _KNOWN_DISTRICTS:
+            return raw_district
+        try:
+            from rapidfuzz import fuzz as rf_fuzz
+            for district in _KNOWN_DISTRICTS:
+                if rf_fuzz.ratio(raw_district, district, score_cutoff=70.0):
+                    return district
+        except ImportError:
+            pass
+        return None
     
     def find_by_court_case_number(self, case_number: str) -> Optional[EnforcementCase]:
         """通过法院案号查找案件"""

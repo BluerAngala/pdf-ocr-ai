@@ -295,8 +295,8 @@ def _extract_notice_candidates_relaxed(text: str) -> List[str]:
 def _structural_correct_notice(raw: str) -> str:
     s = raw
     for wrong_prefix in _PREFIX_VARIANTS:
-        if s.startswith(wrong_prefix):
-            s = '穗公积金中心' + s[len(wrong_prefix):]
+        if wrong_prefix in s:
+            s = s.replace(wrong_prefix, '穗公积金中心', 1)
             break
     s = s.replace('贵字', '责字')
     for variant, correct in _DISTRICT_VARIANTS.items():

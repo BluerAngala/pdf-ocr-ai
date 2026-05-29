@@ -103,6 +103,7 @@ class DocTypeConfig:
     is_notice: bool
     content_marker: Optional[str] = None
     ocr: DocTypeOcrConfig = field(default_factory=DocTypeOcrConfig)
+    secondary_boundary_evidence: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -173,6 +174,7 @@ class NonLitigationConfig:
     notice_region_fallback_min_text_length: int = 8
     application_region_fallback_min_text_length: int = 5
     company_doc_region_fallback_min_text_length: int = 6
+    application_secondary_boundary_evidence: List[str] = field(default_factory=list)
     ocr_skip_blank_pages: bool = True
     ocr_blank_page_threshold: float = 0.02
 
@@ -259,6 +261,7 @@ def load_config() -> NonLitigationConfig:
             is_notice=dt_raw.get('is_notice', False),
             content_marker=dt_raw.get('content_marker'),
             ocr=_parse_ocr_config(dt_raw.get('ocr', {})),
+            secondary_boundary_evidence=dt_raw.get('secondary_boundary_evidence', []),
         )
         cfg.doc_types.append(dt)
         cfg.doc_type_map[dt.key] = dt
@@ -318,6 +321,7 @@ def load_config() -> NonLitigationConfig:
     app_dt = cfg.doc_type_map.get('申请书')
     if app_dt:
         cfg.application_region_fallback_min_text_length = app_dt.ocr.region_fallback_min_text_length
+        cfg.application_secondary_boundary_evidence = app_dt.secondary_boundary_evidence
 
     company_dts = [dt for dt in cfg.doc_types if dt.key in ('授权书', '所函')]
     if company_dts:

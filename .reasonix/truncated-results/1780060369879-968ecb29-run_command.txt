@@ -1,0 +1,403 @@
+$ python scripts/diagnose_new_app.py 2>&1
+[exit 0]
+[32m[INFO] 2026-05-29 21:12:49,224 [RapidOCR] base.py:22: Using engine_name: onnxruntime[0m
+[32m[INFO] 2026-05-29 21:12:49,323 [RapidOCR] download_file.py:60: File exists and is valid: C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\rapidocr\models\ch_PP-OCRv4_det_infer.onnx[0m
+[32m[INFO] 2026-05-29 21:12:49,323 [RapidOCR] main.py:53: Using C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\rapidocr\models\ch_PP-OCRv4_det_infer.onnx[0m
+[32m[INFO] 2026-05-29 21:12:49,445 [RapidOCR] base.py:22: Using engine_name: onnxruntime[0m
+[32m[INFO] 2026-05-29 21:12:49,448 [RapidOCR] download_file.py:60: File exists and is valid: C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_infer.onnx[0m
+[32m[INFO] 2026-05-29 21:12:49,448 [RapidOCR] main.py:53: Using C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\rapidocr\models\ch_ppocr_mobile_v2.0_cls_infer.onnx[0m
+[32m[INFO] 2026-05-29 21:12:49,501 [RapidOCR] base.py:22: Using engine_name: onnxruntime[0m
+[32m[INFO] 2026-05-29 21:12:49,518 [RapidOCR] download_file.py:60: File exists and is valid: C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\rapidocr\models\ch_PP-OCRv4_rec_infer.onnx[0m
+[32m[INFO] 2026-05-29 21:12:49,518 [RapidOCR] main.py:53: Using C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\rapidocr\models\ch_PP-OCRv4_rec_infer.onnx[0m
+Traceback (most recent call last):
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 581, in pdfinfo_from_path
+    proc = Popen(command, env=env, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1550, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\scripts\diagnose_new_app.py", line 78, in <module>
+    full_image = extractor.extract_full_page(pdf_path, page_num)
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 166, in extract_full_page
+    return self._render_page(pdf_path, page_num)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 109, in _render_page
+    images = convert_from_path(
+        str(pdf_path),
+    ...<3 lines>...
+        poppler_path=self.poppler_path,
+    )
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 127, in convert_from_path
+    page_count = pdfinfo_from_path(
+                 ~~~~~~~~~~~~~~~~~^
+        pdf_path, userpw, ownerpw, poppler_path=poppler_path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )["Pages"]
+    ^
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 607, in pdfinfo_from_path
+    raise PDFInfoNotInstalledError(
+        "Unable to get page count. Is poppler installed and in PATH?"
+    )
+pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+Traceback (most recent call last):
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 581, in pdfinfo_from_path
+    proc = Popen(command, env=env, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1550, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\scripts\diagnose_new_app.py", line 78, in <module>
+    full_image = extractor.extract_full_page(pdf_path, page_num)
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 166, in extract_full_page
+    return self._render_page(pdf_path, page_num)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 109, in _render_page
+    images = convert_from_path(
+        str(pdf_path),
+    ...<3 lines>...
+        poppler_path=self.poppler_path,
+    )
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 127, in convert_from_path
+    page_count = pdfinfo_from_path(
+                 ~~~~~~~~~~~~~~~~~^
+        pdf_path, userpw, ownerpw, poppler_path=poppler_path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )["Pages"]
+    ^
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 607, in pdfinfo_from_path
+    raise PDFInfoNotInstalledError(
+        "Unable to get page count. Is poppler installed and in PATH?"
+    )
+pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+Traceback (most recent call last):
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 581, in pdfinfo_from_path
+    proc = Popen(command, env=env, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1550, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\scripts\diagnose_new_app.py", line 78, in <module>
+    full_image = extractor.extract_full_page(pdf_path, page_num)
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 166, in extract_full_page
+    return self._render_page(pdf_path, page_num)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 109, in _render_page
+    images = convert_from_path(
+        str(pdf_path),
+    ...<3 lines>...
+        poppler_path=self.poppler_path,
+    )
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 127, in convert_from_path
+    page_count = pdfinfo_from_path(
+                 ~~~~~~~~~~~~~~~~~^
+        pdf_path, userpw, ownerpw, poppler_path=poppler_path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )["Pages"]
+    ^
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 607, in pdfinfo_from_path
+    raise PDFInfoNotInstalledError(
+        "Unable to get page count. Is poppler installed and in PATH?"
+    )
+pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+Traceback (most recent call last):
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 581, in pdfinfo_from_path
+    proc = Popen(command, env=env, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1550, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\scripts\diagnose_new_app.py", line 78, in <module>
+    full_image = extractor.extract_full_page(pdf_path, page_num)
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 166, in extract_full_page
+    return self._render_page(pdf_path, page_num)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 109, in _render_page
+    images = convert_from_path(
+        str(pdf_path),
+    ...<3 lines>...
+        poppler_path=self.poppler_path,
+    )
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 127, in convert_from_path
+    page_count = pdfinfo_from_path(
+                 ~~~~~~~~~~~~~~~~~^
+        pdf_path, userpw, ownerpw, poppler_path=poppler_path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )["Pages"]
+    ^
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 607, in pdfinfo_from_path
+    raise PDFInfoNotInstalledError(
+        "Unable to get page count. Is poppler installed and in PATH?"
+    )
+pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+Traceback (most recent call last):
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 581, in pdfinfo_from_path
+    proc = Popen(command, env=env, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1550, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\scripts\diagnose_new_app.py", line 78, in <module>
+    full_image = extractor.extract_full_page(pdf_path, page_num)
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 166, in extract_full_page
+    return self._render_page(pdf_path, page_num)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 109, in _render_page
+    images = convert_from_path(
+        str(pdf_path),
+    ...<3 lines>...
+        poppler_path=self.poppler_path,
+    )
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 127, in convert_from_path
+    page_count = pdfinfo_from_path(
+                 ~~~~~~~~~~~~~~~~~^
+        pdf_path, userpw, ownerpw, poppler_path=poppler_path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )["Pages"]
+    ^
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 607, in pdfinfo_from_path
+    raise PDFInfoNotInstalledError(
+        "Unable to get page count. Is poppler installed and in PATH?"
+    )
+pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+Traceback (most recent call last):
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 581, in pdfinfo_from_path
+    proc = Popen(command, env=env, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1550, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\scripts\diagnose_new_app.py", line 78, in <module>
+    full_image = extractor.extract_full_page(pdf_path, page_num)
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 166, in extract_full_page
+    return self._render_page(pdf_path, page_num)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 109, in _render_page
+    images = convert_from_path(
+        str(pdf_path),
+    ...<3 lines>...
+        poppler_path=self.poppler_path,
+    )
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 127, in convert_from_path
+    page_count = pdfinfo_from_path(
+                 ~~~~~~~~~~~~~~~~~^
+        pdf_path, userpw, ownerpw, poppler_path=poppler_path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )["Pages"]
+    ^
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 607, in pdfinfo_from_path
+    raise PDFInfoNotInstalledError(
+        "Unable to get page count. Is poppler installed and in PATH?"
+    )
+pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+Traceback (most recent call last):
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 581, in pdfinfo_from_path
+    proc = Popen(command, env=env, stdout=PIPE, stderr=PIPE)
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1038, in __init__
+    self._execute_child(args, executable, preexec_fn, close_fds,
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        pass_fds, cwd, env,
+                        ^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+                        gid, gids, uid, umask,
+                        ^^^^^^^^^^^^^^^^^^^^^^
+                        start_new_session, process_group)
+                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python313\Lib\subprocess.py", line 1550, in _execute_child
+    hp, ht, pid, tid = _winapi.CreateProcess(executable, args,
+                       ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+                             # no special security
+                             ^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+                             cwd,
+                             ^^^^
+                             startupinfo)
+                             ^^^^^^^^^^^^
+FileNotFoundError: [WinError 2] 系统找不到指定的文件。
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\scripts\diagnose_new_app.py", line 78, in <module>
+    full_image = extractor.extract_full_page(pdf_path, page_num)
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 166, in extract_full_page
+    return self._render_page(pdf_path, page_num)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\11071\Documents\trae_projects\pdf识别\apps\server\src\core\region_extractor.py", line 109, in _render_page
+    images = convert_from_path(
+        str(pdf_path),
+    ...<3 lines>...
+        poppler_path=self.poppler_path,
+    )
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 127, in convert_from_path
+    page_count = pdfinfo_from_path(
+                 ~~~~~~~~~~~~~~~~~^
+        pdf_path, userpw, ownerpw, poppler_path=poppler_path
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )["Pages"]
+    ^
+  File "C:\Users\11071\AppData\Roaming\Python\Python313\site-packages\pdf2image\pdf2image.py", line 607, in pdfinfo_from_path
+    raise PDFInfoNotInstalledError(
+        "Unable to get page count. Is poppler installed and in PATH?"
+    )
+pdf2image.exceptions.PDFInfoNotInstalledError: Unable to get page count. Is poppler installed and in PATH?
+申请书边界关键词: ['强制执行申请书', '申请执行书', '强制执行申请']
+PDF: 样本材料\原始文件\申请书\申请书.pdf (2349.7 KB)
+
+总页数: 40
+
+=== pdfplumber 直接提取（前5页） ===
+
+可提取文本页数: 0/10
+⚠️ 全部为扫描件，完全依赖 OCR！
+
+
+=== RapidOCR 识别（前6页）===
+application_title 区域: top=8%, bottom=18%, left=35%, right=75%
+PDF 总页数: 40
+
+--- 第 1 页 ---
+  ❌ 错误: Unable to get page count. Is poppler installed and in PATH?
+
+--- 第 2 页 ---
+  ❌ 错误: Unable to get page count. Is poppler installed and in PATH?
+
+--- 第 3 页 ---
+  ❌ 错误: Unable to get page count. Is poppler installed and in PATH?
+
+--- 第 4 页 ---
+  ❌ 错误: Unable to get page count. Is poppler installed and in PATH?
+
+--- 第 5 页 ---
+  ❌ 错误: Unable to get page count. Is poppler installed and in PATH?
+
+--- 第 6 页 ---
+  ❌ 错误: Unable to get page count. Is poppler installed and in PATH?
+
+--- 第 7 页 ---
+  ❌ 错误: Unable to get page count. Is poppler installed and in PATH?

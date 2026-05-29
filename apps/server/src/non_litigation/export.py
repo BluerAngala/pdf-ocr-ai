@@ -66,6 +66,7 @@ except ImportError:
 
 SOURCE_MAPPING = _cfg.source_mapping
 APPLICATION_BOUNDARY_KEYWORDS = _cfg.boundary_keywords.get('申请书', [])
+APPLICATION_SECONDARY_EVIDENCE = _cfg.application_secondary_boundary_evidence
 NON_LITIGATION_RESULT_DIRNAME = _cfg.result_dirname
 NON_LITIGATION_TEMP_DIRNAME = _cfg.temp_dirname
 NON_LITIGATION_INPUT_DIRNAME = _cfg.input_dirname
@@ -269,6 +270,26 @@ def _compact_text(text: str) -> str:
     return text.replace('\n', '').replace(' ', '')
 
 
+def _get_region_text(logs: List[Dict], region_key: str) -> str:
+    """从 page_logs 中提取指定区域的 OCR 文本"""
+    for entry in logs:
+        if entry.get('region_key') == region_key:
+            return entry.get('text', '')
+    return ''
+
+
+def _count_secondary_evidence(text: str, evidence_keywords: List[str]) -> int:
+    """统计文本中命中的辅助证据关键词数量"""
+    return sum(1 for kw in evidence_keywords if kw in text)
+
+
+def _check_boundary_secondary(text: str, evidence_keywords: List[str], min_hits: int = 2) -> bool:
+    """检查辅助证据是否足够判定为边界页"""
+    if not evidence_keywords:
+        return False
+    return _count_secondary_evidence(text, evidence_keywords) >= min_hits
+
+
 def _build_region_stats(page_logs: List[Dict]) -> Dict:
     text_lengths = [item.get('text_length', 0) for item in page_logs]
     return {
@@ -308,6 +329,7 @@ def _should_fallback_application(
     expected_boundaries: int,
     expected_start_pages: set,
     min_text_length: int = None,
+    page_logs: List[Dict] = None,
 ) -> Tuple[bool, Optional[str]]:
     compact = _compact_text(text)
     is_candidate_boundary_page = page_num in expected_start_pages
@@ -320,8 +342,21 @@ def _should_fallback_application(
 
     if not is_candidate_boundary_page:
         return False, None
-    if any(keyword in text for keyword in APPLICATION_BOUNDARY_KEYWORDS):
+    # 主信号：标题区域关键词
+    title_text = _get_region_text(page_logs or [], 'application_title')
+    if title_text:
+        title_corrected = apply_ocr_corrections(title_text, doc_type='申请书')
+        if any(keyword in title_text or keyword in title_corrected for keyword in APPLICATION_BOUNDARY_KEYWORDS):
+            return False, None
+    elif any(keyword in text for keyword in APPLICATION_BOUNDARY_KEYWORDS):
         return False, None
+    # 备用信号：被执行人区域辅助证据
+    respondent_text = _get_region_text(page_logs or [], 'application_respondent')
+    if respondent_text and APPLICATION_SECONDARY_EVIDENCE:
+        respondent_corrected = apply_ocr_corrections(respondent_text, doc_type='申请书')
+        combined_resp = respondent_text + respondent_corrected
+        if _check_boundary_secondary(combined_resp, APPLICATION_SECONDARY_EVIDENCE, min_hits=2):
+            return False, 'secondary_evidence_found'
     if weak_region_text:
         return True, 'boundary_candidate_text_short'
     if boundary_gap_exists and not nearby_boundary_signal:
@@ -822,8 +857,34 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
             fallback_used = False
             application_region_results = []
 
-            def _is_application_boundary(text: str) -> bool:
-                return any(keyword in text for keyword in APPLICATION_BOUNDARY_KEYWORDS)
+            def _is_application_boundary(text: str, page_logs: List[Dict] = None) -> Tuple[bool, Optional[str]]:
+                """
+                两级边界检测：
+                1. 标题区域匹配边界关键词 → 'primary'
+                2. 被执行人区域辅助证据 ≥ 2 条 → 'secondary'
+                3. 组合文本回退匹配 → 'combined'
+                """
+                # Level 1: 标题区域关键词（主信号）
+                title_text = _get_region_text(page_logs or [], 'application_title')
+                if title_text:
+                    title_corrected = apply_ocr_corrections(title_text, doc_type='申请书')
+                    for kw in APPLICATION_BOUNDARY_KEYWORDS:
+                        if kw in title_text or kw in title_corrected:
+                            return True, 'primary'
+
+                # Level 2: 被执行人区域辅助证据（备用信号）
+                respondent_text = _get_region_text(page_logs or [], 'application_respondent')
+                if respondent_text and APPLICATION_SECONDARY_EVIDENCE:
+                    respondent_corrected = apply_ocr_corrections(respondent_text, doc_type='申请书')
+                    combined_resp = respondent_text + respondent_corrected
+                    if _check_boundary_secondary(combined_resp, APPLICATION_SECONDARY_EVIDENCE, min_hits=2):
+                        return True, 'secondary'
+
+                # Level 3: 组合文本回退（兼容 quick_scan / 全页 fallback）
+                if any(keyword in text for keyword in APPLICATION_BOUNDARY_KEYWORDS):
+                    return True, 'combined'
+
+                return False, None
 
             def _has_title_fragments(compact: str, fragments: List[str], *, min_hits: int) -> bool:
                 return sum(1 for fragment in fragments if fragment in compact) >= min_hits
@@ -902,7 +963,10 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                             page_logs = [{'region': 'quick_scan', 'text_length': len(region_text), 'duration': result.duration}]
                         corrected_text = apply_ocr_corrections(region_text, doc_type=doc_type)
                         duration = sum(item['duration'] for item in page_logs)
-                        boundary = _is_application_boundary(corrected_text) if is_group_start else False
+                        boundary = False
+                        boundary_evidence = None
+                        if is_group_start:
+                            boundary, boundary_evidence = _is_application_boundary(corrected_text, page_logs)
                         application_region_results.append({
                             'page_num': page_num,
                             'full_image': full_image,
@@ -910,6 +974,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                             'text': corrected_text,
                             'duration': duration,
                             'boundary': boundary,
+                            'boundary_evidence': boundary_evidence,
                         })
 
                 pf_thread_app.join(timeout=30)
@@ -939,6 +1004,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                         expected_boundaries,
                         expected_start_pages,
                         min_text_length=doc_ocr_app.region_fallback_min_text_length if doc_ocr_app else None,
+                        page_logs=page_logs,
                     )
 
                     if needs_fallback and doc_ocr_app and doc_ocr_app.allow_full_page_fallback:
@@ -965,7 +1031,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                         'region_text_length': len(_compact_text(item['text'])),
                         'fallback_used': method == 'full_page_fallback',
                         'fallback_trigger_reason': fallback_trigger_reason if method == 'full_page_fallback' else None,
-                        'boundary_detected': item['boundary'] or _is_application_boundary(text),
+                        'boundary_detected': item['boundary'] or _is_application_boundary(text)[0],
                     })
             else:
                 doc_cfg = _cfg.doc_type_map[doc_type]

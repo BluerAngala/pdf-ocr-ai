@@ -191,6 +191,33 @@ def _get_prefetched(out_queue: queue.Queue, timeout: int = 120):
     return item
 
 
+def _prefetch_pages_batch(region_extractor, pdf_path: Path, page_nums: List[int],
+                          out_queue: queue.Queue, batch_size: int = 20,
+                          cancel_check=None):
+    """后台线程：批量预取页面，合并为少量 pdftoppm 调用以减少子进程开销。
+
+    与 _prefetch_pages 的区别：不是逐页调用 extract_full_page，
+    而是用 render_pages_batch 一批渲染多页，消除 39 次重复的
+    pdftoppm 子进程启动和 PDF 解析。
+    """
+    for batch_start in range(0, len(page_nums), batch_size):
+        if cancel_check and cancel_check():
+            break
+        batch = page_nums[batch_start:batch_start + batch_size]
+        try:
+            rendered = region_extractor.render_pages_batch(pdf_path, batch)
+            for pn in batch:
+                img = rendered.get(pn)
+                if img is None:
+                    out_queue.put((pn, RuntimeError(f"批量渲染未返回第 {pn} 页")), timeout=60)
+                else:
+                    out_queue.put((pn, img), timeout=60)
+        except Exception as e:
+            for pn in batch:
+                out_queue.put((pn, e), timeout=60)
+    out_queue.put(_PREFETCH_SENTINEL)
+
+
 @contextmanager
 def open_pdf_reader(pdf_path: Path):
     reader = PdfReader(str(pdf_path))
@@ -910,10 +937,11 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                 _log(f"  [申请书] {total_pages} pages, {pages_per} pages/case, {expected_cases} cases expected")
 
                 all_page_nums_app = list(range(1, min(total_pages, expected_cases * pages_per) + 1))
-                pf_queue_app: queue.Queue = queue.Queue(maxsize=4)
+                pf_queue_app: queue.Queue = queue.Queue(maxsize=8)
                 pf_thread_app = threading.Thread(
-                    target=_prefetch_pages,
-                    args=(region_extractor, pdf_path, all_page_nums_app, pf_queue_app, cancel_check),
+                    target=_prefetch_pages_batch,
+                    args=(region_extractor, pdf_path, all_page_nums_app, pf_queue_app),
+                    kwargs={'cancel_check': cancel_check},
                     daemon=True,
                 )
                 pf_thread_app.start()
@@ -955,12 +983,30 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                                 full_image=full_image,
                             )
                         else:
-                            qs_cfg = _cfg.get_doc_ocr(doc_type).quick_scan if _cfg.get_doc_ocr(doc_type) else None
-                            qs_size = tuple(qs_cfg.target_size) if qs_cfg and qs_cfg.enabled else (400, 400)
-                            img = ImagePreprocessor.optimize_for_ocr(full_image, target_size=qs_size)
-                            result = ocr.recognize_image_region(img, page_num, method='quick_scan', optimize_output=False)
-                            region_text = result.text
-                            page_logs = [{'region': 'quick_scan', 'text_length': len(region_text), 'duration': result.duration}]
+                            # 偶数页：OCR 执行依据页的责令号区域（用于后续匹配台账）
+                            notice_region = REGIONS.get('application_execution_notice')
+                            if notice_region:
+                                notice_img = region_extractor.crop_region_from_image(full_image, notice_region)
+                                result = ocr.recognize_image_region(
+                                    notice_img, page_num,
+                                    method='notice_extract', optimize_output=False,
+                                )
+                                region_text = result.text
+                                page_logs = [{
+                                    'region': notice_region.name,
+                                    'region_key': 'application_execution_notice',
+                                    'method': result.method,
+                                    'duration': result.duration,
+                                    'text_length': len(region_text),
+                                    'text': region_text,
+                                }]
+                            else:
+                                qs_cfg = _cfg.get_doc_ocr(doc_type).quick_scan if _cfg.get_doc_ocr(doc_type) else None
+                                qs_size = tuple(qs_cfg.target_size) if qs_cfg and qs_cfg.enabled else (400, 400)
+                                img = ImagePreprocessor.optimize_for_ocr(full_image, target_size=qs_size)
+                                result = ocr.recognize_image_region(img, page_num, method='quick_scan', optimize_output=False)
+                                region_text = result.text
+                                page_logs = [{'region': 'quick_scan', 'text_length': len(region_text), 'duration': result.duration}]
                         corrected_text = apply_ocr_corrections(region_text, doc_type=doc_type)
                         duration = sum(item['duration'] for item in page_logs)
                         boundary = False
@@ -1790,6 +1836,68 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
     if len(ranges) != expected_cases:
         _log(f"  [INFO] 按实际识别到 {len(ranges)} 个案件处理（台账 {expected_cases} 个）")
 
+    # 构建责令号 → target_name 的查找表（从 Excel 台账）
+    post_processor = TextPostProcessor()
+    notice_to_target: Dict[str, str] = {}
+    for target_name in target_names:
+        # 从文件名中提取责令号，格式: {seq}-申请书pdf-{notice_number}.pdf
+        stem = Path(target_name).stem
+        # 责令号在最后一个 '-' 或 'pdf-' 之后
+        parts = stem.split('-申请书pdf-', 1)
+        if len(parts) == 2:
+            notice_str = parts[1]
+            normalized = normalize_notice_number(notice_str)
+            if normalized not in notice_to_target:
+                notice_to_target[normalized] = target_name
+
+    # 从 OCR 文本中为每个页面范围提取责令号，匹配正确的 target_name
+    data = _get_ocr_result(ocr_results, '申请书')
+    result_names: List[str] = []
+    ocr_match_count = 0
+    ocr_construct_count = 0
+
+    if data and data.get('pages'):
+        for range_idx, (start_page, end_page) in enumerate(ranges):
+            case_texts = []
+            for page_data in data['pages']:
+                page_num = page_data.get('page', 0)
+                if start_page < page_num <= end_page:
+                    text = page_data.get('text', '')
+                    if text:
+                        case_texts.append(text)
+
+            combined = '\n'.join(case_texts)
+            combined = apply_ocr_corrections(combined, doc_type=None)
+            combined_normalized = post_processor.normalize_brackets(combined)
+            decision_numbers = post_processor.extract_decision_numbers(combined_normalized)
+
+            matched = None
+            for dn in decision_numbers:
+                normalized = normalize_notice_number(dn)
+                if normalized in notice_to_target:
+                    matched = notice_to_target[normalized]
+                    break
+
+            if matched:
+                result_names.append(matched)
+                ocr_match_count += 1
+                _log(f"    [OK] 第 {start_page+1}-{end_page} 页 → {matched}")
+            elif decision_numbers:
+                ocr_notice = decision_numbers[0]
+                constructed = f"{range_idx + 1}-申请书pdf-{ocr_notice}.pdf"
+                result_names.append(constructed)
+                ocr_construct_count += 1
+                _log(f"    [OCR] 第 {start_page+1}-{end_page} 页 → OCR提取责令号 {ocr_notice}（不在台账中，已用OCR责令号命名）")
+            else:
+                fallback_name = f"{range_idx + 1}-申请书pdf-未知责令号.pdf"
+                result_names.append(fallback_name)
+                _log(f"    [WARN] 第 {start_page+1}-{end_page} 页未提取到责令号")
+
+    if result_names:
+        _log(f"  [INFO] 申请书命名结果: 台账匹配 {ocr_match_count}, OCR提取 {ocr_construct_count}, 未识别 {len(ranges) - ocr_match_count - ocr_construct_count}")
+        return export_pdf_ranges(source_pdf, ranges, output_dir, result_names)
+
+    _log(f"  [WARN] 无 OCR 数据，按台账顺序命名（可能不准确）")
     return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
 
 

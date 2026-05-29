@@ -1,27 +1,19 @@
-version: "2.0.0"
-developer: "陈恒律师"
-
-# ============================================
-# 全局路径配置
-# ============================================
+version: 2.0.0
+developer: 陈恒律师
 paths:
   directories:
-    result_dirname: "non-litigation-results"
-    temp_dirname: "non-litigation"
-    input_dirname: "non-litigation"
+    result_dirname: non-litigation-results
+    temp_dirname: non-litigation
+    input_dirname: non-litigation
   files:
-    excel_filename: "台账及命名规则.xlsx"
-    standard_output_dirname: "对应输出文件（标准版）"
-    audit_log_filename: "audit-log.json"
+    excel_filename: 台账及命名规则.xlsx
+    standard_output_dirname: 对应输出文件（标准版）
+    audit_log_filename: audit-log.json
   standard_output_subdirs:
-    责催: "输出文件（责催）"
-    申请书: "输出文件（申请书）"
-    授权书: "输出文件（授权书）"
-    所函: "输出文件（所函）"
-
-# ============================================
-# 全局 OCR 引擎配置
-# ============================================
+    责催: 输出文件（责催）
+    申请书: 输出文件（申请书）
+    授权书: 输出文件（授权书）
+    所函: 输出文件（所函）
 ocr:
   engine:
     dpi: 150
@@ -32,308 +24,309 @@ ocr:
     auto_detect_resources: true
     max_parallel_workers: 4
     memory_reserve_gb: 1.5
-
-# ============================================
-# 全局区域定义（按名称索引，doc_types.ocr.regions 引用这些名称）
-# ============================================
 regions:
   notice_header:
-    name: "责令号区域"
+    name: 责令号区域
     top: 0.0
     bottom: 0.25
     left: 0.0
     right: 1.0
   application_title:
-    name: "申请书标题"
+    name: 申请书标题
     top: 0.08
     bottom: 0.18
     left: 0.35
     right: 0.75
   application_respondent:
-    name: "申请书被执行人"
-    top: 0.60
+    name: 申请书被执行人
+    top: 0.6
     bottom: 0.78
     left: 0.15
     right: 0.95
+  application_execution_notice:
+    name: 执行依据页责令号
+    top: 0.32
+    bottom: 0.55
+    left: 0.05
+    right: 0.95
   auth_title:
-    name: "授权书标题"
+    name: 授权书标题
     top: 0.08
     bottom: 0.15
     left: 0.35
-    right: 0.70
+    right: 0.7
   auth_company:
-    name: "授权书公司名称"
+    name: 授权书公司名称
     top: 0.38
-    bottom: 0.50
-    left: 0.10
-    right: 0.90
+    bottom: 0.5
+    left: 0.1
+    right: 0.9
   letter_company:
-    name: "所函标题及公司名称"
+    name: 所函标题及公司名称
     top: 0.14
     bottom: 0.55
-    left: 0.10
-    right: 0.90
+    left: 0.1
+    right: 0.9
   company_top:
-    name: "公司名称（页眉）"
+    name: 公司名称（页眉）
     top: 0.0
     bottom: 0.3
     left: 0.0
     right: 1.0
   company_middle:
-    name: "公司名称（中间）"
+    name: 公司名称（中间）
     top: 0.3
     bottom: 0.7
     left: 0.1
     right: 0.9
   company_bottom:
-    name: "公司名称（页脚）"
+    name: 公司名称（页脚）
     top: 0.7
     bottom: 1.0
     left: 0.0
     right: 1.0
-
-# ============================================
-# 文书类型配置（每种文书独立配置识别规则）
-# ============================================
 doc_types:
-  - key: "责催"
-    source_pdf: null
-    output_dir: "输出文件（责催）"
-    pages_per_case: null
-    boundary_keywords: []
-    validation_keywords: []
-    filename_pattern: "{sequence}-责催-{notice_number}.pdf"
-    is_notice: true
-    ocr:
-      dpi: 150
-      max_image_size: 600
-      regions:
-        - notice_header
-      enable_region_first: true
-      allow_full_page_fallback: true
-      region_fallback_min_text_length: 8
-      scan_max_pages: 10
-      scan_window_pages: 4
-      skip_blank_pages: true
-      blank_page_threshold: 0.02
-      stop_on_match: true
-      image_preprocessing:
-        enhance_contrast: false
-        sharpen: false
-      corrections:
-        - wrong: "住房公积全"
-          correct: "住房公积金"
-        - wrong: "住方公积金"
-          correct: "住房公积金"
-        - wrong: "公积全"
-          correct: "公积金"
-        - wrong: "公基金"
-          correct: "公积金"
-        - wrong: "责行"
-          correct: "责令"
-        - wrong: "责字令"
-          correct: "责令"
-        - wrong: "贵字〔"
-          correct: "责字〔"
-        - wrong: "贵字["
-          correct: "责字["
-        - wrong: "贵字（"
-          correct: "责字（"
-        - wrong: "贵字【"
-          correct: "责字【"
-        - wrong: "贵字［"
-          correct: "责字［"
-
-  - key: "申请书"
-    source_pdf: "申请书.pdf"
-    output_dir: "输出文件（申请书）"
-    pages_per_case: 2
-    boundary_keywords:
-      - "强制执行申请书"
-      - "申请执行书"
-      - "强制执行申请"
-    secondary_boundary_evidence:
-      - "统一社会信用代码"
-      - "法定代表人"
-      - "申请执行人"
-      - "被执行人"
-      - "住所地"
-      - "名称："
-    validation_keywords:
-      - "强制执行申请书"
-      - "名称"
-    filename_pattern: "{sequence}-申请书pdf-{notice_number}.pdf"
-    is_notice: false
-    ocr:
-      dpi: 150
-      max_image_size: 600
-      regions:
-        - application_title
-        - application_respondent
-      enable_region_first: true
-      allow_full_page_fallback: true
-      region_fallback_min_text_length: 5
-      skip_blank_pages: false
-      stop_on_match: false
-      image_preprocessing:
-        enhance_contrast: false
-        sharpen: false
-      quick_scan:
-        enabled: true
-        target_size: [400, 400]
-      corrections:
-        - wrong: "强制申请书"
-          correct: "强制执行申请书"
-        - wrong: "住方公积金"
-          correct: "住房公积金"
-        - wrong: "有限责公司"
-          correct: "有限责任公司"
-        - wrong: "有限公词"
-          correct: "有限公司"
-
-  - key: "授权书"
-    source_pdf: "授权书.pdf"
-    output_dir: "输出文件（授权书）"
-    pages_per_case: 1
-    boundary_keywords: []
-    validation_keywords:
-      - "授权委托书"
-    filename_pattern: "{company_name}.pdf"
-    content_marker: "授权委托书"
-    is_notice: false
-    ocr:
-      dpi: 150
-      max_image_size: 600
-      regions:
-        - auth_title
-        - auth_company
-      enable_region_first: true
-      allow_full_page_fallback: true
-      region_fallback_min_text_length: 6
-      skip_blank_pages: false
-      stop_on_match: false
-      image_preprocessing:
-        enhance_contrast: false
-        sharpen: false
-      usability_check:
-        keywords:
-          - "授权委托书"
-        fragment_keywords:
-          - "授权"
-          - "委托"
-          - "托书"
-        min_fragment_hits: 2
-        min_text_length: 6
-      corrections:
-        - wrong: "授权委拖书"
-          correct: "授权委托书"
-        - wrong: "授校委托书"
-          correct: "授权委托书"
-        - wrong: "有限责公司"
-          correct: "有限责任公司"
-        - wrong: "有限公词"
-          correct: "有限公司"
-        - wrong: "股份有限公词"
-          correct: "股份有限公司"
-        - wrong: "有限公可"
-          correct: "有限公司"
-        - wrong: "统一社会信用代玛"
-          correct: "统一社会信用代码"
-
-  - key: "所函"
-    source_pdf: "所函.pdf"
-    output_dir: "输出文件（所函）"
-    pages_per_case: 1
-    boundary_keywords: []
-    validation_keywords:
-      - "律师事务所函"
-    filename_pattern: "{company_name}.pdf"
-    content_marker: "律师事务所函"
-    is_notice: false
-    ocr:
-      dpi: 150
-      max_image_size: 600
-      regions:
-        - letter_company
-      enable_region_first: true
-      allow_full_page_fallback: true
-      region_fallback_min_text_length: 6
-      skip_blank_pages: false
-      stop_on_match: false
-      image_preprocessing:
-        enhance_contrast: false
-        sharpen: false
-      usability_check:
-        keywords:
-          - "律师事务所函"
-        fragment_keywords:
-          - "律师"
-          - "事务所"
-          - "所函"
-          - "函"
-        min_fragment_hits: 2
-        min_text_length: 6
-      corrections:
-        - wrong: "律师事务所事务所事务所函"
-          correct: "律师事务所函"
-        - wrong: "律师事务所事务所函"
-          correct: "律师事务所函"
-        - wrong: "岭南律师所"
-          correct: "岭南律师事务所"
-        - wrong: "岭南律师函"
-          correct: "岭南律师事务所函"
-        - wrong: "有限责公司"
-          correct: "有限责任公司"
-        - wrong: "有限公词"
-          correct: "有限公司"
-        - wrong: "股份有限公词"
-          correct: "股份有限公司"
-        - wrong: "有限公可"
-          correct: "有限公司"
-        - wrong: "统一社会信用代玛"
-          correct: "统一社会信用代码"
-
-# ============================================
-# 台账 Excel 解析配置
-# ============================================
+- key: 责催
+  source_pdf: null
+  output_dir: 输出文件（责催）
+  pages_per_case: null
+  boundary_keywords: []
+  validation_keywords: []
+  filename_pattern: '{sequence}-责催-{notice_number}.pdf'
+  is_notice: true
+  ocr:
+    dpi: 150
+    max_image_size: 600
+    regions:
+    - notice_header
+    enable_region_first: true
+    allow_full_page_fallback: true
+    region_fallback_min_text_length: 8
+    scan_max_pages: 10
+    scan_window_pages: 4
+    skip_blank_pages: true
+    blank_page_threshold: 0.02
+    stop_on_match: true
+    image_preprocessing:
+      enhance_contrast: false
+      sharpen: false
+    corrections:
+    - wrong: 住房公积全
+      correct: 住房公积金
+    - wrong: 住方公积金
+      correct: 住房公积金
+    - wrong: 公积全
+      correct: 公积金
+    - wrong: 公基金
+      correct: 公积金
+    - wrong: 责行
+      correct: 责令
+    - wrong: 责字令
+      correct: 责令
+    - wrong: 贵字〔
+      correct: 责字〔
+    - wrong: 贵字[
+      correct: 责字[
+    - wrong: 贵字（
+      correct: 责字（
+    - wrong: 贵字【
+      correct: 责字【
+    - wrong: 贵字［
+      correct: 责字［
+- key: 申请书
+  source_pdf: 申请书.pdf
+  output_dir: 输出文件（申请书）
+  pages_per_case: 2
+  boundary_keywords:
+  - 强制执行申请书
+  - 申请执行书
+  - 强制执行申请
+  secondary_boundary_evidence:
+  - 统一社会信用代码
+  - 法定代表人
+  - 申请执行人
+  - 被执行人
+  - 住所地
+  - 名称：
+  validation_keywords:
+  - 强制执行申请书
+  - 名称
+  filename_pattern: '{sequence}-申请书pdf-{notice_number}.pdf'
+  is_notice: false
+  ocr:
+    dpi: 150
+    max_image_size: 600
+    regions:
+    - application_title
+    - application_respondent
+    enable_region_first: true
+    allow_full_page_fallback: true
+    region_fallback_min_text_length: 5
+    skip_blank_pages: false
+    stop_on_match: false
+    image_preprocessing:
+      enhance_contrast: false
+      sharpen: false
+    quick_scan:
+      enabled: true
+      target_size:
+      - 400
+      - 400
+    corrections:
+    - wrong: 强制申请书
+      correct: 强制执行申请书
+    - wrong: 住方公积金
+      correct: 住房公积金
+    - wrong: 有限责公司
+      correct: 有限责任公司
+    - wrong: 有限公词
+      correct: 有限公司
+    - wrong: 贵字〔
+      correct: 责字〔
+    - wrong: 贵字[
+      correct: 责字[
+    - wrong: 贵字（
+      correct: 责字（
+    - wrong: 贵字【
+      correct: 责字【
+    - wrong: 贵字［
+      correct: 责字［
+    - wrong: 稳公积金
+      correct: 穗公积金
+    - wrong: 德公积金
+      correct: 穗公积金
+    - wrong: 公基金
+      correct: 公积金
+    - wrong: 积全
+      correct: 积金
+    - wrong: 责行
+      correct: 责令
+- key: 授权书
+  source_pdf: 授权书.pdf
+  output_dir: 输出文件（授权书）
+  pages_per_case: 1
+  boundary_keywords: []
+  validation_keywords:
+  - 授权委托书
+  filename_pattern: '{company_name}.pdf'
+  content_marker: 授权委托书
+  is_notice: false
+  ocr:
+    dpi: 150
+    max_image_size: 600
+    regions:
+    - auth_title
+    - auth_company
+    enable_region_first: true
+    allow_full_page_fallback: true
+    region_fallback_min_text_length: 6
+    skip_blank_pages: false
+    stop_on_match: false
+    image_preprocessing:
+      enhance_contrast: false
+      sharpen: false
+    usability_check:
+      keywords:
+      - 授权委托书
+      fragment_keywords:
+      - 授权
+      - 委托
+      - 托书
+      min_fragment_hits: 2
+      min_text_length: 6
+    corrections:
+    - wrong: 授权委拖书
+      correct: 授权委托书
+    - wrong: 授校委托书
+      correct: 授权委托书
+    - wrong: 有限责公司
+      correct: 有限责任公司
+    - wrong: 有限公词
+      correct: 有限公司
+    - wrong: 股份有限公词
+      correct: 股份有限公司
+    - wrong: 有限公可
+      correct: 有限公司
+    - wrong: 统一社会信用代玛
+      correct: 统一社会信用代码
+- key: 所函
+  source_pdf: 所函.pdf
+  output_dir: 输出文件（所函）
+  pages_per_case: 1
+  boundary_keywords: []
+  validation_keywords:
+  - 律师事务所函
+  filename_pattern: '{company_name}.pdf'
+  content_marker: 律师事务所函
+  is_notice: false
+  ocr:
+    dpi: 150
+    max_image_size: 600
+    regions:
+    - letter_company
+    enable_region_first: true
+    allow_full_page_fallback: true
+    region_fallback_min_text_length: 6
+    skip_blank_pages: false
+    stop_on_match: false
+    image_preprocessing:
+      enhance_contrast: false
+      sharpen: false
+    usability_check:
+      keywords:
+      - 律师事务所函
+      fragment_keywords:
+      - 律师
+      - 事务所
+      - 所函
+      - 函
+      min_fragment_hits: 2
+      min_text_length: 6
+    corrections:
+    - wrong: 律师事务所事务所事务所函
+      correct: 律师事务所函
+    - wrong: 律师事务所事务所函
+      correct: 律师事务所函
+    - wrong: 岭南律师所
+      correct: 岭南律师事务所
+    - wrong: 岭南律师函
+      correct: 岭南律师事务所函
+    - wrong: 有限责公司
+      correct: 有限责任公司
+    - wrong: 有限公词
+      correct: 有限公司
+    - wrong: 股份有限公词
+      correct: 股份有限公司
+    - wrong: 有限公可
+      correct: 有限公司
+    - wrong: 统一社会信用代玛
+      correct: 统一社会信用代码
 excel_parsing:
   min_columns: 5
   column_original_notice: 1
   column_renamed_notice: 2
   column_company_name: 4
   filter_keywords:
-    original_notice: "责字"
-    renamed_notice: "责催-"
-
-# ============================================
-# 正则表达式配置
-# ============================================
+    original_notice: 责字
+    renamed_notice: 责催-
 regex_patterns:
-  notice_number: '穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号'
+  notice_number: 穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号
   court_case_number: '[(\[]\s*(\d{4})\s*[)\]]\s*(\u7ca4|\u7a57)\s*(\d+)\s*(\u884c\u5ba1|\u6c11\u521d|\u5211\u521d|\u6267|\u884c)\s*(\d+)\s*\u53f7'
-  decision_case_number: '(.{2,30}?字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+(?:-\d+)?)\s*号'
-  decision_id_types: "责字|行审|民初|刑初|执字"
-  decision_number_range: '(穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕)(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号'
-  single_decision_number: '(穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕\d+(?:-\d+)?号)'
-
-# ============================================
-# 公司名称纠错（跨文书类型通用）
-# ============================================
+  decision_case_number: (.{2,30}?字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+(?:-\d+)?)\s*号
+  decision_id_types: 责字|行审|民初|刑初|执字
+  decision_number_range: (穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕)(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号
+  single_decision_number: (穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕\d+(?:-\d+)?号)
 company_name_corrections:
-  - pattern: '广东\s*润生\s*箱包\s*制造\s*有限公司'
-    replacement: "广东润生箱包制造有限公司"
-  - pattern: '三菱\s*电机\s*[(（]\s*广州\s*[)）]\s*压缩机\s*有限公司'
-    replacement: "三菱电机（广州）压缩机有限公司"
-  - pattern: '广州\s*住房\s*公积金\s*管理\s*中心'
-    replacement: "广州住房公积金管理中心"
-  - pattern: '广东\s*省\s*新闻\s*工作\s*者\s*协会'
-    replacement: "广东省新闻工作者协会"
-  - pattern: '广东\s*岭南\s*律师\s*事务所'
-    replacement: "广东岭南律师事务所"
-
-# ============================================
-# 验证配置
-# ============================================
+- pattern: 广东\s*润生\s*箱包\s*制造\s*有限公司
+  replacement: 广东润生箱包制造有限公司
+- pattern: 三菱\s*电机\s*[(（]\s*广州\s*[)）]\s*压缩机\s*有限公司
+  replacement: 三菱电机（广州）压缩机有限公司
+- pattern: 广州\s*住房\s*公积金\s*管理\s*中心
+  replacement: 广州住房公积金管理中心
+- pattern: 广东\s*省\s*新闻\s*工作\s*者\s*协会
+  replacement: 广东省新闻工作者协会
+- pattern: 广东\s*岭南\s*律师\s*事务所
+  replacement: 广东岭南律师事务所
 validation:
   fuzzy_match_threshold: 0.85
   text_quality:
@@ -346,58 +339,45 @@ validation:
     company_doc:
       good: 100
       fair: 50
-
-# ============================================
-# 文本处理配置
-# ============================================
 text_processing:
   company_keywords:
-    - "有限责任公司"
-    - "股份有限公司"
-    - "集团有限公司"
-    - "有限公司"
-    - "集团公司"
-    - "股份公司"
-    - "事务所"
-    - "管理中心"
-    - "研究院"
-    - "协会"
-    - "中心"
-    - "公司"
+  - 有限责任公司
+  - 股份有限公司
+  - 集团有限公司
+  - 有限公司
+  - 集团公司
+  - 股份公司
+  - 事务所
+  - 管理中心
+  - 研究院
+  - 协会
+  - 中心
+  - 公司
   document_types:
-    - "行政裁定书"
-    - "责令限期办理决定书"
-    - "催告书"
-    - "授权委托书"
-    - "合作协议"
-    - "合同"
+  - 行政裁定书
+  - 责令限期办理决定书
+  - 催告书
+  - 授权委托书
+  - 合作协议
+  - 合同
   noise_prefixes:
-    - "准予强制执行"
-    - "附："
-    - "附件："
+  - 准予强制执行
+  - 附：
+  - 附件：
   decision_number_range_max_spread: 20
-
-# ============================================
-# Mock OCR 配置
-# ============================================
 mock_ocr:
   noise_samples:
-    - "责行"
-    - "公积全"
-    - "授校委托书"
-    - "住方公积金"
-
-# ============================================
-# 强制执行组配置
-# ============================================
+  - 责行
+  - 公积全
+  - 授校委托书
+  - 住方公积金
 enforcement:
   paths:
-    input_dirname: "提取信息"
-    output_dirname: "enforcement-results"
-    excel_filename: "非诉表格.xlsx"
-    excel_output_filename: "执行组识别结果.xlsx"
-    json_output_filename: "enforcement_extracted.json"
-  
+    input_dirname: 提取信息
+    output_dirname: enforcement-results
+    excel_filename: 非诉表格.xlsx
+    excel_output_filename: 执行组识别结果.xlsx
+    json_output_filename: enforcement_extracted.json
   excel_parsing:
     min_columns: 3
     columns:
@@ -411,74 +391,61 @@ enforcement:
       judge: 13
       ruling_result: 15
     filter_keywords:
-      notice_number: "责字"
-  
+      notice_number: 责字
   extraction:
     amount_patterns:
-      - '住房公积金(\d[\d,]*)\s*元'
-      - '公积金(\d[\d,]*)\s*元'
-      - '部分住房公积金(\d[\d,]*)\s*元'
-      - '执行标的[为]?\s*(\d[\d,]*)\s*元'
-      - '(?:金额|款项|本金|欠款)[：:]\s*(\d[\d,]*)\s*元'
-      - '(\d{4,})\s*元'
-    
+    - 住房公积金(\d[\d,]*)\s*元
+    - 公积金(\d[\d,]*)\s*元
+    - 部分住房公积金(\d[\d,]*)\s*元
+    - 执行标的[为]?\s*(\d[\d,]*)\s*元
+    - (?:金额|款项|本金|欠款)[：:]\s*(\d[\d,]*)\s*元
+    - (\d{4,})\s*元
     date_patterns:
-      - '(二[〇○零][一二三四五六七八九十〇]{2,4}年[一二三四五六七八九十〇]{1,2}月[一二三四五六七八九十〇]{1,3}日)'
-      - '(\d{4}年\d{1,2}月\d{1,2}日)'
-      - '(\d{4}-\d{1,2}-\d{1,2})'
-      - '(\d{4}/\d{1,2}/\d{1,2})'
-      - '(\d{4}年[一二三四五六七八九十〇]{1,2}月[一二三四五六七八九十〇]{1,3}日)'
-    
+    - (二[〇○零][一二三四五六七八九十〇]{2,4}年[一二三四五六七八九十〇]{1,2}月[一二三四五六七八九十〇]{1,3}日)
+    - (\d{4}年\d{1,2}月\d{1,2}日)
+    - (\d{4}-\d{1,2}-\d{1,2})
+    - (\d{4}/\d{1,2}/\d{1,2})
+    - (\d{4}年[一二三四五六七八九十〇]{1,2}月[一二三四五六七八九十〇]{1,3}日)
     judge_patterns:
-      - '审判员([\u4e00-\u9fff]{2,3})'
-    
+    - 审判员([\u4e00-\u9fff]{2,3})
     clerk_patterns:
-      - '书记员([\u4e00-\u9fff]{2,4})'
-    
+    - 书记员([\u4e00-\u9fff]{2,4})
     applicant_patterns:
-      - '申请执行人[：:]\s*([^，。,，、\n]+?)[，。,，、\n]'
-    
+    - 申请执行人[：:]\s*([^，。,，、\n]+?)[，。,，、\n]
     respondent_patterns:
-      - '被执行人[：:]\s*([^，。,，、\n]+?)[，。,，、\n]'
-    
+    - 被执行人[：:]\s*([^，。,，、\n]+?)[，。,，、\n]
     court_case_pattern: '[（(]\d{4}[）)]粤\d+行审\d+号'
-    
-    notice_number_in_ruling_pattern: '穗公积金中心\S*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+号'
-    
-    notice_number_range_pattern: '责字[〔\[(［【](\d{4})[〕\)\]］】](\d+)号至(\d+)号'
-    
+    notice_number_in_ruling_pattern: 穗公积金中心\S*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+号
+    notice_number_range_pattern: 责字[〔\[(［【](\d{4})[〕\)\]］】](\d+)号至(\d+)号
     withdraw_keywords:
-      - '撤回执行'
-      - '撤回强制执行'
-      - '不准予强制执行'
-      - '不予执行'
-  
+    - 撤回执行
+    - 撤回强制执行
+    - 不准予强制执行
+    - 不予执行
   ocr_corrections:
-    - wrong: "审判員"
-      correct: "审判员"
-    - wrong: "书记員"
-      correct: "书记员"
-    - wrong: "申清执行人"
-      correct: "申请执行人"
-    - wrong: "被执行入"
-      correct: "被执行人"
-    - wrong: "二O二"
-      correct: "二〇二"
-    - wrong: "二零二"
-      correct: "二〇二"
-
+  - wrong: 审判員
+    correct: 审判员
+  - wrong: 书记員
+    correct: 书记员
+  - wrong: 申清执行人
+    correct: 申请执行人
+  - wrong: 被执行入
+    correct: 被执行人
+  - wrong: 二O二
+    correct: 二〇二
+  - wrong: 二零二
+    correct: 二〇二
 company_query:
-  api_url: "https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/search_company_info"
-  userid: "test_user_001"
-  userkey: "7e5465a15b21fd751aea7774b58aafd2"
+  api_url: https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/search_company_info
+  userid: test_user_001
+  userkey: 7e5465a15b21fd751aea7774b58aafd2
   request_delay: 0.5
   max_concurrent: 3
-  excel_column_name: "被执行人"
-  coze_api_url: "https://api.coze.cn/v1/workflow/run"
-  coze_api_token: ""
-  coze_workflow_id: ""
-
+  excel_column_name: 被执行人
+  coze_api_url: https://api.coze.cn/v1/workflow/run
+  coze_api_token: ''
+  coze_workflow_id: ''
 print:
   default_copies: 1
   file_extensions:
-    - ".pdf"
+  - .pdf

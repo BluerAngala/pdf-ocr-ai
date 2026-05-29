@@ -164,7 +164,60 @@ class RegionExtractor:
     def extract_full_page(self, pdf_path: Path, page_num: int) -> Image.Image:
         """提取完整页面"""
         return self._render_page(pdf_path, page_num)
-    
+
+    def render_pages_batch(self, pdf_path: Path, page_nums: List[int]) -> Dict[int, Image.Image]:
+        """批量渲染多个页面，合并为一次 pdftoppm 调用。
+        
+        每次调用 pdftoppm 有 ~0.4s 的子进程启动 + PDF 解析开销。
+        40 页单页调用 = 40 × 1.6s = 64s；一次批调用 = 0.4s + 40 × 0.8s ≈ 33s。
+        
+        Args:
+            pdf_path: PDF 文件路径
+            page_nums: 需要渲染的页码列表（不必连续）
+        Returns:
+            {page_num: PIL.Image} 字典
+        """
+        if not page_nums:
+            return {}
+
+        uncached = [
+            pn for pn in page_nums
+            if (str(pdf_path), pn) not in self._page_cache
+        ]
+        if not uncached:
+            return {pn: self._page_cache[(str(pdf_path), pn)] for pn in page_nums}
+
+        min_page = min(uncached)
+        max_page = max(uncached)
+
+        images = convert_from_path(
+            str(pdf_path),
+            dpi=self.dpi,
+            first_page=min_page,
+            last_page=max_page,
+            poppler_path=self.poppler_path,
+        )
+
+        # 写入缓存
+        for i, pn in enumerate(range(min_page, max_page + 1)):
+            cache_key = (str(pdf_path), pn)
+            img = images[i]
+
+            while len(self._cache_order) >= self._max_cache:
+                oldest = self._cache_order.pop(0)
+                del self._page_cache[oldest]
+
+            self._page_cache[cache_key] = img
+            self._cache_order.append(cache_key)
+
+        # 收集请求的页
+        result = {}
+        for pn in page_nums:
+            cache_key = (str(pdf_path), pn)
+            if cache_key in self._page_cache:
+                result[pn] = self._page_cache[cache_key]
+        return result
+
     def get_page_count(self, pdf_path: Path) -> int:
         """获取PDF页数"""
         if HAS_PDFPLUMBER:

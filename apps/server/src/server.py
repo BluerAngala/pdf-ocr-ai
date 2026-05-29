@@ -476,32 +476,14 @@ class JsonRpcServer:
                 import pickle as _pickle
                 ocr_t0 = _time.perf_counter()
 
-                cache_path = USER_DATA_DIR / 'output' / 'ocr-cache.pkl'
+                cache_path = result_root / 'ocr-cache.pkl'
                 cached_results = None
-                if cache_path.exists():
+                if not force and cache_path.exists():
                     try:
                         with open(cache_path, 'rb') as f:
                             cached_results = _pickle.load(f)
                         if cached_results:
-                            stale = []
-                            for k, v in cached_results.items():
-                                pdf_path_check = input_root / k
-                                if not pdf_path_check.exists():
-                                    stale.append(k)
-                                else:
-                                    from non_litigation.export import inspect_pdf_page_count
-                                    actual_pages = inspect_pdf_page_count(pdf_path_check)
-                                    cached_pages = v.get('total_pages', 0)
-                                    if cached_pages != actual_pages:
-                                        stale.append(k)
-                            for k in stale:
-                                del cached_results[k]
-                            if not cached_results:
-                                emitter.log("info", "OCR缓存内容与当前输入不匹配，已清空")
-                            else:
-                                if stale:
-                                    emitter.log("info", f"缓存淘汰 {len(stale)} 个过期结果: {', '.join(stale[:5])}{'...' if len(stale) > 5 else ''}")
-                                emitter.log("info", f"加载OCR缓存: {len(cached_results)} 个文件")
+                            emitter.log("info", f"加载本任务 OCR 缓存: {len(cached_results)} 个文件")
                     except Exception:
                         cached_results = None
 

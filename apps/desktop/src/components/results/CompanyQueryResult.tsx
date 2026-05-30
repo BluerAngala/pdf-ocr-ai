@@ -1,4 +1,3 @@
-import { invoke } from "@tauri-apps/api/tauri";
 import type { ProcessingResult, CompanyQueryItem } from "../../types";
 
 const STATUS_STYLES: Record<string, { badge: string; dot: string; label: string }> = {
@@ -48,24 +47,6 @@ function CompanyRow({ item, index }: { item: CompanyQueryItem; index: number }) 
   );
 }
 
-function isTauri() {
-  return typeof window !== "undefined" && !!(window as { __TAURI_IPC__?: unknown }).__TAURI_IPC__;
-}
-
-async function handleOpenUrl(url: string) {
-  if (!url) return;
-  if (isTauri()) {
-    try {
-      await invoke("open_url", { url });
-    } catch (err) {
-      console.error("打开链接失败:", err);
-      window.open(url, "_blank");
-    }
-  } else {
-    window.open(url, "_blank");
-  }
-}
-
 export default function CompanyQueryResult({ result }: { result: ProcessingResult }) {
   const stats = result.company_stats;
   const companies = result.companies || [];
@@ -75,7 +56,6 @@ export default function CompanyQueryResult({ result }: { result: ProcessingResul
     stats && stats.total > 0 && stats.success_count === 0 && stats.fail_count === stats.total;
   // 检查是否包含余额不足错误
   const hasBalanceError = allFailed && companies.some((c) => c.error?.includes("余额不足"));
-  // 获取第一个包含充值链接的 URL
   const rechargeUrl = companies.find((c) => c.recharge_url)?.recharge_url;
 
   return (
@@ -127,16 +107,22 @@ export default function CompanyQueryResult({ result }: { result: ProcessingResul
               {rechargeUrl ? (
                 <>
                   请
-                  <button
-                    onClick={() => handleOpenUrl(rechargeUrl)}
-                    className="mx-1 text-red-700 font-medium underline hover:text-red-800 cursor-pointer"
+                  <a
+                    href={rechargeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mx-1 text-red-700 font-medium underline hover:text-red-800"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.open(rechargeUrl, "_blank");
+                    }}
                   >
                     点击充值
-                  </button>
+                  </a>
                   后重试。
                 </>
               ) : (
-                "请联系管理员充值后重试。"
+                "请充值后重试。"
               )}
             </p>
           </div>

@@ -454,15 +454,12 @@ enforcement:
   - wrong: 责行
     correct: 责令
 company_query:
-  api_url: https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/search_company_info
+  api_url: https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/company_search
   userid: test_user_001
   userkey: 7e5465a15b21fd751aea7774b58aafd2
   request_delay: 0.5
   max_concurrent: 3
   excel_column_name: 被执行人
-  coze_api_url: https://api.coze.cn/v1/workflow/run
-  coze_api_token: ''
-  coze_workflow_id: ''
 print:
   default_copies: 1
   file_extensions:

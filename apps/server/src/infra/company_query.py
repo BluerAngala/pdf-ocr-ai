@@ -16,9 +16,10 @@ from core.config_loader import _load_config
 
 
 class CompanyQueryError(Exception):
-    def __init__(self, message: str, raw_response: dict = None, recharge_url: str = None):
+    def __init__(self, message: str, raw_response: dict = None, balance_depleted: bool = False, recharge_url: str = None):
         self.message = message
         self.raw_response = raw_response
+        self.balance_depleted = balance_depleted
         self.recharge_url = recharge_url
         super().__init__(self.message)
 
@@ -97,6 +98,135 @@ def clear_cache(excel_path: str) -> bool:
     return True  # 缓存文件不存在，视为清除成功
 
 
+def _write_results_excel(results: List[dict], output_path: Path, source_df: pd.DataFrame = None, start_idx: int = 0):
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    if source_df is not None:
+        result_df = source_df.iloc[start_idx:start_idx + len(results)].copy()
+    else:
+        names = [r.get("original_name", "") for r in results]
+        result_df = pd.DataFrame({"被执行人": names})
+
+    for col, key in [("现用名", "current_name"), ("法代", "legal_person"), ("所在地", "location"), ("社会信用代码", "credit_code")]:
+        if col not in result_df.columns:
+            result_df[col] = ""
+        values = [r.get(key, "") for r in results]
+        if len(values) < len(result_df):
+            values += [""] * (len(result_df) - len(values))
+        result_df[col] = values[:len(result_df)]
+
+    col_order = []
+    for c in ["序号", "序号.", "No.", "no.", "NO.", "Index", "index"]:
+        if c in result_df.columns:
+            col_order.append(c)
+            break
+    for c in ["被执行人", "现用名", "法代", "所在地", "社会信用代码"]:
+        if c in result_df.columns:
+            col_order.append(c)
+    for c in result_df.columns:
+        if c not in col_order:
+            col_order.append(c)
+    result_df = result_df[col_order]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "企业查询结果"
+
+    headers = list(result_df.columns)
+    ws.append(headers)
+
+    header_font = Font(name="微软雅黑", bold=True, size=11, color="FFFFFF")
+    header_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_border = Border(
+        left=Side(style="thin", color="B4C6E7"),
+        right=Side(style="thin", color="B4C6E7"),
+        top=Side(style="thin", color="B4C6E7"),
+        bottom=Side(style="thin", color="B4C6E7"),
+    )
+    for col_idx, _ in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = header_align
+        cell.border = thin_border
+
+    data_font = Font(name="微软雅黑", size=10)
+    data_align = Alignment(vertical="center", wrap_text=True)
+    success_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
+    failed_fill = PatternFill(start_color="FCE4EC", end_color="FCE4EC", fill_type="solid")
+    warning_fill = PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
+
+    for row_idx, (_, row_data) in enumerate(result_df.iterrows(), 2):
+        for col_idx, header in enumerate(headers, 1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=row_data.get(header, ""))
+            cell.font = data_font
+            cell.alignment = data_align
+            cell.border = thin_border
+
+        status = results[row_idx - 2].get("status", "") if row_idx - 2 < len(results) else ""
+        fill = None
+        if status == "success":
+            fill = success_fill
+        elif status == "failed":
+            fill = failed_fill
+        elif status == "warning":
+            fill = warning_fill
+        if fill:
+            for col_idx in range(1, len(headers) + 1):
+                ws.cell(row=row_idx, column=col_idx).fill = fill
+
+    col_widths = {"被执行人": 28, "现用名": 28, "法代": 14, "所在地": 30, "社会信用代码": 22}
+    for col_idx, header in enumerate(headers, 1):
+        letter = get_column_letter(col_idx)
+        ws.column_dimensions[letter].width = col_widths.get(header, 15)
+
+    ws.auto_filter.ref = ws.dimensions
+    ws.freeze_panes = "A2"
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(str(output_path))
+    return str(output_path.resolve())
+
+
+def export_cache_to_excel(excel_path: str) -> dict:
+    cache_path = _get_cache_path(Path(excel_path))
+    if not cache_path.exists():
+        return {"exported": False, "error": "缓存文件不存在，请先执行一次查询"}
+
+    try:
+        with open(cache_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        results = data.get("results", [])
+        if not results:
+            return {"exported": False, "error": "缓存为空，请先执行一次查询"}
+
+        try:
+            df = pd.read_excel(excel_path, dtype=str)
+        except Exception:
+            df = None
+
+        from core.paths import USER_DATA_DIR
+        output_dir = USER_DATA_DIR / "output" / "company-query"
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = output_dir / f"企业查询缓存_{Path(excel_path).stem}_{timestamp}.xlsx"
+
+        output_excel_path = _write_results_excel(results, output_path, source_df=df)
+
+        return {
+            "exported": True,
+            "output_excel_path": output_excel_path,
+            "total": len(results),
+            "success_count": sum(1 for r in results if r.get("status") == "success"),
+            "warning_count": sum(1 for r in results if r.get("status") == "warning"),
+            "fail_count": sum(1 for r in results if r.get("status") == "failed"),
+        }
+    except Exception as e:
+        return {"exported": False, "error": str(e)}
+
+
 def _get_api_config() -> dict:
     raw = _load_config()
     cq = raw.get("company_query", {})
@@ -110,33 +240,129 @@ def _get_api_config() -> dict:
     }
 
 
+def _api_call(config: dict, method: str, params: dict) -> dict:
+    url = f"{config['api_url'].rstrip('/')}/{method}"
+    response = requests.post(url, json=params, timeout=60)
+    try:
+        data = response.json()
+        if isinstance(data, dict) and "code" in data:
+            return data
+        if isinstance(data, dict) and "errDetail" in data:
+            detail = data.get('errDetail', '')
+            err_msg = data.get('errMsg', '')
+            return {"code": 500, "msg": f"服务端异常: {err_msg} | {detail}"[:400]}
+    except Exception:
+        pass
+    if response.status_code >= 500:
+        return {"code": response.status_code, "msg": f"HTTP {response.status_code}: {response.text[:200]}"}
+    response.raise_for_status()
+    return {"code": 500, "msg": f"非预期响应 (HTTP {response.status_code})"}
+
+
+def check_account() -> dict:
+    config = _get_api_config()
+    userid = config.get("userid", "")
+    userkey = config.get("userkey", "")
+    api_url = config.get("api_url", "")
+
+    if not userid or not userkey or not api_url:
+        return {"status": "error", "userid": userid, "message": "API 配置缺失（userid/userkey/api_url 为空）"}
+
+    try:
+        result = _api_call(config, "getBalance", {"userid": userid, "userkey": userkey})
+        code = result.get("code", 0)
+        msg = result.get("msg", "")
+        data = result.get("data", {}) or {}
+
+        if code == 200:
+            remaining = data.get("remainingTimes", 0)
+            base = {
+                "userid": userid,
+                "message": msg or "账号正常",
+                "usedTimes": data.get("usedTimes", 0),
+                "remainingTimes": remaining,
+                "totalLimit": data.get("totalLimit", 0),
+                "userName": data.get("userName", ""),
+            }
+            if remaining <= 0:
+                base["status"] = "depleted"
+                base["message"] = "余额不足，请充值"
+                probe = _api_call(config, "search", {"userid": userid, "userkey": userkey, "companyName": "充值探测"})
+                probe_data = probe.get("data", {}) or {}
+                base["rechargeUrl"] = probe_data.get("rechargeUrl", "")
+            else:
+                base["status"] = "ok"
+            return base
+
+        if code == 400 and "余额不足" in msg:
+            return {
+                "status": "depleted",
+                "userid": userid,
+                "message": msg,
+                "usedTimes": data.get("usedTimes", 0),
+                "remainingTimes": data.get("remainingTimes", 0),
+                "totalLimit": data.get("totalLimit", 0),
+                "rechargeUrl": data.get("rechargeUrl", ""),
+            }
+        return {"status": "error", "userid": userid, "message": f"API 返回错误: {msg}"}
+    except requests.Timeout:
+        return {"status": "error", "userid": userid, "message": "API 连接超时"}
+    except requests.ConnectionError:
+        return {"status": "error", "userid": userid, "message": "API 连接失败，请检查网络"}
+    except Exception as e:
+        return {"status": "error", "userid": userid, "message": f"检查失败: {e}"}
+
+
+def recharge(code: str) -> dict:
+    config = _get_api_config()
+    userid = config.get("userid", "")
+    userkey = config.get("userkey", "")
+    if not userid or not userkey:
+        return {"success": False, "message": "API 配置缺失"}
+    if not code or not code.strip():
+        return {"success": False, "message": "兑换码不能为空"}
+    try:
+        result = _api_call(config, "recharge", {"userid": userid, "userkey": userkey, "code": code.strip()})
+        rcode = result.get("code", 0)
+        msg = result.get("msg", "")
+        data = result.get("data", {}) or {}
+        if rcode == 200:
+            return {
+                "success": True,
+                "message": msg,
+                "addTimes": data.get("addTimes", 0),
+                "afterRemaining": data.get("afterRemaining", 0),
+                "totalLimit": data.get("totalLimit", 0),
+            }
+        return {"success": False, "message": msg}
+    except Exception as e:
+        return {"success": False, "message": f"充值失败: {e}"}
+
+
 def query_company_info(company_name: str, config: dict) -> dict:
-    headers = {
-        "Content-Type": "application/json",
-    }
-    payload = {
+    return _api_call(config, "search", {
         "userid": config["userid"],
         "userkey": config["userkey"],
         "companyName": company_name,
-    }
-    response = requests.post(
-        config["api_url"],
-        headers=headers,
-        json=payload,
-        timeout=60,
-    )
-    response.raise_for_status()
-    return response.json()
-
+    })
 
 def get_company_data(company_name: str, config: dict) -> dict:
     result = query_company_info(company_name, config)
-    if result.get("code") != 200:
-        recharge_url = result.get("data", {}).get("rechargeUrl") or result.get("recharge_url")
+    code = result.get("code", 0)
+    msg = result.get("msg", "")
+    data = result.get("data", {}) or {}
+
+    if code == 400 and "余额不足" in msg:
         raise CompanyQueryError(
-            f"API 返回错误: {result.get('msg', '未知错误')}",
+            f"API 余额不足: {msg}",
             raw_response=result,
-            recharge_url=recharge_url,
+            balance_depleted=True,
+            recharge_url=data.get("rechargeUrl", ""),
+        )
+    if code != 200:
+        raise CompanyQueryError(
+            f"API 返回错误: {msg}",
+            raw_response=result,
         )
     data = result.get("data", {})
     company_info = data.get("companyInfo")
@@ -172,7 +398,9 @@ def extract_location(company_data: dict) -> str:
     province = company_data.get("Province", "")
     city = company_data.get("City", "")
     district = company_data.get("District", "")
-    return "".join(p for p in [province, city, district] if p)
+    address = company_data.get("Address", "")
+    parts = [p for p in [province, city, district, address] if p]
+    return "".join(parts) if parts else ""
 
 
 def _validate_company_result(result: dict) -> tuple[str, str]:
@@ -232,9 +460,9 @@ def process_single_company(company_name: str, config: dict) -> dict:
             "credit_code": "",
             "status": "failed",
             "error": e.message,
+            "balance_depleted": e.balance_depleted,
+            "recharge_url": e.recharge_url,
         }
-        if e.recharge_url:
-            result["recharge_url"] = e.recharge_url
         return result
     except Exception as e:
         return {
@@ -309,6 +537,7 @@ def process_company_query(
     if uncached_names and not is_cancelled(task_id):
         max_workers = max(1, config.get("max_concurrent", 3))
         _cancel_event = threading.Event()
+        balance_depleted = False
 
         def _query_one(name: str) -> tuple[str, dict, int]:
             if _cancel_event.is_set():
@@ -369,6 +598,13 @@ def process_company_query(
                         if completed_count % 5 == 0 or completed_count == total:
                             _save_cache(cache_path, list(cache.values()))
 
+                    if result["status"] == "failed" and result.get("balance_depleted"):
+                        balance_depleted = True
+                        recharge_url = result.get("recharge_url", "")
+                        _cancel_event.set()
+                        if emitter:
+                            emitter.log("warn", "API余额不足，停止后续查询。请充值后重试，已查询结果已缓存。")
+
                     if emitter:
                         emitter.progress("company_query", completed_count, total, f"完成: {name}", detail={"item": result, "row": row_num, "cached": False})
 
@@ -378,6 +614,20 @@ def process_company_query(
                         pending_futures[new_future] = next_name
 
     ordered_results = [results[name] for name in company_names if name in results]
+
+    if balance_depleted:
+        all_queried = set(results.keys())
+        for name in company_names:
+            if name not in all_queried:
+                idx_in_list = company_names.index(name)
+                row_num = start_idx + idx_in_list + 1
+                results[name] = {
+                    "original_name": name, "current_name": "", "legal_person": "",
+                    "location": "", "credit_code": "", "status": "failed",
+                    "error": "API余额不足，未查询",
+                    "recharge_url": recharge_url,
+                }
+        ordered_results = [results[name] for name in company_names if name in results]
 
     _save_cache(cache_path, list(cache.values()))
 
@@ -393,93 +643,8 @@ def process_company_query(
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_excel_path = output_dir / f"企业查询结果_{timestamp}.xlsx"
 
-    result_df = df.iloc[start_idx:start_idx + len(ordered_results)].copy()
-    for col, key in [("现用名", "current_name"), ("法代", "legal_person"), ("所在地", "location"), ("社会信用代码", "credit_code")]:
-        if col not in result_df.columns:
-            result_df[col] = ""
-        values = [r.get(key, "") for r in ordered_results]
-        if len(values) < len(result_df):
-            values += [""] * (len(result_df) - len(values))
-        result_df[col] = values[:len(result_df)]
+    output_excel = _write_results_excel(ordered_results, output_excel_path, source_df=df, start_idx=start_idx)
 
-    col_order = []
-    # 序号列放在第一列（如果存在）
-    for c in ["序号", "序号.", "No.", "no.", "NO.", "Index", "index"]:
-        if c in result_df.columns:
-            col_order.append(c)
-            break
-    # 核心字段按顺序排列
-    for c in ["被执行人", "现用名", "法代", "所在地", "社会信用代码"]:
-        if c in result_df.columns:
-            col_order.append(c)
-    # 其他列放在后面
-    for c in result_df.columns:
-        if c not in col_order:
-            col_order.append(c)
-    result_df = result_df[col_order]
-
-    from openpyxl import Workbook
-    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill, numbers
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "企业查询结果"
-
-    headers = list(result_df.columns)
-    ws.append(headers)
-
-    header_font = Font(name="微软雅黑", bold=True, size=11, color="FFFFFF")
-    header_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
-    header_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    thin_border = Border(
-        left=Side(style="thin", color="B4C6E7"),
-        right=Side(style="thin", color="B4C6E7"),
-        top=Side(style="thin", color="B4C6E7"),
-        bottom=Side(style="thin", color="B4C6E7"),
-    )
-    for col_idx, _ in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col_idx)
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.alignment = header_align
-        cell.border = thin_border
-
-    data_font = Font(name="微软雅黑", size=10)
-    data_align = Alignment(vertical="center", wrap_text=True)
-    success_fill = PatternFill(start_color="E2EFDA", end_color="E2EFDA", fill_type="solid")
-    failed_fill = PatternFill(start_color="FCE4EC", end_color="FCE4EC", fill_type="solid")
-    warning_fill = PatternFill(start_color="FFF3E0", end_color="FFF3E0", fill_type="solid")
-
-    for row_idx, (_, row_data) in enumerate(result_df.iterrows(), 2):
-        for col_idx, header in enumerate(headers, 1):
-            cell = ws.cell(row=row_idx, column=col_idx, value=row_data.get(header, ""))
-            cell.font = data_font
-            cell.alignment = data_align
-            cell.border = thin_border
-
-        status = ordered_results[row_idx - 2].get("status", "") if row_idx - 2 < len(ordered_results) else ""
-        if status == "success":
-            fill = success_fill
-        elif status == "failed":
-            fill = failed_fill
-        elif status == "warning":
-            fill = warning_fill
-        else:
-            fill = None
-        if fill:
-            for col_idx in range(1, len(headers) + 1):
-                ws.cell(row=row_idx, column=col_idx).fill = fill
-
-    col_widths = {"被执行人": 28, "现用名": 28, "法代": 14, "所在地": 30, "社会信用代码": 22}
-    for col_idx, header in enumerate(headers, 1):
-        from openpyxl.utils import get_column_letter
-        letter = get_column_letter(col_idx)
-        ws.column_dimensions[letter].width = col_widths.get(header, 15)
-
-    ws.auto_filter.ref = ws.dimensions
-    ws.freeze_panes = "A2"
-
-    wb.save(str(output_excel_path))
     clear_cancel(task_id)
 
     return {
@@ -489,6 +654,7 @@ def process_company_query(
         "fail_count": fail_count,
         "skipped_cached": skipped,
         "cancelled": cancelled,
+        "balance_depleted": balance_depleted,
         "companies": ordered_results,
-        "output_excel_path": str(output_excel_path.resolve()),
+        "output_excel_path": output_excel,
     }

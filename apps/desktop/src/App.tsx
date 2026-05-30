@@ -679,6 +679,23 @@ export default function App() {
     }
   }, [excelFile, addLog, patchModuleTask]);
 
+  const checkAccount = useCallback(async () => {
+    return (await sendRequest("company_query.check_account", {})) as {
+      status: string;
+      userid: string;
+      message: string;
+      [key: string]: unknown;
+    };
+  }, []);
+
+  const recharge = useCallback(async (code: string) => {
+    return (await sendRequest("company_query.recharge", { code })) as {
+      success: boolean;
+      message: string;
+      addTimes?: number;
+    };
+  }, []);
+
   const loadExcelColumns = useCallback(async () => {
     if (!excelFile) return;
     try {
@@ -1240,7 +1257,7 @@ export default function App() {
           {startupProgress.error ?? startupProgress.label}
         </div>
       ) : null}
-      {appReady && isTauri() && !ocrEngineReady ? (
+      {appReady && isTauri() && !ocrEngineReady && currentModule !== "company-query" ? (
         <OcrWarmupBanner
           detail={
             ocrGpuProbing
@@ -1282,6 +1299,8 @@ export default function App() {
           ocrEngineReady={ocrEngineReady}
           onLoadCache={loadCache}
           onClearCache={clearCache}
+          onCheckAccount={checkAccount}
+          onRecharge={recharge}
           rangeStart={rangeStart}
           rangeEnd={rangeEnd}
           onRangeStartChange={setRangeStart}

@@ -226,6 +226,9 @@ class JsonRpcServer:
         self.methods['company_query.cancel'] = self._company_query_cancel
         self.methods['company_query.load_cache'] = self._company_query_load_cache
         self.methods['company_query.clear_cache'] = self._company_query_clear_cache
+        self.methods['company_query.check_account'] = self._company_query_check_account
+        self.methods['company_query.recharge'] = self._company_query_recharge
+        self.methods['company_query.export_cache'] = self._company_query_export_cache
         self.methods['task.cancel'] = self._task_cancel
         self.methods['task.clear_cancel'] = self._task_clear_cancel
 
@@ -873,6 +876,37 @@ class JsonRpcServer:
             import traceback
             traceback.print_exc()
             return {"cleared": False, "error": str(e)}
+
+    def _company_query_check_account(self, params: Dict, id: Any) -> Dict:
+        try:
+            from infra.company_query import check_account
+            return check_account()
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"status": "error", "userid": "", "message": str(e)}
+
+    def _company_query_recharge(self, params: Dict, id: Any) -> Dict:
+        code = params.get('code', '')
+        try:
+            from infra.company_query import recharge
+            return recharge(code)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "message": str(e)}
+
+    def _company_query_export_cache(self, params: Dict, id: Any) -> Dict:
+        excel_path = params.get('excel_path', '')
+        if not excel_path:
+            return {"exported": False, "error": "未提供 Excel 文件路径"}
+        try:
+            from infra.company_query import export_cache_to_excel
+            return export_cache_to_excel(excel_path)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {"exported": False, "error": str(e)}
 
     # ============ 自动打印模块 ============
 

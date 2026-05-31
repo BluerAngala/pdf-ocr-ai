@@ -1136,12 +1136,13 @@ class JsonRpcServer:
             memory_gb = round(psutil.virtual_memory().available / (1024**3), 1)
         except:
             pass
-        app_version = ''
+        app_version = os.environ.get('GJJ_APP_VERSION', '')
         developer = ''
         try:
             from core.config_loader import _load_config
             raw = _load_config()
-            app_version = raw.get('version', '')
+            if not app_version:
+                app_version = raw.get('version', '')
             developer = raw.get('developer', '')
         except:
             pass

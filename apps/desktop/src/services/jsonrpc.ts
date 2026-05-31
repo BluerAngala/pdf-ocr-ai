@@ -112,7 +112,7 @@ function mockResponse(method: string, params: Record<string, unknown>): unknown 
         poppler_installed: true,
         config_loaded: true,
         available_memory_gb: 8.5,
-        app_version: "1.0.0",
+        app_version: "1.0.8",
         developer: "陈恒律师",
       };
     case "system.check_dependencies":

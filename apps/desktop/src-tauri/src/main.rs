@@ -158,6 +158,7 @@ async fn init_python_service(
         .env("GJJ_OCR_ROOT", paths.app_root.as_str())
         .env("GJJ_OCR_RESOURCES", paths.resources_dir.as_str())
         .env("GJJ_OCR_USER_DATA", paths.user_data_dir.as_str())
+        .env("GJJ_APP_VERSION", env!("CARGO_PKG_VERSION"))
         .env("PYTHONUTF8", "1")
         .env("PYTHONIOENCODING", "utf-8");
     #[cfg(target_os = "windows")]

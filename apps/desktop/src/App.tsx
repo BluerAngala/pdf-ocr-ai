@@ -30,12 +30,7 @@ import SystemStatusModal from "./components/SystemStatusModal";
 import ChangelogModal from "./components/ChangelogModal";
 import StartupOverlay from "./components/StartupOverlay";
 import OcrWarmupBanner from "./components/OcrWarmupBanner";
-import {
-  runStartupWarmup,
-  runBackgroundOcrWarmup,
-  isProductionBundle,
-  type StartupProgress,
-} from "./services/startup";
+import { runStartupWarmup, runBackgroundOcrWarmup, type StartupProgress } from "./services/startup";
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "detail">("home");
@@ -423,11 +418,7 @@ export default function App() {
       if (initialized) return;
       initialized = true;
       addLogRef.current("info", "应用已启动");
-      if (isTauri()) {
-        setAppReady(true);
-      }
       try {
-        const bundled = isTauri() && (await isProductionBundle());
         await runStartupWarmup((p) => {
           setStartupProgress(p);
           if (p.phase === "ready") {
@@ -440,11 +431,7 @@ export default function App() {
             addLogRef.current("debug", p.detail);
           }
         });
-        if (bundled) {
-          addLogRef.current("info", "界面已打开，服务在后台连接");
-        } else {
-          addLogRef.current("info", "后端已就绪，界面可用");
-        }
+        addLogRef.current("info", "后端已就绪，界面可用");
         let ocrFastReady = false;
         void runBackgroundOcrWarmup(
           (p) => {

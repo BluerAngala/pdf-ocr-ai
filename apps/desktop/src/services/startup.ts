@@ -241,23 +241,10 @@ async function connectBackendAndPresets(onProgress: (p: StartupProgress) => void
  * 开发态：仍同步等待，便于排错。
  */
 export async function runStartupWarmup(onProgress: (p: StartupProgress) => void): Promise<void> {
-  // 桌面版一律先进入主界面，避免安装路径检测失败时整屏卡死
-  if (isTauri()) {
-    onProgress({
-      phase: "ready",
-      label: "就绪",
-      detail: "后台正在连接服务…",
-    });
-    void connectBackendAndPresets(onProgress).catch((e) => {
-      const msg = e instanceof Error ? e.message : String(e);
-      onProgress({ phase: "error", label: "后端连接失败", error: msg });
-    });
-    return;
-  }
-
   onProgress({
     phase: "waiting_backend",
     label: "正在启动后端服务…",
+    detail: "打包版首次启动可能需 1–3 分钟，请稍候",
   });
   await connectBackendAndPresets(onProgress);
 }

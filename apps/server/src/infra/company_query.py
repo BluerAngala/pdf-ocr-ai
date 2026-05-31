@@ -287,9 +287,6 @@ def check_account() -> dict:
             if remaining <= 0:
                 base["status"] = "depleted"
                 base["message"] = "余额不足，请充值"
-                probe = _api_call(config, "search", {"userid": userid, "userkey": userkey, "companyName": "充值探测"})
-                probe_data = probe.get("data", {}) or {}
-                base["rechargeUrl"] = probe_data.get("rechargeUrl", "")
             else:
                 base["status"] = "ok"
             return base
@@ -302,7 +299,6 @@ def check_account() -> dict:
                 "usedTimes": data.get("usedTimes", 0),
                 "remainingTimes": data.get("remainingTimes", 0),
                 "totalLimit": data.get("totalLimit", 0),
-                "rechargeUrl": data.get("rechargeUrl", ""),
             }
         return {"status": "error", "userid": userid, "message": f"API 返回错误: {msg}"}
     except requests.Timeout:

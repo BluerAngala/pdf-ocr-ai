@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from "react";
-import { open } from "@tauri-apps/api/shell";
+
+const RECHARGE_URL = "https://pay.ldxp.cn/item/4tsgwq";
 import type {
   ModuleType,
   PreviewState,
@@ -308,26 +309,18 @@ export default function DetailView({
             <>
               <button
                 onClick={() => {
-                  if (accountInfo?.status === "depleted" && accountInfo.rechargeUrl) {
-                    open(accountInfo.rechargeUrl as string);
-                    return;
-                  }
                   if (!accountInfo && !checking) doCheckAccount();
                   setShowAccount((v) => !v);
                 }}
                 className={`inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-1 rounded transition-colors cursor-pointer ${
-                  accountInfo?.status === "depleted" && accountInfo.rechargeUrl
+                  accountInfo?.status === "depleted"
                     ? "text-amber-700 hover:text-amber-900 hover:bg-amber-50"
                     : "text-slate-500 hover:text-slate-700 hover:bg-slate-100"
                 }`}
-                title={
-                  accountInfo?.status === "depleted" && accountInfo.rechargeUrl
-                    ? "余额不足，点击充值"
-                    : "API 账号信息"
-                }
+                title={accountInfo?.status === "depleted" ? "余额不足，点击充值" : "API 账号信息"}
               >
                 <span className={`inline-block w-1.5 h-1.5 rounded-full ${statusDot}`} />
-                {accountInfo?.status === "depleted" && accountInfo.rechargeUrl ? "充值" : "账号"}
+                账号
               </button>
               {showAccount && (
                 <div
@@ -357,14 +350,12 @@ export default function DetailView({
                   </div>
                   {accountInfo && (
                     <div className="space-y-1">
-                      {accountInfo?.rechargeUrl && (
-                        <button
-                          onClick={() => open(accountInfo.rechargeUrl as string)}
-                          className="w-full h-8 rounded-md text-[11px] font-semibold text-white bg-amber-600 hover:bg-amber-700 transition-colors cursor-pointer"
-                        >
-                          充值
-                        </button>
-                      )}
+                      <button
+                        onClick={() => window.open(RECHARGE_URL, "_blank")}
+                        className="w-full h-8 rounded-md text-[11px] font-semibold text-white bg-amber-600 hover:bg-amber-700 transition-colors cursor-pointer"
+                      >
+                        充值
+                      </button>
                       <div className="space-y-1">
                         <div className="flex gap-1">
                           <input

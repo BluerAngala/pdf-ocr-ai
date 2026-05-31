@@ -228,6 +228,24 @@ function mockResponse(method: string, params: Record<string, unknown>): unknown 
         ocr_corrections: [],
         validation: { fuzzy_match_threshold: 0.85 },
       };
+    case "company_query.check_account":
+      return {
+        status: "ok",
+        userid: "test_user_001",
+        message: "账号正常",
+        userName: "测试用户",
+        usedTimes: 50,
+        remainingTimes: 150,
+        totalLimit: 200,
+      };
+    case "company_query.recharge":
+      return {
+        success: true,
+        message: "充值成功",
+        addTimes: 100,
+        afterRemaining: 250,
+        totalLimit: 300,
+      };
     default:
       throw new Error(`未实现的模拟方法: ${method}`);
   }

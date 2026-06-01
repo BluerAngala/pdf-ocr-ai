@@ -312,12 +312,13 @@ def _match_notice_from_ocr_text(
     ledger_notices: List[str],
 ) -> Dict[str, Optional[str]]:
     """
-    三级责令号匹配策略，确保准确性：
-    
+    四级责令号匹配策略，确保准确性：
+
     Level 1 - 严格正则：直接匹配标准格式，精确对应台账
-    Level 2 - 宽松正则 + 模糊匹配：容忍 OCR 误识，通过 rapidfuzz 与台账比对纠错
-    Level 3 - 结构化纠错：不在台账中的责令号，按固定结构（前缀+区名+责字）修正
-    
+    Level 2 - 同根主号匹配：如 1234-1号 匹配 1234号
+    Level 3 - 宽松正则 + 模糊匹配：容忍 OCR 误识，通过 rapidfuzz 与台账比对纠错
+    Level 4 - 结构化纠错：不在台账中的责令号，按固定结构（前缀+区名+责字）修正
+
     返回: {'source': str, 'notice_number': str|None, 'target_name': str|None}
     """
     # Level 1: 严格正则（经 apply_ocr_corrections 预纠错后）
@@ -330,7 +331,19 @@ def _match_notice_from_ocr_text(
         if n in notice_to_target:
             return {'source': '严格匹配', 'notice_number': dn, 'target_name': notice_to_target[n]}
 
-    # Level 2: 宽松正则 + 模糊匹配台账（保证准确性：用台账原文替换 OCR 结果）
+    # Level 2: 同根主号匹配（如 1234-1号 匹配 1234号）
+    for dn in strict_numbers:
+        detected_root = _get_notice_root_number(dn)
+        if detected_root in notice_to_target:
+            return {'source': '同根主号匹配', 'notice_number': dn, 'target_name': notice_to_target[detected_root]}
+        # 反向匹配：OCR识别到主号，台账有子号
+        for ledger_notice in ledger_notices:
+            ledger_root = _get_notice_root_number(ledger_notice)
+            if normalize_notice_number(dn) == ledger_root:
+                n = normalize_notice_number(ledger_notice)
+                return {'source': '同根主号匹配', 'notice_number': ledger_notice, 'target_name': notice_to_target.get(n)}
+
+    # Level 3: 宽松正则 + 模糊匹配台账（保证准确性：用台账原文替换 OCR 结果）
     relaxed_candidates = _extract_notice_candidates_relaxed(combined_text)
     if not relaxed_candidates:
         relaxed_candidates = _extract_notice_candidates_relaxed(corrected)
@@ -343,7 +356,7 @@ def _match_notice_from_ocr_text(
             target = notice_to_target.get(n)
             return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target}
 
-    # Level 2.5: 用严格正则提取到的但不在台账中的，也尝试模糊匹配
+    # Level 3.5: 用严格正则提取到的但不在台账中的，也尝试模糊匹配
     for dn in strict_numbers:
         ledger_match = fuzzy_match_notice_number(dn, ledger_notices)
         if ledger_match:
@@ -351,7 +364,7 @@ def _match_notice_from_ocr_text(
             target = notice_to_target.get(n)
             return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target}
 
-    # Level 3: 结构化纠错（不在台账中的责令号）
+    # Level 4: 结构化纠错（不在台账中的责令号）
     # 优先用严格正则结果（已通过纠错），其次用宽松正则+结构纠错
     if strict_numbers:
         corrected = _structural_correct_notice(strict_numbers[0])
@@ -773,15 +786,30 @@ def discover_notice_files(input_dir: Path) -> List[str]:
     return pdf_files
 
 
-def detect_notice_source_mapping_from_ocr(ocr_results: Dict[str, Dict], notice_files: List[str]) -> Dict[str, str]:
+def detect_notice_source_mapping_from_ocr(
+    ocr_results: Dict[str, Dict],
+    notice_files: List[str],
+    ledger_notices: Optional[List[str]] = None,
+    notice_to_target: Optional[Dict[str, str]] = None,
+) -> Dict[str, str]:
     """
-    从 OCR 结果中识别责催文件的责令号
+    从 OCR 结果中识别责催文件的责令号，并与台账进行比对纠错
+
+    Args:
+        ocr_results: OCR 识别结果
+        notice_files: 责催 PDF 文件列表
+        ledger_notices: 台账中的责令号列表（用于比对纠错）
+        notice_to_target: 责令号到目标文件名的映射
 
     Returns:
         {source_filename: detected_notice_number}
     """
     mapping: Dict[str, str] = {}
     post_processor = TextPostProcessor()
+
+    # 构建台账查找集合（用于快速判断）
+    ledger_set = set(normalize_notice_number(n) for n in (ledger_notices or []))
+
     for source_name in notice_files:
         stem = source_name.replace('.pdf', '')
         data = _get_ocr_result(ocr_results, stem)
@@ -801,14 +829,94 @@ def detect_notice_source_mapping_from_ocr(ocr_results: Dict[str, Dict], notice_f
         selected_page = selection.get('selected_page') or data.get('selected_page')
 
         if selected_notice:
-            mapping[source_name] = selected_notice
-            _log(f"  [OK] {source_name}: 识别到责令号 '{selected_notice}'")
-            if selected_page:
-                _log(f"    [INFO] 采用第 {selected_page} 页候选")
+            # 如果提供了台账数据，进行比对纠错
+            if ledger_notices:
+                final_match = _match_notice_with_ledger(
+                    selected_notice,
+                    ledger_notices,
+                    notice_to_target or {},
+                    source_name,
+                )
+                matched_notice = final_match.get('notice_number') or selected_notice
+                match_source = final_match.get('source', 'ocr_only')
+
+                # 如果匹配结果与原始识别不同，记录审计日志
+                if matched_notice != selected_notice:
+                    _log_audit('notice_corrected', {
+                        'source': source_name,
+                        'original_detected': selected_notice,
+                        'corrected_to': matched_notice,
+                        'match_source': match_source,
+                    })
+                    _log(f"  [CORRECTED] {source_name}: '{selected_notice}' -> '{matched_notice}' ({match_source})")
+
+                mapping[source_name] = matched_notice
+
+                if selected_page:
+                    _log(f"    [INFO] 采用第 {selected_page} 页候选")
+            else:
+                # 无台账数据，直接使用 OCR 结果
+                mapping[source_name] = selected_notice
+                _log(f"  [OK] {source_name}: 识别到责令号 '{selected_notice}'")
+                if selected_page:
+                    _log(f"    [INFO] 采用第 {selected_page} 页候选")
         else:
             _log(f"  [WARN] {source_name}: 未识别到责令号")
 
     return mapping
+
+
+def _match_notice_with_ledger(
+    detected_notice: str,
+    ledger_notices: List[str],
+    notice_to_target: Dict[str, str],
+    source_name: str,
+) -> Dict[str, Optional[str]]:
+    """
+    将 OCR 识别的责令号与台账进行比对，返回最佳匹配结果
+
+    匹配策略（按优先级）：
+    1. 精确匹配：标准化后的责令号与台账完全一致
+    2. 同根主号匹配：如 1234-1号 匹配 1234号
+    3. 结构化匹配：按年+编号+区名组件比对
+    4. 模糊匹配：相似度 >= 85%
+
+    Returns:
+        {'source': str, 'notice_number': str|None}
+    """
+    normalized_detected = normalize_notice_number(detected_notice)
+
+    # Level 1: 精确匹配
+    for ledger in ledger_notices:
+        if normalize_notice_number(ledger) == normalized_detected:
+            return {'source': 'exact_match', 'notice_number': ledger}
+
+    # Level 2: 同根主号匹配
+    detected_root = _get_notice_root_number(detected_notice)
+    for ledger in ledger_notices:
+        ledger_root = _get_notice_root_number(ledger)
+        if detected_root == ledger_root:
+            return {'source': 'root_match', 'notice_number': ledger}
+
+    # Level 3: 结构化匹配（年+编号+区名）
+    structured_match = _structured_match_notice(detected_notice, ledger_notices)
+    if structured_match:
+        return {'source': 'structured_match', 'notice_number': structured_match}
+
+    # Level 4: 模糊匹配（相似度 >= 85%）
+    best_match = None
+    best_ratio = 0.0
+    for ledger in ledger_notices:
+        ratio = SequenceMatcher(None, normalized_detected, normalize_notice_number(ledger)).ratio()
+        if ratio > best_ratio and ratio >= 0.85:  # 85% 阈值
+            best_ratio = ratio
+            best_match = ledger
+
+    if best_match:
+        return {'source': f'fuzzy_match({best_ratio:.1%})', 'notice_number': best_match}
+
+    # 无匹配，返回原始识别结果
+    return {'source': 'no_match', 'notice_number': detected_notice}
 
 
 def build_mock_ocr_results(sample_root: Path, input_dir: Path | None = None) -> Dict[str, Dict]:
@@ -1895,14 +2003,21 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
 
     target_map = {}
     target_notice_map = {}
+    ledger_notices = []
     for case in cases:
         normalized = normalize_notice_number(case['notice_number'])
         target_name = f"{case['sequence']}-责催-{case['notice_number']}.pdf"
         target_map[normalized] = target_name
         target_notice_map[target_name] = normalized
+        ledger_notices.append(case['notice_number'])
 
     notice_files = discover_notice_files(input_dir)
-    source_map = detect_notice_source_mapping_from_ocr(ocr_results, notice_files)
+    # 传入台账数据进行 OCR 识别结果比对纠错
+    source_map = detect_notice_source_mapping_from_ocr(
+        ocr_results, notice_files,
+        ledger_notices=ledger_notices,
+        notice_to_target=target_map,
+    )
 
     created = 0
     unmatched = []

@@ -164,35 +164,68 @@ class EnforcementCaseRegistry:
             return None
     
     def find_by_notice_number(self, notice_number: str) -> Optional[EnforcementCase]:
-        """通过责令号查找案件（支持长短格式 + 结构化模糊匹配）"""
+        """通过责令号查找案件（支持长短格式 + 同根主号 + 结构化模糊匹配）"""
         normalized = self._normalize_notice_number(notice_number)
         if normalized in self._notice_index:
             return self._notice_index[normalized]
+
+        # 长短格式匹配
         for excel_notice, case in self._notice_index.items():
             excel_norm = self._normalize_notice_number(excel_notice)
             if normalized.endswith(excel_norm) or excel_norm.endswith(normalized):
                 return case
+
+        # 同根主号匹配（如 1234-1号 匹配 1234号）
+        candidate_root = self._get_notice_root_number(notice_number)
+        for excel_notice, case in self._notice_index.items():
+            excel_root = self._get_notice_root_number(excel_notice)
+            if candidate_root == excel_root:
+                return case
+
+        # 结构化模糊匹配
         match = self._structured_match_notice(notice_number)
         if match:
             return match
         return None
     
     def find_all_by_notice_number(self, notice_number: str) -> List[EnforcementCase]:
-        """通过责令号查找所有匹配案件（支持长短格式 + 结构化模糊匹配）"""
+        """通过责令号查找所有匹配案件（支持长短格式 + 同根主号 + 结构化模糊匹配）"""
         normalized = self._normalize_notice_number(notice_number)
         results = []
         if normalized in self._notice_index:
             results.append(self._notice_index[normalized])
+
+        # 长短格式匹配
         for excel_notice, case in self._notice_index.items():
             excel_norm = self._normalize_notice_number(excel_notice)
             if excel_norm != normalized:
                 if normalized.endswith(excel_norm) or excel_norm.endswith(normalized):
-                    results.append(case)
+                    if case not in results:
+                        results.append(case)
+
+        # 同根主号匹配（如 1234-1号 匹配 1234号）
+        if not results:
+            candidate_root = self._get_notice_root_number(notice_number)
+            for excel_notice, case in self._notice_index.items():
+                excel_root = self._get_notice_root_number(excel_notice)
+                if candidate_root == excel_root:
+                    if case not in results:
+                        results.append(case)
+
+        # 结构化模糊匹配
         if not results:
             match = self._structured_match_notice(notice_number)
-            if match:
+            if match and match not in results:
                 results.append(match)
+
         return results
+
+    @staticmethod
+    def _get_notice_root_number(notice_number: str) -> str:
+        """获取责令号的主号（去掉 -N 后缀）"""
+        normalized = normalize_notice_for_match(notice_number)
+        import re
+        return re.sub(r'(\d+)-\d+号$', r'\1号', normalized)
     
     def _structured_match_notice(self, candidate: str) -> Optional[EnforcementCase]:
         """

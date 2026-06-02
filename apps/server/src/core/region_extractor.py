@@ -198,10 +198,15 @@ class RegionExtractor:
             poppler_path=self.poppler_path,
         )
 
-        # 写入缓存
+        # 构建结果字典（必须在缓存淘汰前收集）
+        result = {}
         for i, pn in enumerate(range(min_page, max_page + 1)):
+            result[pn] = images[i]
+
+        # 写入缓存（带LRU淘汰）
+        for pn in range(min_page, max_page + 1):
             cache_key = (str(pdf_path), pn)
-            img = images[i]
+            img = result[pn]
 
             while len(self._cache_order) >= self._max_cache:
                 oldest = self._cache_order.pop(0)
@@ -210,13 +215,8 @@ class RegionExtractor:
             self._page_cache[cache_key] = img
             self._cache_order.append(cache_key)
 
-        # 收集请求的页
-        result = {}
-        for pn in page_nums:
-            cache_key = (str(pdf_path), pn)
-            if cache_key in self._page_cache:
-                result[pn] = self._page_cache[cache_key]
-        return result
+        # 只返回请求的页面
+        return {pn: result[pn] for pn in page_nums}
 
     def get_page_count(self, pdf_path: Path) -> int:
         """获取PDF页数"""

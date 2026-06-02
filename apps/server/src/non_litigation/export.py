@@ -43,6 +43,7 @@ from core.system_resource import detect_system_resources
 from core.paths import ROOT, USER_DATA_DIR
 
 from core.config_loader import load_config
+from core.task_cancel import CancelledError
 _cfg = load_config()
 
 try:
@@ -1226,10 +1227,12 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                 _log(f"  [申请书] {total_pages} pages, {pages_per} pages/case, {expected_cases} cases expected")
 
                 all_page_nums_app = list(range(1, min(total_pages, expected_cases * pages_per) + 1))
-                pf_queue_app: queue.Queue = queue.Queue(maxsize=8)
+                # 大文件使用更大的批次和队列
+                app_batch_size = 20 if total_pages > 50 else 10
+                pf_queue_app: queue.Queue = queue.Queue(maxsize=max(8, app_batch_size))
                 pf_thread_app = threading.Thread(
                     target=_prefetch_pages_batch,
-                    args=(region_extractor, pdf_path, all_page_nums_app, pf_queue_app),
+                    args=(region_extractor, pdf_path, all_page_nums_app, pf_queue_app, app_batch_size),
                     kwargs={'cancel_check': cancel_check},
                     daemon=True,
                 )
@@ -1253,7 +1256,7 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                         if any(p['page'] == page_num for p in pages):
                             continue
                         if page_num not in prefetched_app:
-                            item = _get_prefetched(pf_queue_app)
+                            item = _get_prefetched(pf_queue_app, timeout=180)  # 3分钟超时
                             if item is not None:
                                 pn, img_or_err = item
                                 if not isinstance(img_or_err, Exception):
@@ -1373,28 +1376,34 @@ def run_real_ocr_on_pdf(pdf_path: Path, use_mock: bool = False,
                 default_regions = _cfg.ocr_doc_regions.get(doc_type, [])
 
                 all_page_nums = list(range(1, total_pages + 1))
-                pf_queue: queue.Queue = queue.Queue(maxsize=2)
+                # 大文件使用批量预取，减少子进程开销
+                # 377页PDF：逐页调用 = 377 × ~1.5s = 565s；批量20页 = 19批 × ~20s = 380s
+                batch_size = 20 if total_pages > 50 else 5
+                pf_queue: queue.Queue = queue.Queue(maxsize=max(4, batch_size // 2))
                 pf_thread = threading.Thread(
-                    target=_prefetch_pages,
-                    args=(region_extractor, pdf_path, all_page_nums, pf_queue, cancel_check),
+                    target=_prefetch_pages_batch,
+                    args=(region_extractor, pdf_path, all_page_nums, pf_queue, batch_size),
+                    kwargs={'cancel_check': cancel_check},
                     daemon=True,
                 )
                 pf_thread.start()
 
+                processed_count = 0
                 while True:
-                    prefetched = _get_prefetched(pf_queue)
+                    prefetched = _get_prefetched(pf_queue, timeout=180)  # 3分钟超时
                     if prefetched is None:
                         break
                     page_num, full_image = prefetched
+                    processed_count += 1
                     if isinstance(full_image, Exception):
-                        _log(f"    [{doc_type}] 第{page_num}页提取失败: {full_image}", level="ERROR")
+                        _log(f"    [{doc_type}] 第{page_num}页提取失败: {full_image}")
                         continue
                     if cancel_check and cancel_check():
                         _log(f"    [{doc_type}] 已取消")
                         raise CancelledError("用户取消")
                     if page_num % 50 == 1 or page_num == total_pages:
                         _log(f"    [{doc_type}] {page_num}/{total_pages}...")
-                    if page_progress and (page_num % 20 == 0 or page_num == total_pages):
+                    if page_progress and (processed_count % 20 == 0 or page_num == total_pages):
                         page_progress(page_num, total_pages)
                     primary_text, primary_logs = _collect_region_texts(
                         ocr,
@@ -2036,7 +2045,7 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
                 'matched_target': target_name,
                 'root_notice': detected_root,
             })
-            _log(f"    🔁 同根主号匹配: '{detected_notice}' -> '{target_name}'")
+            _log(f"    [同根主号匹配] '{detected_notice}' -> '{target_name}'")
         elif target_name:
             match_type = 'exact'
         else:

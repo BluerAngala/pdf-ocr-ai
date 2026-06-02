@@ -26,6 +26,10 @@ SRC = Path(__file__).resolve().parent.parent / 'src'
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+# 强制重新加载配置（确保读取最新的 config.yaml）
+from core.config_loader import reload_config
+reload_config()
+
 from core.paths import ROOT, USER_DATA_DIR
 
 from non_litigation.export import (

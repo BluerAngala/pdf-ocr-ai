@@ -1,5 +1,27 @@
 version: 2.0.0
 developer: 陈恒律师
+
+# 非诉组 OCR 纠错规则（通用）
+ocr_corrections:
+  - wrong: 番禹
+    correct: 番禺
+  - wrong: 天何
+    correct: 天河
+  - wrong: 白去
+    correct: 白云
+  - wrong: 荔弯
+    correct: 荔湾
+  - wrong: 海猪
+    correct: 海珠
+  - wrong: 越莠
+    correct: 越秀
+  - wrong: 黄浦
+    correct: 黄埔
+  - wrong: 花者
+    correct: 花都
+  - wrong: 萝岗
+    correct: 萝岗
+
 paths:
   directories:
     result_dirname: non-litigation-results
@@ -453,6 +475,24 @@ enforcement:
     correct: 公积金
   - wrong: 责行
     correct: 责令
+  - wrong: 番禹
+    correct: 番禺
+  - wrong: 天何
+    correct: 天河
+  - wrong: 白去
+    correct: 白云
+  - wrong: 荔弯
+    correct: 荔湾
+  - wrong: 海猪
+    correct: 海珠
+  - wrong: 越莠
+    correct: 越秀
+  - wrong: 黄浦
+    correct: 黄埔
+  - wrong: 花者
+    correct: 花都
+  - wrong: 萝岗
+    correct: 萝岗
 company_query:
   api_url: https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/company_search
   userid: test_user_001

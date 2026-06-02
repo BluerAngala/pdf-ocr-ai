@@ -185,10 +185,18 @@ class NonLitigationConfig:
         return DocTypeOcrConfig()
 
     def get_doc_corrections(self, doc_type_key: str) -> List[Tuple[str, str]]:
+        """获取文档类型的纠错规则，合并文档特定规则和根级别通用规则"""
         dt = self.doc_type_map.get(doc_type_key)
-        if dt and dt.ocr.corrections:
-            return dt.ocr.corrections
-        return self.ocr_corrections
+        doc_corrections = dt.ocr.corrections if dt else []
+
+        # 合并文档特定规则和根级别规则，去重
+        seen = set()
+        merged = []
+        for wrong, correct in doc_corrections + self.ocr_corrections:
+            if wrong not in seen:
+                seen.add(wrong)
+                merged.append((wrong, correct))
+        return merged
 
 
 def _parse_ocr_config(ocr_raw: dict) -> DocTypeOcrConfig:
@@ -308,6 +316,15 @@ def load_config() -> NonLitigationConfig:
             if wrong not in seen:
                 seen.add(wrong)
                 all_corrections.append((wrong, correct))
+    
+    # 添加根级别的 ocr_corrections（区名纠错等通用规则）
+    for item in raw.get('ocr_corrections', []):
+        wrong = item.get('wrong', '')
+        correct = item.get('correct', '')
+        if wrong and correct and wrong not in seen:
+            seen.add(wrong)
+            all_corrections.append((wrong, correct))
+    
     cfg.ocr_corrections = all_corrections
 
     cfg.ocr_doc_regions = {dt.key: dt.ocr.regions for dt in cfg.doc_types}

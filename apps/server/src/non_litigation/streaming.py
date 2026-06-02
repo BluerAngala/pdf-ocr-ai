@@ -216,21 +216,47 @@ class StreamingBatchProcessor:
         page_range = range(task.page_start, page_end + 1)
         page_list = list(page_range)
 
-        img_queue: queue.Queue = queue.Queue(maxsize=2)
+        # 大文件使用批量渲染优化：逐页调用 pdftoppm 有 ~0.4s 启动开销
+        # 377页单页调用 = 377 × ~1.5s = 565s；批量20页 = 19批 × ~20s = 380s
+        batch_size = 20 if total_pages > 50 else 5
+        img_queue: queue.Queue = queue.Queue(maxsize=max(4, batch_size // 2))
 
         def _producer():
-            for page_num in page_list:
+            # 批量渲染页面，减少 pdftoppm 子进程调用次数
+            for i in range(0, len(page_list), batch_size):
                 if cancel_check and cancel_check():
                     break
+                batch_pages = page_list[i:i + batch_size]
                 try:
-                    full_image = self.region_extractor.extract_full_page(pdf_path, page_num)
-                    if regions:
-                        images = self.region_extractor.crop_regions_from_image(full_image, regions)
-                    else:
-                        images = [full_image]
-                    img_queue.put((page_num, full_image, images), timeout=120)
+                    # 使用批量渲染
+                    page_images = self.region_extractor.render_pages_batch(pdf_path, batch_pages)
+                    for page_num in batch_pages:
+                        if cancel_check and cancel_check():
+                            break
+                        if page_num not in page_images:
+                            img_queue.put((page_num, None, RuntimeError(f"页面 {page_num} 渲染失败")), timeout=120)
+                            continue
+                        full_image = page_images[page_num]
+                        if regions:
+                            images = self.region_extractor.crop_regions_from_image(full_image, regions)
+                        else:
+                            images = [full_image]
+                        img_queue.put((page_num, full_image, images), timeout=120)
                 except Exception as e:
-                    img_queue.put((page_num, None, e), timeout=120)
+                    # 批量失败时，回退到单页提取
+                    _log(f"  {pdf_path.name}: 批量渲染失败，回退到单页模式: {e}")
+                    for page_num in batch_pages:
+                        if cancel_check and cancel_check():
+                            break
+                        try:
+                            full_image = self.region_extractor.extract_full_page(pdf_path, page_num)
+                            if regions:
+                                images = self.region_extractor.crop_regions_from_image(full_image, regions)
+                            else:
+                                images = [full_image]
+                            img_queue.put((page_num, full_image, images), timeout=120)
+                        except Exception as e2:
+                            img_queue.put((page_num, None, e2), timeout=120)
             img_queue.put(_SENTINEL)
 
         producer = threading.Thread(target=_producer, daemon=True)

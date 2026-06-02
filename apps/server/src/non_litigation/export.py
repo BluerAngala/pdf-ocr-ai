@@ -44,7 +44,18 @@ from core.paths import ROOT, USER_DATA_DIR
 
 from core.config_loader import load_config
 from core.task_cancel import CancelledError
+from core.smart_corrector import SmartCorrector, CorrectionCandidate
 _cfg = load_config()
+
+# 全局智能纠错器实例（延迟初始化）
+_smart_corrector: Optional[SmartCorrector] = None
+
+def _get_smart_corrector(ledger_cases: Optional[List[Dict]] = None) -> Optional[SmartCorrector]:
+    """获取或创建智能纠错器"""
+    global _smart_corrector
+    if _smart_corrector is None and ledger_cases is not None:
+        _smart_corrector = SmartCorrector(ledger_cases=ledger_cases, enable_learning=True)
+    return _smart_corrector
 
 try:
     from core.pdf_ocr_ultra import UltraFastOCR, OCRConfig, ImagePreprocessor
@@ -315,12 +326,16 @@ def _match_notice_from_ocr_text(
     """
     四级责令号匹配策略，确保准确性：
 
-    Level 1 - 严格正则：直接匹配标准格式，精确对应台账
-    Level 2 - 同根主号匹配：如 1234-1号 匹配 1234号
-    Level 3 - 宽松正则 + 模糊匹配：容忍 OCR 误识，通过 rapidfuzz 与台账比对纠错
-    Level 4 - 结构化纠错：不在台账中的责令号，按固定结构（前缀+区名+责字）修正
+    Level 1 - 严格正则：直接匹配标准格式，精确对应台账（无需人工核查）
+    Level 2 - 同根主号匹配：如 1234-1号 匹配 1234号（无需人工核查）
+    Level 3 - 宽松正则 + 模糊匹配：容忍 OCR 误识（需要人工核查）
+    Level 4 - 结构化纠错：不在台账中的责令号（需要人工核查）
 
-    返回: {'source': str, 'notice_number': str|None, 'target_name': str|None}
+    安全原则：
+    - 模糊匹配和结构化纠错都标记为需要人工核查
+    - 只有严格匹配和同根主号匹配才自动通过
+
+    返回: {'source': str, 'notice_number': str|None, 'target_name': str|None, 'needs_review': bool}
     """
     # Level 1: 严格正则（经 apply_ocr_corrections 预纠错后）
     corrected = apply_ocr_corrections(combined_text, doc_type=None)
@@ -330,21 +345,21 @@ def _match_notice_from_ocr_text(
     for dn in strict_numbers:
         n = normalize_notice_number(dn)
         if n in notice_to_target:
-            return {'source': '严格匹配', 'notice_number': dn, 'target_name': notice_to_target[n]}
+            return {'source': '严格匹配', 'notice_number': dn, 'target_name': notice_to_target[n], 'needs_review': False}
 
     # Level 2: 同根主号匹配（如 1234-1号 匹配 1234号）
     for dn in strict_numbers:
         detected_root = _get_notice_root_number(dn)
         if detected_root in notice_to_target:
-            return {'source': '同根主号匹配', 'notice_number': dn, 'target_name': notice_to_target[detected_root]}
+            return {'source': '同根主号匹配', 'notice_number': dn, 'target_name': notice_to_target[detected_root], 'needs_review': False}
         # 反向匹配：OCR识别到主号，台账有子号
         for ledger_notice in ledger_notices:
             ledger_root = _get_notice_root_number(ledger_notice)
             if normalize_notice_number(dn) == ledger_root:
                 n = normalize_notice_number(ledger_notice)
-                return {'source': '同根主号匹配', 'notice_number': ledger_notice, 'target_name': notice_to_target.get(n)}
+                return {'source': '同根主号匹配', 'notice_number': ledger_notice, 'target_name': notice_to_target.get(n), 'needs_review': False}
 
-    # Level 3: 宽松正则 + 模糊匹配台账（保证准确性：用台账原文替换 OCR 结果）
+    # Level 3: 宽松正则 + 模糊匹配台账（需要人工核查）
     relaxed_candidates = _extract_notice_candidates_relaxed(combined_text)
     if not relaxed_candidates:
         relaxed_candidates = _extract_notice_candidates_relaxed(corrected)
@@ -355,7 +370,7 @@ def _match_notice_from_ocr_text(
         if ledger_match:
             n = normalize_notice_number(ledger_match)
             target = notice_to_target.get(n)
-            return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target}
+            return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target, 'needs_review': True}
 
     # Level 3.5: 用严格正则提取到的但不在台账中的，也尝试模糊匹配
     for dn in strict_numbers:
@@ -363,19 +378,19 @@ def _match_notice_from_ocr_text(
         if ledger_match:
             n = normalize_notice_number(ledger_match)
             target = notice_to_target.get(n)
-            return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target}
+            return {'source': '模糊匹配', 'notice_number': ledger_match, 'target_name': target, 'needs_review': True}
 
-    # Level 4: 结构化纠错（不在台账中的责令号）
+    # Level 4: 结构化纠错（不在台账中的责令号，需要人工核查）
     # 优先用严格正则结果（已通过纠错），其次用宽松正则+结构纠错
     if strict_numbers:
         corrected = _structural_correct_notice(strict_numbers[0])
-        return {'source': '结构纠错', 'notice_number': corrected, 'target_name': None}
+        return {'source': '结构纠错', 'notice_number': corrected, 'target_name': None, 'needs_review': True}
 
     for raw_candidate in relaxed_candidates:
         corrected_notice = _structural_correct_notice(raw_candidate)
-        return {'source': '结构纠错', 'notice_number': corrected_notice, 'target_name': None}
+        return {'source': '结构纠错', 'notice_number': corrected_notice, 'target_name': None, 'needs_review': True}
 
-    return {'source': 'unknown', 'notice_number': None, 'target_name': None}
+    return {'source': 'unknown', 'notice_number': None, 'target_name': None, 'needs_review': True}
 
 
 def _resolve_district(raw_district: str) -> Optional[str]:
@@ -792,6 +807,7 @@ def detect_notice_source_mapping_from_ocr(
     notice_files: List[str],
     ledger_notices: Optional[List[str]] = None,
     notice_to_target: Optional[Dict[str, str]] = None,
+    ledger_cases: Optional[List[Dict]] = None,
 ) -> Dict[str, str]:
     """
     从 OCR 结果中识别责催文件的责令号，并与台账进行比对纠错
@@ -837,9 +853,12 @@ def detect_notice_source_mapping_from_ocr(
                     ledger_notices,
                     notice_to_target or {},
                     source_name,
+                    ledger_cases,
                 )
                 matched_notice = final_match.get('notice_number') or selected_notice
                 match_source = final_match.get('source', 'ocr_only')
+                needs_review = final_match.get('needs_review', False)
+                review_reason = final_match.get('review_reason')
 
                 # 如果匹配结果与原始识别不同，记录审计日志
                 if matched_notice != selected_notice:
@@ -848,8 +867,13 @@ def detect_notice_source_mapping_from_ocr(
                         'original_detected': selected_notice,
                         'corrected_to': matched_notice,
                         'match_source': match_source,
+                        'needs_review': needs_review,
+                        'review_reason': review_reason,
                     })
-                    _log(f"  [CORRECTED] {source_name}: '{selected_notice}' -> '{matched_notice}' ({match_source})")
+                    if needs_review:
+                        _log(f"  [REVIEW] {source_name}: '{selected_notice}' -> '{matched_notice}' ({match_source}) - 需人工核查: {review_reason}")
+                    else:
+                        _log(f"  [CORRECTED] {source_name}: '{selected_notice}' -> '{matched_notice}' ({match_source})")
 
                 mapping[source_name] = matched_notice
 
@@ -872,39 +896,114 @@ def _match_notice_with_ledger(
     ledger_notices: List[str],
     notice_to_target: Dict[str, str],
     source_name: str,
+    ledger_cases: Optional[List[Dict]] = None,
 ) -> Dict[str, Optional[str]]:
     """
     将 OCR 识别的责令号与台账进行比对，返回最佳匹配结果
 
     匹配策略（按优先级）：
     1. 精确匹配：标准化后的责令号与台账完全一致
-    2. 同根主号匹配：如 1234-1号 匹配 1234号
-    3. 结构化匹配：按年+编号+区名组件比对
-    4. 模糊匹配：相似度 >= 85%
+    2. 智能纠错（L1）：高置信度自动纠错（区名纠错等）
+    3. 同根主号匹配：如 1234-1号 匹配 1234号
+    4. 结构化匹配：按年+编号+区名组件比对
+    5. 智能纠错（L2/L3）：中低置信度，建议人工核查
+    6. 模糊匹配：相似度 >= 85%
+
+    安全原则：
+    - L1（高置信度）：自动应用
+    - L2/L3（中低置信度）：返回匹配结果但标记需要人工核查
 
     Returns:
-        {'source': str, 'notice_number': str|None}
+        {
+            'source': str,
+            'notice_number': str|None,
+            'correction_info': dict|None,
+            'needs_review': bool,  # 是否需要人工核查
+            'review_reason': str|None  # 人工核查原因
+        }
     """
     normalized_detected = normalize_notice_number(detected_notice)
 
     # Level 1: 精确匹配
     for ledger in ledger_notices:
         if normalize_notice_number(ledger) == normalized_detected:
-            return {'source': 'exact_match', 'notice_number': ledger}
+            return {
+                'source': 'exact_match',
+                'notice_number': ledger,
+                'correction_info': None,
+                'needs_review': False,
+                'review_reason': None
+            }
 
-    # Level 2: 同根主号匹配
+    # Level 2: 智能纠错（L1 - 高置信度自动应用）
+    if ledger_cases:
+        corrector = _get_smart_corrector(ledger_cases)
+        if corrector:
+            correction = corrector.correct_notice_number(detected_notice)
+
+            # L1级别：高置信度，自动应用
+            if correction.level == 'L1' and corrector.should_auto_apply(correction):
+                corrected_normalized = normalize_notice_number(correction.corrected)
+                for ledger in ledger_notices:
+                    if normalize_notice_number(ledger) == corrected_normalized:
+                        return {
+                            'source': f'smart_L1_{correction.method}',
+                            'notice_number': ledger,
+                            'correction_info': {
+                                'original': correction.original,
+                                'corrected': correction.corrected,
+                                'confidence': correction.confidence,
+                                'reason': correction.reason,
+                                'level': correction.level,
+                            },
+                            'needs_review': False,
+                            'review_reason': None
+                        }
+
+            # L2/L3级别：需要人工核查
+            if correction.level in ('L2', 'L3'):
+                corrected_normalized = normalize_notice_number(correction.corrected)
+                for ledger in ledger_notices:
+                    if normalize_notice_number(ledger) == corrected_normalized:
+                        return {
+                            'source': f'smart_{correction.level}_{correction.method}',
+                            'notice_number': ledger,
+                            'correction_info': {
+                                'original': correction.original,
+                                'corrected': correction.corrected,
+                                'confidence': correction.confidence,
+                                'reason': correction.reason,
+                                'level': correction.level,
+                            },
+                            'needs_review': True,
+                            'review_reason': f'智能纠错{correction.level}级别：{correction.reason}'
+                        }
+
+    # Level 3: 同根主号匹配
     detected_root = _get_notice_root_number(detected_notice)
     for ledger in ledger_notices:
         ledger_root = _get_notice_root_number(ledger)
         if detected_root == ledger_root:
-            return {'source': 'root_match', 'notice_number': ledger}
+            return {
+                'source': 'root_match',
+                'notice_number': ledger,
+                'correction_info': None,
+                'needs_review': False,
+                'review_reason': None
+            }
 
-    # Level 3: 结构化匹配（年+编号+区名）
+    # Level 4: 结构化匹配（年+编号+区名）
     structured_match = _structured_match_notice(detected_notice, ledger_notices)
     if structured_match:
-        return {'source': 'structured_match', 'notice_number': structured_match}
+        return {
+            'source': 'structured_match',
+            'notice_number': structured_match,
+            'correction_info': None,
+            'needs_review': False,
+            'review_reason': None
+        }
 
-    # Level 4: 模糊匹配（相似度 >= 85%）
+    # Level 5: 模糊匹配（相似度 >= 85%）
     best_match = None
     best_ratio = 0.0
     for ledger in ledger_notices:
@@ -914,10 +1013,22 @@ def _match_notice_with_ledger(
             best_match = ledger
 
     if best_match:
-        return {'source': f'fuzzy_match({best_ratio:.1%})', 'notice_number': best_match}
+        return {
+            'source': f'fuzzy_match({best_ratio:.1%})',
+            'notice_number': best_match,
+            'correction_info': None,
+            'needs_review': True,  # 模糊匹配需要人工核查
+            'review_reason': f'模糊匹配，相似度{best_ratio:.1%}'
+        }
 
     # 无匹配，返回原始识别结果
-    return {'source': 'no_match', 'notice_number': detected_notice}
+    return {
+        'source': 'no_match',
+        'notice_number': detected_notice,
+        'correction_info': None,
+        'needs_review': True,  # 未匹配到台账，需要人工核查
+        'review_reason': '未匹配到台账记录'
+    }
 
 
 def build_mock_ocr_results(sample_root: Path, input_dir: Path | None = None) -> Dict[str, Dict]:
@@ -2007,7 +2118,7 @@ def export_pdf_ranges(source_pdf: Path, ranges: List[Tuple[int, int]], output_di
     return created
 
 
-def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ocr_results: Dict[str, Dict], excel_path: Optional[Path] = None) -> int:
+def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, ocr_results: Dict[str, Dict], excel_path: Optional[Path] = None, error_root: Optional[Path] = None) -> int:
     cases = load_non_litigation_cases(sample_root, excel_path=excel_path)
 
     target_map = {}
@@ -2020,12 +2131,19 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
         target_notice_map[target_name] = normalized
         ledger_notices.append(case['notice_number'])
 
+    # 创建错误文件夹（按文档类型分类）
+    if error_root is None:
+        error_root = output_dir.parent / '需人工核查'
+    error_dir = error_root / '责催'
+    error_dir.mkdir(parents=True, exist_ok=True)
+
     notice_files = discover_notice_files(input_dir)
-    # 传入台账数据进行 OCR 识别结果比对纠错
+    # 传入台账数据进行 OCR 识别结果比对纠错（包含智能纠错）
     source_map = detect_notice_source_mapping_from_ocr(
         ocr_results, notice_files,
         ledger_notices=ledger_notices,
         notice_to_target=target_map,
+        ledger_cases=cases,  # 传入完整台账数据用于智能纠错
     )
 
     created = 0
@@ -2115,16 +2233,40 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
                 'source': source_name,
                 'detected': detected_notice,
             })
+            
+            # 复制到错误文件夹，添加识别信息到文件名
+            src = next((path for path in iter_notice_pdf_paths(input_dir) if path.name == source_name), input_dir / source_name)
+            if src.exists():
+                # 构建错误文件名：原文件名_识别到[责令号]_需人工核查.pdf
+                safe_detected = detected_notice.replace('/', '_').replace('\\', '_') if detected_notice else '未识别'
+                error_filename = f"{Path(source_name).stem}_识别到[{safe_detected}]_需人工核查.pdf"
+                error_dst = error_dir / error_filename
+                
+                # 如果文件已存在，添加序号
+                counter = 1
+                original_error_dst = error_dst
+                while error_dst.exists():
+                    stem = original_error_dst.stem
+                    error_dst = error_dir / f"{stem}_{counter}.pdf"
+                    counter += 1
+                
+                shutil.copy2(src, error_dst)
+                _log(f"  [MOVED] 已复制到错误文件夹: {error_filename}")
+                _log_audit('notice_moved_to_error', {
+                    'source': source_name,
+                    'detected': detected_notice,
+                    'error_path': str(error_dst),
+                })
 
     if unmatched:
-        _log(f"\n  [WARN] 未匹配文件汇总 ({len(unmatched)} 个):")
+        _log(f"\n  [WARN] 未匹配文件汇总 ({len(unmatched)} 个)，已复制到: {error_dir}")
         for source_name, notice, reason in unmatched:
             _log(f"    - {source_name}: {reason} (识别: '{notice}')")
 
     return created
 
 
-def export_application_files(input_dir: Path, output_dir: Path, target_names: List[str], ocr_results: Dict[str, Dict]) -> int:
+def export_application_files(input_dir: Path, output_dir: Path, target_names: List[str], ocr_results: Dict[str, Dict], error_root: Optional[Path] = None) -> int:
     source_pdf = input_dir / SOURCE_MAPPING['输出文件（申请书）'] 
 
     if not source_pdf.exists():
@@ -2135,6 +2277,12 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
     expected_cases = len(target_names)
 
     _log(f"  [INFO] 申请书: {total_pages} 页，台账期望 {expected_cases} 个案件")
+
+    # 创建错误文件夹（按文档类型分类）
+    if error_root is None:
+        error_root = output_dir.parent / '需人工核查'
+    error_dir = error_root / '申请书'
+    error_dir.mkdir(parents=True, exist_ok=True)
 
     ranges = detect_application_page_ranges_by_ocr(ocr_results, total_pages, expected_cases)
 
@@ -2157,11 +2305,14 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
 
     # 提取 OCR 文本并为每个页面范围匹配责令号
     data = _get_ocr_result(ocr_results, '申请书')
-    result_names: List[str] = []
+    normal_ranges: List[Tuple[int, int]] = []
+    normal_names: List[str] = []
+    error_ranges: List[Tuple[int, int]] = []
+    error_names: List[str] = []
+    
     ledger_match_count = 0
     fuzzy_match_count = 0
-    structural_correct_count = 0
-    unknown_count = 0
+    error_count = 0
 
     if data and data.get('pages'):
         for range_idx, (start_page, end_page) in enumerate(ranges):
@@ -2182,31 +2333,72 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
             src_label = final_notice.get('source', 'unknown')
             notice_number = final_notice.get('notice_number')
             target_name_matched = final_notice.get('target_name')
+            needs_review = final_notice.get('needs_review', True)
 
-            if target_name_matched:
-                result_names.append(target_name_matched)
+            if target_name_matched and not needs_review:
+                # 成功匹配台账（高置信度），正常导出
+                normal_ranges.append((start_page, end_page))
+                normal_names.append(target_name_matched)
                 ledger_match_count += 1
-                _log(f"    [{src_label}] 第 {start_page+1}-{end_page} 页 → {target_name_matched}")
+                _log(f"  [OK] 申请书 第{start_page+1}-{end_page}页: '{notice_number}' -> '{target_name_matched}' ({src_label})")
+            elif target_name_matched and needs_review:
+                # 匹配成功但需要人工核查（模糊匹配等）
+                error_ranges.append((start_page, end_page))
+                safe_notice = notice_number.replace('/', '_').replace('\\', '_')
+                error_name = f"申请书_第{start_page+1}-{end_page}页_识别到[{safe_notice}]_匹配方式[{src_label}]_需人工核查.pdf"
+                error_names.append(error_name)
+                fuzzy_match_count += 1
+                error_count += 1
+                _log(f"  [REVIEW] 申请书 第{start_page+1}-{end_page}页: '{notice_number}' -> '{target_name_matched}' ({src_label}) - 需人工核查")
+                _log_audit('application_needs_review', {
+                    'pages': f"{start_page+1}-{end_page}",
+                    'detected_notice': notice_number,
+                    'matched_target': target_name_matched,
+                    'match_source': src_label,
+                    'reason': '模糊匹配或结构化纠错，需要人工确认'
+                })
             elif notice_number:
-                constructed = f"{range_idx + 1}-申请书pdf-{notice_number}.pdf"
-                result_names.append(constructed)
-                if src_label == 'fuzzy':
-                    fuzzy_match_count += 1
-                else:
-                    structural_correct_count += 1
-                _log(f"    [{src_label}] 第 {start_page+1}-{end_page} 页 → {notice_number}")
+                # 识别到责令号但未匹配台账，导出到错误文件夹
+                error_ranges.append((start_page, end_page))
+                safe_notice = notice_number.replace('/', '_').replace('\\', '_')
+                error_name = f"申请书_第{start_page+1}-{end_page}页_识别到[{safe_notice}]_未匹配台账_需人工核查.pdf"
+                error_names.append(error_name)
+                fuzzy_match_count += 1
+                error_count += 1
+                _log(f"  [WARN] 申请书 第{start_page+1}-{end_page}页: '{notice_number}' 未匹配台账，将导出到错误文件夹")
+                _log_audit('application_unmatched', {
+                    'pages': f"{start_page+1}-{end_page}",
+                    'detected_notice': notice_number,
+                    'reason': '未匹配台账'
+                })
             else:
-                fallback_name = f"{range_idx + 1}-申请书pdf-未知责令号.pdf"
-                result_names.append(fallback_name)
-                unknown_count += 1
-                _log(f"    [WARN] 第 {start_page+1}-{end_page} 页未提取到责令号")
+                # 未识别到责令号，导出到错误文件夹
+                error_ranges.append((start_page, end_page))
+                error_name = f"申请书_第{start_page+1}-{end_page}页_未识别到责令号_需人工核查.pdf"
+                error_names.append(error_name)
+                error_count += 1
+                _log(f"  [WARN] 申请书 第{start_page+1}-{end_page}页: 未识别到责令号，将导出到错误文件夹")
+                _log_audit('application_unknown', {
+                    'pages': f"{start_page+1}-{end_page}",
+                    'reason': '未识别到责令号'
+                })
 
-    if result_names:
-        _log(f"  [INFO] 申请书命名: 台账匹配 {ledger_match_count}, 模糊匹配 {fuzzy_match_count}, 结构纠错 {structural_correct_count}, 未识别 {unknown_count}")
-        return export_pdf_ranges(source_pdf, ranges, output_dir, result_names)
+    # 导出正常匹配的文件
+    created = 0
+    if normal_ranges:
+        _log(f"  [INFO] 申请书: 台账匹配 {ledger_match_count} 个，导出到正常文件夹")
+        created += export_pdf_ranges(source_pdf, normal_ranges, output_dir, normal_names)
+    
+    # 导出匹配失败的文件到错误文件夹
+    if error_ranges:
+        _log(f"  [INFO] 申请书: 匹配失败 {error_count} 个，导出到错误文件夹")
+        created += export_pdf_ranges(source_pdf, error_ranges, error_dir, error_names)
 
-    _log(f"  [WARN] 无 OCR 数据，按台账顺序命名（可能不准确）")
-    return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
+    if not data or not data.get('pages'):
+        _log(f"  [WARN] 无 OCR 数据，按台账顺序命名（可能不准确）")
+        return export_pdf_ranges(source_pdf, ranges, output_dir, target_names)
+
+    return created
 
 
 def _extract_company_name_from_target(target_name: str) -> str:
@@ -2390,7 +2582,8 @@ def detect_company_page_mapping_from_ocr(ocr_results: Dict[str, Dict], doc_type:
 
 
 def export_company_named_files(input_dir: Path, output_dir: Path, target_names: List[str],
-                               ocr_results: Dict[str, Dict], source_name: Optional[str], marker: str) -> int:
+                               ocr_results: Dict[str, Dict], source_name: Optional[str], marker: str,
+                               error_root: Optional[Path] = None) -> int:
     if not source_name:
         _log(f"  [ERROR] {marker} 未配置 source_pdf")
         return 0
@@ -2406,12 +2599,21 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
 
     _log(f"  [INFO] {source_name}: {total_pages} 页")
 
+    # 创建错误文件夹（按文档类型分类）
+    if error_root is None:
+        error_root = output_dir.parent / '需人工核查'
+    error_dir = error_root / doc_type
+    error_dir.mkdir(parents=True, exist_ok=True)
+
     data = _get_ocr_result(ocr_results, doc_type)
     if data and data.get('pages'):
         pages = data['pages']
         post_processor = TextPostProcessor()
 
-        matched_names: List[str] = []
+        normal_ranges: List[Tuple[int, int]] = []
+        normal_names: List[str] = []
+        error_ranges: List[Tuple[int, int]] = []
+        error_names: List[str] = []
         used_indices: set = set()
 
         for page_idx, page_data in enumerate(pages):
@@ -2422,9 +2624,11 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
                 match = _fuzzy_match_company_name(normalized, target_names, used_indices)
                 if match:
                     idx, target_name = match
-                    matched_names.append(target_name)
+                    # 成功匹配，加入正常列表
+                    normal_ranges.append((page_idx, page_idx + 1))
+                    normal_names.append(target_name)
                     used_indices.add(idx)
-                    _log(f"    [MATCH] 第{page_idx + 1}页 '{detected}' -> 台账 '{target_name}'")
+                    _log(f"  [OK] {doc_type} 第{page_idx + 1}页: '{detected}' -> '{target_name}'")
                     _log_audit('company_name_match', {
                         'doc_type': doc_type,
                         'page': page_idx + 1,
@@ -2432,32 +2636,43 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
                         'matched_target': target_name,
                     })
                 else:
-                    matched_names.append(f"{detected}.pdf")
-                    _log(f"    [WARN] 第{page_idx + 1}页 '{detected}' 未匹配台账，使用识别结果")
+                    # 识别到公司名但未匹配台账，加入错误列表（台账缺失）
+                    error_ranges.append((page_idx, page_idx + 1))
+                    safe_detected = detected.replace('/', '_').replace('\\', '_')
+                    error_name = f"{doc_type}_第{page_idx + 1}页_识别到[{safe_detected}]_台账缺失_需人工核查.pdf"
+                    error_names.append(error_name)
+                    _log(f"  [REVIEW] {doc_type} 第{page_idx + 1}页: '{detected}' 未在台账中找到匹配，标记为台账缺失需人工核查")
                     _log_audit('company_name_unmatched', {
                         'doc_type': doc_type,
                         'page': page_idx + 1,
                         'detected': detected,
+                        'error_name': error_name,
+                        'reason': '台账缺失',
                     })
             else:
-                matched_names.append(f"未匹配_第{page_idx + 1}页.pdf")
-                _log(f"    [WARN] 第{page_idx + 1}页未识别到公司名")
+                # 未识别到公司名，加入错误列表
+                error_ranges.append((page_idx, page_idx + 1))
+                error_name = f"{doc_type}_第{page_idx + 1}页_未识别到公司名_需人工核查.pdf"
+                error_names.append(error_name)
+                _log(f"  [WARN] {doc_type} 第{page_idx + 1}页: 未识别到公司名，将导出到错误文件夹")
+                _log_audit('company_name_unknown', {
+                    'doc_type': doc_type,
+                    'page': page_idx + 1,
+                    'error_name': error_name,
+                })
 
-        ranges = detect_page_ranges(total_pages, len(matched_names), doc_type)
-        actual_names = matched_names[:len(ranges)]
-        shortage = len(ranges) - len(actual_names)
-        if shortage > 0:
-            remaining = [(i, t) for i, t in enumerate(target_names) if i not in used_indices]
-            for i in range(len(actual_names), len(ranges)):
-                if remaining:
-                    idx, target = remaining.pop(0)
-                    actual_names.append(target)
-                    used_indices.add(idx)
-                    _log(f"    [FALLBACK] 第{i + 1}页按顺序分配: {target}")
-                else:
-                    actual_names.append(f"未匹配_第{i + 1}页.pdf")
-        _log(f"  [OK] {doc_type} OCR匹配: {sum(1 for n in actual_names if not n.startswith('未匹配'))}/{len(pages)} 页成功匹配台账")
-        return export_pdf_ranges(source_pdf, ranges, output_dir, actual_names)
+        # 导出正常匹配的文件
+        created = 0
+        if normal_ranges:
+            _log(f"  [INFO] {doc_type}: 台账匹配 {len(normal_ranges)} 页，导出到正常文件夹")
+            created += export_pdf_ranges(source_pdf, normal_ranges, output_dir, normal_names)
+        
+        # 导出匹配失败的文件到错误文件夹
+        if error_ranges:
+            _log(f"  [INFO] {doc_type}: 匹配失败 {len(error_ranges)} 页，导出到错误文件夹")
+            created += export_pdf_ranges(source_pdf, error_ranges, error_dir, error_names)
+        
+        return created
 
     _log(f"  [INFO] {doc_type} 无 OCR 结果，按Excel顺序分配")
     expected_count = len(target_names)
@@ -2487,20 +2702,24 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
 
         _log(f"\n[INFO] {folder_name} ({len(target_names)} 个文件)")
 
+        # 统一创建错误根目录
+        error_root = output_root / '需人工核查'
+        error_root.mkdir(parents=True, exist_ok=True)
+
         if folder_name == _cfg.directory_mapping['责催']:
-            count = export_notice_files(sample_root, input_dir, folder_path, ocr_results, excel_path=excel_path)
+            count = export_notice_files(sample_root, input_dir, folder_path, ocr_results, excel_path=excel_path, error_root=error_root)
             export_tasks.append(('责催', count))
 
         elif folder_name == _cfg.directory_mapping['申请书']:
-            count = export_application_files(input_dir, folder_path, target_names, ocr_results)
+            count = export_application_files(input_dir, folder_path, target_names, ocr_results, error_root=error_root)
             export_tasks.append(('申请书', count))
 
         elif folder_name == _cfg.directory_mapping['授权书']:
-            count = export_company_named_files(input_dir, folder_path, target_names, ocr_results, _cfg.doc_type_map['授权书'].source_pdf, _cfg.doc_type_map['授权书'].content_marker)
+            count = export_company_named_files(input_dir, folder_path, target_names, ocr_results, _cfg.doc_type_map['授权书'].source_pdf, _cfg.doc_type_map['授权书'].content_marker, error_root=error_root)
             export_tasks.append(('授权书', count))
 
         elif folder_name == _cfg.directory_mapping['所函']:
-            count = export_company_named_files(input_dir, folder_path, target_names, ocr_results, _cfg.doc_type_map['所函'].source_pdf, _cfg.doc_type_map['所函'].content_marker)
+            count = export_company_named_files(input_dir, folder_path, target_names, ocr_results, _cfg.doc_type_map['所函'].source_pdf, _cfg.doc_type_map['所函'].content_marker, error_root=error_root)
             export_tasks.append(('所函', count))
 
     created_count = sum(count for _, count in export_tasks)

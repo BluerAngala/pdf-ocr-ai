@@ -50,7 +50,7 @@ regions:
   notice_header:
     name: 责令号区域
     top: 0.0
-    bottom: 0.25
+    bottom: 0.30
     left: 0.0
     right: 1.0
   application_title:

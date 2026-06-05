@@ -1913,7 +1913,108 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
         if log_callback:
             log_callback("info", msg)
 
+    def _format_eta(seconds_remaining: float) -> str:
+        """格式化剩余时间"""
+        if seconds_remaining <= 0 or seconds_remaining > 86400 * 365:
+            return "--:--"
+        s = int(seconds_remaining)
+        if s < 60:
+            return f"{s}秒"
+        if s < 3600:
+            return f"{s // 60}分{s % 60}秒"
+        h = s // 3600
+        m = (s % 3600) // 60
+        return f"{h}小时{m}分"
+
+    # 进度跟踪：用于计算 ETA 和平均速度
+    _progress_state = {
+        "done": 0,
+        "total": 0,
+        "start_time": time.perf_counter(),
+        "per_file_times": [],  # 每个文件实际耗时
+        "current_file": "",
+    }
+
+    def _enhanced_progress_update(filename: str):
+        """增强版进度回调：包含 ETA、当前文件、平均速度"""
+        now = time.perf_counter()
+        _progress_state["done"] += 1
+        _progress_state["current_file"] = filename
+        if progress_callback:
+            done = _progress_state["done"]
+            total = _progress_state["total"]
+            elapsed = now - _progress_state["start_time"]
+            avg_per_file = elapsed / done if done > 0 else 0
+            remaining = max(0, total - done)
+            eta = avg_per_file * remaining
+            try:
+                # 向后兼容：尝试新签名 (dict)，失败回退到旧签名 (3 个参数)
+                progress_callback({
+                    "done": done,
+                    "total": total,
+                    "current_file": filename,
+                    "elapsed": elapsed,
+                    "eta": eta,
+                    "avg_per_file": avg_per_file,
+                    "percent": round(done / total * 100, 1) if total else 0,
+                })
+            except TypeError:
+                try:
+                    progress_callback(done, total, filename)
+                except Exception:
+                    pass
+
+    def _track_file_time(duration: float):
+        """记录单文件耗时（用于 ETA 计算）"""
+        _progress_state["per_file_times"].append(duration)
+        # 保留最近 20 个文件的平均，避免首文件影响
+        if len(_progress_state["per_file_times"]) > 20:
+            _progress_state["per_file_times"] = _progress_state["per_file_times"][-20:]
+
     _report(f"OCR 引擎状态: HAS_OCR={HAS_OCR}, use_mock={use_mock}")
+
+    # ---------- 断点续跑检查 ----------
+    state_file = input_dir / '.ocr_run_state.json'
+    resume_state: Dict = {}
+    if state_file.exists() and not force:
+        try:
+            import json as _json
+            with open(state_file, 'r', encoding='utf-8') as f:
+                resume_state = _json.load(f)
+            done_files = resume_state.get('done_files', [])
+            ts = resume_state.get('timestamp', '')
+            _report(f"[断点续跑] 发现上次未完成任务 (时间: {ts}, 已完成 {len(done_files)} 个文件)")
+            # 把已完成文件预先标记为缓存，避免重复处理
+            for fname in done_files:
+                if fname not in ocr_results:
+                    ocr_results[fname] = {'pages': [], '__resumed__': True}
+            _report(f"[断点续跑] 将跳过 {len(done_files)} 个已完成文件")
+        except Exception as e:
+            _report(f"[断点续跑] 读取状态文件失败: {e}, 将从头开始")
+            resume_state = {}
+
+    def _save_run_state(done: List[str], total: int):
+        """保存运行状态（断点续跑用）"""
+        try:
+            import json as _json
+            state = {
+                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+                'input_dir': str(input_dir),
+                'done_files': done,
+                'total': total,
+            }
+            with open(state_file, 'w', encoding='utf-8') as f:
+                _json.dump(state, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            _log(f"[WARN] 保存运行状态失败: {e}")
+
+    def _clear_run_state():
+        """清理运行状态"""
+        try:
+            if state_file.exists():
+                state_file.unlink()
+        except Exception:
+            pass
 
     # ---------- 自动流式切换判断 ----------
     total_tasks = 0
@@ -1963,11 +2064,23 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
 
     _global_done = [0]
     _global_total = total_found
+    _progress_state["total"] = total_found
 
     def _progress_update(filename: str):
         _global_done[0] += 1
         if progress_callback:
-            progress_callback(_global_done[0], _global_total, filename)
+            # 使用增强进度回调（含 ETA、当前文件、平均速度）
+            try:
+                _enhanced_progress_update(filename)
+            except Exception:
+                # 兜底：旧签名
+                try:
+                    progress_callback(_global_done[0], _global_total, filename)
+                except Exception:
+                    pass
+        # 断点续跑：每完成一个文件就保存状态
+        if not filename.startswith('__resumed__'):
+            _save_run_state(list(ocr_results.keys()), _global_total)
 
     shared_ocr = None
     shared_region_extractor = None
@@ -2080,6 +2193,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 }
                 for future in as_completed(future_map):
                     filename = future_map[future]
+                    t_done = time.perf_counter()
                     try:
                         _, result = future.result()
                         ocr_results[filename] = result
@@ -2090,6 +2204,8 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                         raise
                     except Exception as e:
                         _report(f"  [并行失败] {filename}: {e}")
+                    finally:
+                        _track_file_time(time.perf_counter() - t_done)
         else:
             _report(f"  [串行] DirectML 模式下禁止多线程并行，改为逐文件处理...")
             for idx, (filename, doc_type, pdf_path) in enumerate(parallel_candidates, 1):
@@ -2110,8 +2226,14 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 )
                 ocr_results[filename] = result
                 _on_result(filename, result)
+                file_dur = time.perf_counter() - t_file
+                _track_file_time(file_dur)
                 _progress_update(filename)
-                _report(f"  [{idx}/{len(parallel_candidates)}] {filename} done ({time.perf_counter() - t_file:.1f}s)")
+                # 估算剩余时间
+                avg_dur = sum(_progress_state["per_file_times"]) / len(_progress_state["per_file_times"]) if _progress_state["per_file_times"] else file_dur
+                remaining_files = len(parallel_candidates) - idx + len(serial_candidates)
+                eta_str = _format_eta(avg_dur * remaining_files)
+                _report(f"  [{idx}/{len(parallel_candidates)}] {filename} done ({file_dur:.1f}s, 剩余约 {eta_str})")
 
         parallel_dur = time.perf_counter() - t_parallel
         mode_label = '并行' if use_parallel else '串行'
@@ -2157,6 +2279,9 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
     if skipped_count:
         _report(f"跳过缓存: {skipped_count} 个文件")
     _report(f"OCR 阶段完成: {total_duration:.2f}s, 共处理 {len(ocr_results)} 个文件")
+
+    # 任务完成，清理断点续跑状态
+    _clear_run_state()
 
     return ocr_results
 

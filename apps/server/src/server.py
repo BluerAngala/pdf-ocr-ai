@@ -133,12 +133,25 @@ def _make_task_output_dir(task_id: str = "", module: str = "", user_dir: str = "
     if module:
         parts.append(module)
     if task_id:
-        parts.append(task_id)
+        # 简化 task_id：去掉前缀（如 "nl-", "enf-", "cq-"），只保留数字后缀
+        simplified_id = _simplify_task_id(task_id)
+        parts.append(simplified_id)
     subfolder = "_".join(parts)
     base = Path(user_dir) if user_dir else USER_DATA_DIR / "output"
     d = base / subfolder
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+
+def _simplify_task_id(task_id: str) -> str:
+    """简化 task_id，只保留数字部分"""
+    import re
+    # 去掉常见前缀（nl-, enf-, cq-, print- 等），保留数字
+    match = re.search(r'-(\d+)$', task_id)
+    if match:
+        return match.group(1)
+    # 如果没有匹配到数字后缀，直接返回原ID
+    return task_id
 
 
 def _dir_has_pdfs(dir_path: Path) -> bool:

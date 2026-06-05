@@ -680,6 +680,77 @@ def inspect_pdf_page_count(pdf_path: Path) -> int:
         return len(reader.pages)
 
 
+def pre_check_input_materials(
+    sample_root: Path,
+    input_dir: Path,
+    excel_path: Optional[Path] = None,
+) -> List[str]:
+    """处理前预检输入材料，检测案件数量是否匹配，返回警告信息列表"""
+    warnings: List[str] = []
+    
+    try:
+        cases = load_non_litigation_cases(sample_root, excel_path=excel_path)
+        expected_count = len(cases)
+    except Exception as e:
+        warnings.append(f"无法加载台账案件: {e}")
+        return warnings
+    
+    if expected_count == 0:
+        warnings.append("台账中没有案件数据，请检查 Excel 文件是否正确")
+        return warnings
+    
+    # 检查责催
+    notice_dirs = get_notice_input_dirs(input_dir)
+    notice_pdfs = []
+    for notice_dir in notice_dirs:
+        if notice_dir.exists():
+            notice_pdfs.extend(list(notice_dir.glob('*.pdf')))
+    
+    if notice_pdfs:
+        notice_count = len(notice_pdfs)
+        # 责催每个 PDF 可能有多个案件，这里只统计文件数作为参考
+        warnings.append(f"[预检] 责催: 发现 {notice_count} 个 PDF 文件，台账期望 {expected_count} 个案件")
+    else:
+        warnings.append("[预检] 责催: 未找到责催 PDF 文件")
+    
+    # 检查申请书
+    app_source = input_dir / SOURCE_MAPPING.get('输出文件（申请书）', '申请书.pdf')
+    if app_source.exists():
+        app_pages = inspect_pdf_page_count(app_source)
+        app_cases = app_pages // PAGES_PER_CASE.get('申请书', 2)
+        status = '[OK]' if app_cases == expected_count else '[WARN]'
+        warnings.append(
+            f"[预检] 申请书: {app_pages} 页 ≈ {app_cases} 个案件，"
+            f"台账期望 {expected_count} 个案件 {status}"
+        )
+    else:
+        warnings.append("[预检] 申请书: 未找到申请书 PDF 文件")
+    
+    # 检查授权书
+    auth_source = input_dir / SOURCE_MAPPING.get('输出文件（授权书）', '授权书.pdf')
+    if auth_source.exists():
+        auth_pages = inspect_pdf_page_count(auth_source)
+        status = '[OK]' if auth_pages == expected_count else '[WARN]'
+        warnings.append(
+            f"[预检] 授权书: {auth_pages} 页，台账期望 {expected_count} 个案件 {status}"
+        )
+    else:
+        warnings.append("[预检] 授权书: 未找到授权书 PDF 文件")
+    
+    # 检查所函
+    letter_source = input_dir / SOURCE_MAPPING.get('输出文件（所函）', '所函.pdf')
+    if letter_source.exists():
+        letter_pages = inspect_pdf_page_count(letter_source)
+        status = '[OK]' if letter_pages == expected_count else '[WARN]'
+        warnings.append(
+            f"[预检] 所函: {letter_pages} 页，台账期望 {expected_count} 个案件 {status}"
+        )
+    else:
+        warnings.append("[预检] 所函: 未找到所函 PDF 文件")
+    
+    return warnings
+
+
 def get_non_litigation_input_root(project_root: Path) -> Path:
     return project_root / 'input' / NON_LITIGATION_INPUT_DIRNAME
 
@@ -2758,6 +2829,13 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
     except Exception as e:
         _log(f"  [WARN] 生成页码映射表失败: {e}")
 
+    # 生成需人工核查汇总 Excel
+    try:
+        review_summary_path = output_root / '需人工核查汇总.xlsx'
+        write_review_summary_excel(_audit_log, error_root, review_summary_path)
+    except Exception as e:
+        _log(f"  [WARN] 生成需人工核查汇总失败: {e}")
+
     _log("\n" + "=" * 60)
     _log(f"[OK] 导出完成: {created_count} 个文件")
 
@@ -2859,3 +2937,152 @@ def write_mapping_excel(cases: List[Dict], mappings: Dict[str, Dict], output_pat
 
     wb.save(output_path)
     _log(f"  [OK] 页码映射表已保存: {output_path}")
+
+
+def write_review_summary_excel(audit_log: List[Dict], error_root: Optional[Path], output_path: Path):
+    """生成需人工核查汇总 Excel，方便用户一次性查看所有需要人工处理的文件"""
+    try:
+        from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        HAS_OPENPYXL = False
+
+    if not HAS_OPENPYXL:
+        _log(f"  [WARN] openpyxl 未安装，跳过生成需人工核查汇总")
+        return
+
+    # 筛选需要人工核查的事件
+    review_events = []
+    for entry in audit_log:
+        event = entry.get('event', '')
+        if event in {'application_unknown', 'application_unmatched', 'application_needs_review',
+                     'company_name_unmatched', 'company_name_unknown'}:
+            review_events.append(entry)
+
+    if not review_events:
+        _log(f"  [INFO] 无需人工核查的文件，跳过生成汇总")
+        return
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "需人工核查汇总"
+
+    # 样式定义
+    title_font = Font(name='微软雅黑', bold=True, size=14, color='FFFFFF')
+    header_font = Font(name='微软雅黑', bold=True, size=11, color='FFFFFF')
+    body_font = Font(name='微软雅黑', size=10)
+    body_alignment = Alignment(horizontal='left', vertical='center', wrap_text=True)
+    center_alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+
+    title_fill = PatternFill(start_color='2E75B6', end_color='2E75B6', fill_type='solid')
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+
+    thin_border = Border(
+        left=Side(style='thin', color='B4B4B4'),
+        right=Side(style='thin', color='B4B4B4'),
+        top=Side(style='thin', color='B4B4B4'),
+        bottom=Side(style='thin', color='B4B4B4')
+    )
+
+    # 文档类型颜色（奇偶行交替）
+    type_colors = {
+        '申请书': ('FFF2CC', 'FFFDE7'),
+        '授权书': ('D4E6F1', 'E8F4FC'),
+        '所函': ('D5E8D4', 'E8F8ED'),
+    }
+
+    # 设置列宽
+    col_widths = [6, 10, 55, 12, 40, 30, 35, 25]
+    for i, width in enumerate(col_widths, 1):
+        ws.column_dimensions[get_column_letter(i)].width = width
+
+    # 第1行：标题
+    ws.merge_cells('A1:H1')
+    title_cell = ws['A1']
+    title_cell.value = f'需人工核查汇总（共 {len(review_events)} 项）'
+    title_cell.font = title_font
+    title_cell.fill = title_fill
+    title_cell.alignment = center_alignment
+    title_cell.border = thin_border
+    ws.row_dimensions[1].height = 35
+
+    # 第2行：表头
+    headers = ['序号', '文档类型', '文件名', '页码范围', '识别到的内容', '问题描述', '建议操作', '台账匹配结果']
+    ws.append(headers)
+    for col in range(1, 9):
+        cell = ws.cell(row=2, column=col)
+        cell.font = header_font
+        cell.fill = header_fill
+        cell.alignment = center_alignment
+        cell.border = thin_border
+    ws.row_dimensions[2].height = 28
+
+    # 数据行从第3行开始
+    for idx, entry in enumerate(review_events, 1):
+        row_num = idx + 2  # 数据行号：3, 4, 5...
+        event = entry.get('event', '')
+        doc_type = ''
+        detected = ''
+        pages = entry.get('pages', '')
+        matched_target = entry.get('matched_target', '')
+        reason = ''
+        suggestion = ''
+        filename = ''
+
+        if event.startswith('application_'):
+            doc_type = '申请书'
+            detected = entry.get('detected_notice', '')
+            filename = f"申请书_{pages}_需人工核查.pdf"
+            if event == 'application_unknown':
+                suggestion = '请人工确认责令号并匹配到正确的台账案件'
+                reason = '未识别到责令号'
+            elif event == 'application_unmatched':
+                suggestion = 'OCR识别的责令号与台账不完全匹配，请核对并手动修正'
+                reason = '识别到的责令号未匹配台账'
+            elif event == 'application_needs_review':
+                suggestion = '存在模糊匹配，请人工确认是否正确'
+                reason = '模糊匹配需人工确认'
+
+        elif event.startswith('company_name_'):
+            doc_type = entry.get('doc_type', '')
+            detected = entry.get('detected', '')
+            page = entry.get('page', '')
+            filename = f"{doc_type}_第{page}页_需人工核查.pdf"
+            if event == 'company_name_unmatched':
+                suggestion = '识别的公司名与台账不完全匹配，请核对并手动修正'
+                reason = '公司名未匹配台账'
+            elif event == 'company_name_unknown':
+                suggestion = '未能识别到公司名，请人工补充'
+                reason = '未识别到公司名'
+
+        row_data = [
+            idx,
+            doc_type,
+            filename,
+            pages if pages else f"第{page}页" if page else '',
+            detected,
+            reason,
+            suggestion,
+            matched_target if matched_target else '未匹配到台账',
+        ]
+        ws.append(row_data)
+
+        # 设置行样式
+        colors = type_colors.get(doc_type, ('F5F5F5', 'FFFFFF'))
+        fill_color = colors[idx % 2]
+        row_fill = PatternFill(start_color=fill_color, end_color=fill_color, fill_type='solid')
+
+        for col in range(1, 9):
+            cell = ws.cell(row=row_num, column=col)
+            cell.font = body_font
+            cell.fill = row_fill
+            cell.border = thin_border
+            cell.alignment = body_alignment if col > 1 else center_alignment
+
+        # 页码列居中
+        ws.cell(row=row_num, column=4).alignment = center_alignment
+        # 文档类型加粗
+        ws.cell(row=row_num, column=2).font = Font(name='微软雅黑', size=10, bold=True)
+
+    wb.save(output_path)
+    _log(f"  [OK] 需人工核查汇总已保存: {output_path} ({len(review_events)} 条)")

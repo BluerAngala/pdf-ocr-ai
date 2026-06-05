@@ -38,6 +38,7 @@ from non_litigation.export import (
     ensure_non_litigation_input_structure,
     export_non_litigation_standard_outputs,
     get_non_litigation_result_root,
+    pre_check_input_materials,
 )
 from non_litigation.product import load_non_litigation_cases
 from non_litigation.validator import validate_ocr_results
@@ -145,6 +146,19 @@ def build_run_summary(
 
     total_start = time.perf_counter()
     phase_timings = {}
+
+    # 预检输入材料
+    print('=' * 60)
+    print('[INFO] 预检输入材料...')
+    print('=' * 60)
+    pre_check_warnings = pre_check_input_materials(sample_root, input_root)
+    if pre_check_warnings:
+        for warning in pre_check_warnings:
+            print(warning)
+        print('')
+    else:
+        print('[INFO] 预检完成，未发现问题')
+    print('')
 
     ocr_start = time.perf_counter()
     if use_real_ocr:

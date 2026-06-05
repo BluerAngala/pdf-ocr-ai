@@ -165,7 +165,7 @@ def build_run_summary(
         print('=' * 60)
         print('[INFO] 真实 OCR 模式')
         print('=' * 60)
-        ocr_results = run_real_ocr(input_root, use_mock=False)
+        ocr_results = run_real_ocr(input_root, use_mock=False, task_output_dir=result_root)
     else:
         print('=' * 60)
         print('[INFO] Mock 模式（使用预生成缓存）')

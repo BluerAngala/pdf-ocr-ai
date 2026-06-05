@@ -520,7 +520,7 @@ class JsonRpcServer:
                 def _on_ocr_result(filename, result, all_results):
                     _save_cache(all_results)
 
-                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg), cached_results=cached_results, force=force, result_callback=_on_ocr_result)
+                ocr_results = run_real_ocr(input_root, use_mock=False, progress_callback=ocr_progress, cancel_check=lambda: _is_task_cancelled(task_id), log_callback=lambda level, msg: emitter.log(level, msg), cached_results=cached_results, force=force, result_callback=_on_ocr_result, task_output_dir=result_root)
 
                 _save_cache(ocr_results)
 

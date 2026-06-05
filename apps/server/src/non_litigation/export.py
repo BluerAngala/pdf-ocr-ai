@@ -1896,7 +1896,8 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                  log_callback: Optional[callable] = None,
                  cached_results: Optional[Dict[str, Dict]] = None,
                  force: bool = False,
-                 result_callback: Optional[callable] = None) -> Dict[str, Dict]:
+                 result_callback: Optional[callable] = None,
+                 task_output_dir: Optional[Path] = None) -> Dict[str, Dict]:
     ocr_start = time.perf_counter()
     ocr_results: Dict[str, Dict] = dict(cached_results) if cached_results else {}
     skipped_count = 0
@@ -1908,113 +1909,70 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
             except Exception:
                 pass
 
+    _state_dirty = False
+
+    def _save_state():
+        """标记状态为脏，不立即落盘。统一在 OCR 阶段结束时调用 _flush_state() 落盘。"""
+        nonlocal _state_dirty
+        _state_dirty = True
+
+    def _flush_state():
+        """把内存中的 ocr_results 持久化到磁盘"""
+        nonlocal _state_dirty
+        if not _state_dirty or task_output_dir is None:
+            return
+        try:
+            state_path = task_output_dir / ".ocr_state.json"
+            state = {
+                'completed': list(ocr_results.keys()),
+                'timestamp': time.time(),
+            }
+            state_path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding='utf-8')
+            _state_dirty = False
+        except Exception as e:
+            _log(f"  [WARN] 保存断点状态失败: {e}")
+
+    def _load_state() -> set:
+        """从磁盘加载已完成任务状态"""
+        try:
+            state_path = task_output_dir / ".ocr_state.json"
+            if not state_path.exists():
+                return set()
+            data = json.loads(state_path.read_text(encoding='utf-8'))
+            return set(data.get('completed', []))
+        except Exception as e:
+            _log(f"  [WARN] 加载断点状态失败: {e}")
+            return set()
+
+    def _compute_eta(done_count: int, total_count: int) -> str:
+        """计算预估剩余时间（ETA）"""
+        if done_count == 0 or total_count == 0:
+            return ""
+        elapsed = time.perf_counter() - ocr_start
+        avg_per_task = elapsed / done_count
+        remaining = (total_count - done_count) * avg_per_task
+        if remaining < 60:
+            return f"ETA {remaining:.0f}s"
+        elif remaining < 3600:
+            return f"ETA {int(remaining // 60)}m{int(remaining % 60)}s"
+        else:
+            return f"ETA {int(remaining // 3600)}h{int((remaining % 3600) // 60)}m"
+
     def _report(msg: str):
         _log(msg)
         if log_callback:
             log_callback("info", msg)
 
-    def _format_eta(seconds_remaining: float) -> str:
-        """格式化剩余时间"""
-        if seconds_remaining <= 0 or seconds_remaining > 86400 * 365:
-            return "--:--"
-        s = int(seconds_remaining)
-        if s < 60:
-            return f"{s}秒"
-        if s < 3600:
-            return f"{s // 60}分{s % 60}秒"
-        h = s // 3600
-        m = (s % 3600) // 60
-        return f"{h}小时{m}分"
-
-    # 进度跟踪：用于计算 ETA 和平均速度
-    _progress_state = {
-        "done": 0,
-        "total": 0,
-        "start_time": time.perf_counter(),
-        "per_file_times": [],  # 每个文件实际耗时
-        "current_file": "",
-    }
-
-    def _enhanced_progress_update(filename: str):
-        """增强版进度回调：包含 ETA、当前文件、平均速度"""
-        now = time.perf_counter()
-        _progress_state["done"] += 1
-        _progress_state["current_file"] = filename
-        if progress_callback:
-            done = _progress_state["done"]
-            total = _progress_state["total"]
-            elapsed = now - _progress_state["start_time"]
-            avg_per_file = elapsed / done if done > 0 else 0
-            remaining = max(0, total - done)
-            eta = avg_per_file * remaining
-            try:
-                # 向后兼容：尝试新签名 (dict)，失败回退到旧签名 (3 个参数)
-                progress_callback({
-                    "done": done,
-                    "total": total,
-                    "current_file": filename,
-                    "elapsed": elapsed,
-                    "eta": eta,
-                    "avg_per_file": avg_per_file,
-                    "percent": round(done / total * 100, 1) if total else 0,
-                })
-            except TypeError:
-                try:
-                    progress_callback(done, total, filename)
-                except Exception:
-                    pass
-
-    def _track_file_time(duration: float):
-        """记录单文件耗时（用于 ETA 计算）"""
-        _progress_state["per_file_times"].append(duration)
-        # 保留最近 20 个文件的平均，避免首文件影响
-        if len(_progress_state["per_file_times"]) > 20:
-            _progress_state["per_file_times"] = _progress_state["per_file_times"][-20:]
-
     _report(f"OCR 引擎状态: HAS_OCR={HAS_OCR}, use_mock={use_mock}")
 
-    # ---------- 断点续跑检查 ----------
-    state_file = input_dir / '.ocr_run_state.json'
-    resume_state: Dict = {}
-    if state_file.exists() and not force:
-        try:
-            import json as _json
-            with open(state_file, 'r', encoding='utf-8') as f:
-                resume_state = _json.load(f)
-            done_files = resume_state.get('done_files', [])
-            ts = resume_state.get('timestamp', '')
-            _report(f"[断点续跑] 发现上次未完成任务 (时间: {ts}, 已完成 {len(done_files)} 个文件)")
-            # 把已完成文件预先标记为缓存，避免重复处理
-            for fname in done_files:
-                if fname not in ocr_results:
-                    ocr_results[fname] = {'pages': [], '__resumed__': True}
-            _report(f"[断点续跑] 将跳过 {len(done_files)} 个已完成文件")
-        except Exception as e:
-            _report(f"[断点续跑] 读取状态文件失败: {e}, 将从头开始")
-            resume_state = {}
-
-    def _save_run_state(done: List[str], total: int):
-        """保存运行状态（断点续跑用）"""
-        try:
-            import json as _json
-            state = {
-                'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
-                'input_dir': str(input_dir),
-                'done_files': done,
-                'total': total,
-            }
-            with open(state_file, 'w', encoding='utf-8') as f:
-                _json.dump(state, f, ensure_ascii=False, indent=2)
-        except Exception as e:
-            _log(f"[WARN] 保存运行状态失败: {e}")
-
-    def _clear_run_state():
-        """清理运行状态"""
-        try:
-            if state_file.exists():
-                state_file.unlink()
-        except Exception:
-            pass
+    # ---------- 断点续跑：加载已完成任务 ----------
+    if task_output_dir is not None and not force:
+        persisted = _load_state()
+        if persisted:
+            _report(f"[断点续跑] 发现已完成任务 {len(persisted)} 个，自动跳过")
+            for fn in persisted:
+                if fn not in ocr_results:
+                    ocr_results[fn] = {'pages': [], 'total_pages': 0, 'filename': fn, 'method': 'resumed'}
 
     # ---------- 自动流式切换判断 ----------
     total_tasks = 0
@@ -2047,6 +2005,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
             ocr_results = streaming_results
         total_duration = round(time.perf_counter() - ocr_start, 4)
         _report(f"OCR 阶段完成(流式): {total_duration:.2f}s, 共处理 {len(ocr_results)} 个文件")
+        _flush_state()  # 流式模式结束，一次性落盘
         return ocr_results
     # -------------------------------------
 
@@ -2064,23 +2023,11 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
 
     _global_done = [0]
     _global_total = total_found
-    _progress_state["total"] = total_found
 
     def _progress_update(filename: str):
         _global_done[0] += 1
         if progress_callback:
-            # 使用增强进度回调（含 ETA、当前文件、平均速度）
-            try:
-                _enhanced_progress_update(filename)
-            except Exception:
-                # 兜底：旧签名
-                try:
-                    progress_callback(_global_done[0], _global_total, filename)
-                except Exception:
-                    pass
-        # 断点续跑：每完成一个文件就保存状态
-        if not filename.startswith('__resumed__'):
-            _save_run_state(list(ocr_results.keys()), _global_total)
+            progress_callback(_global_done[0], _global_total, filename)
 
     shared_ocr = None
     shared_region_extractor = None
@@ -2096,41 +2043,87 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
 
     if notice_items and not use_mock and HAS_OCR:
         notice_count = len(notice_items)
-        _report(f"处理责催文件（逐页识别，找到即停）... 共 {notice_count} 个")
+        notice_pending = [(n, p) for n, p in notice_items if n not in ocr_results]
+        skipped = notice_count - len(notice_pending)
+        if skipped:
+            _report(f"处理责催文件（{len(notice_pending)} 个新文件，跳过 {skipped} 个缓存）...")
+        else:
+            _report(f"处理责催文件（逐页识别，找到即停）... 共 {notice_count} 个")
 
         shared_ocr, shared_region_extractor = _build_ocr_processors()
         shared_post_processor = TextPostProcessor()
+
+        from core.pdf_ocr_ultra import detect_gpu_provider
+        gpu_provider, _ = detect_gpu_provider()
+        can_parallel = gpu_provider not in ('dml_det',) and len(notice_pending) > 1
+        notice_workers = min(len(notice_pending), 3) if can_parallel else 1
         notice_start = time.perf_counter()
-        for idx, (source_name, pdf_path) in enumerate(notice_items, 1):
-            if cancel_check and cancel_check():
-                _report(f"责催已取消，已完成 {idx-1}/{notice_count}")
-                raise CancelledError("用户取消")
-            if source_name in ocr_results:
-                skipped_count += 1
-                _progress_update(source_name)
-                continue
+        if can_parallel:
+            _report(f"  [并行] 责催启用 {notice_workers} 线程 (GPU={gpu_provider})")
+
+        def _ocr_notice_one(task):
+            source_name, pdf_path = task
             t0 = time.perf_counter()
-            result = _run_ocr_with_timeout(
-                pdf_path,
-                use_mock=use_mock,
-                is_notice=True,
-                stop_pattern=NOTICE_PATTERN,
-                doc_type='责催',
-                ocr=shared_ocr,
-                region_extractor=shared_region_extractor,
-                post_processor=shared_post_processor,
-                cancel_check=cancel_check,
-            )
-            if cancel_check and cancel_check():
-                _report(f"责催已取消，已完成 {idx}/{notice_count}")
-                raise CancelledError("用户取消")
-            file_dur = time.perf_counter() - t0
-            ocr_results[source_name] = result
-            _on_result(source_name, result)
-            _report(f"[{idx}/{notice_count}] {source_name} ({file_dur:.1f}s)")
-            _progress_update(source_name)
+            try:
+                result = _run_ocr_with_timeout(
+                    pdf_path,
+                    use_mock=use_mock,
+                    is_notice=True,
+                    stop_pattern=NOTICE_PATTERN,
+                    doc_type='责催',
+                    ocr=shared_ocr,
+                    region_extractor=shared_region_extractor,
+                    post_processor=shared_post_processor,
+                    cancel_check=cancel_check,
+                )
+            except CancelledError:
+                return source_name, None, 'cancelled'
+            except Exception as e:
+                _report(f"  [ERROR] 责催 {source_name}: {e}")
+                return source_name, {'pages': [], 'total_pages': 0, 'filename': source_name, 'method': 'error'}, time.perf_counter() - t0
+            return source_name, result, time.perf_counter() - t0
+
+        if notice_workers > 1:
+            with ThreadPoolExecutor(max_workers=notice_workers) as pool:
+                future_map = {pool.submit(_ocr_notice_one, t): t[0] for t in notice_pending}
+                done_idx = 0
+                for future in as_completed(future_map):
+                    if cancel_check and cancel_check():
+                        for f in future_map:
+                            f.cancel()
+                        _report(f"责催已取消，已完成 {done_idx}/{len(notice_pending)}")
+                        raise CancelledError("用户取消")
+                    source_name, result, dur = future.result()
+                    if result is None:
+                        continue  # cancelled
+                    done_idx += 1
+                    ocr_results[source_name] = result
+                    _on_result(source_name, result)
+                    _save_state()
+                    _report(f"[{done_idx}/{len(notice_pending)}] {source_name} ({dur:.1f}s)  {_compute_eta(done_idx + skipped, notice_count)}")
+                    _progress_update(source_name)
+        else:
+            for idx, (source_name, pdf_path) in enumerate(notice_pending, 1):
+                if cancel_check and cancel_check():
+                    _report(f"责催已取消，已完成 {idx-1}/{len(notice_pending)}")
+                    raise CancelledError("用户取消")
+                source_name, result, file_dur = _ocr_notice_one((source_name, pdf_path))
+                if result is None:
+                    continue
+                ocr_results[source_name] = result
+                _on_result(source_name, result)
+                _save_state()
+                _report(f"[{idx}/{len(notice_pending)}] {source_name} ({file_dur:.1f}s)  {_compute_eta(idx + skipped, notice_count)}")
+                _progress_update(source_name)
+
         notice_dur = time.perf_counter() - notice_start
-        _report(f"责催完成: {notice_count} 个文件, 耗时 {notice_dur:.1f}s")
+        _report(f"责催完成: {len(notice_pending)} 个文件, 耗时 {notice_dur:.1f}s")
+    elif notice_items and use_mock:
+        for source_name, pdf_path in notice_items:
+            if source_name not in ocr_results:
+                ocr_results[source_name] = _mock_ocr_result(source_name)
+                _on_result(source_name, ocr_results[source_name])
+                _progress_update(source_name)
 
     if cancel_check and cancel_check():
         _report(f"任务已取消，跳过其他文件处理，已缓存 {len(ocr_results)} 个结果")
@@ -2175,15 +2168,23 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
 
             def _ocr_one_file(task):
                 filename, doc_type, pdf_path = task
-                return filename, _run_ocr_with_timeout(
-                    pdf_path,
-                    use_mock=use_mock,
-                    doc_type=doc_type,
-                    ocr=shared_ocr,
-                    region_extractor=shared_region_extractor,
-                    post_processor=shared_post_processor,
-                    cancel_check=cancel_check,
-                )
+                t0 = time.perf_counter()
+                try:
+                    res = _run_ocr_with_timeout(
+                        pdf_path,
+                        use_mock=use_mock,
+                        doc_type=doc_type,
+                        ocr=shared_ocr,
+                        region_extractor=shared_region_extractor,
+                        post_processor=shared_post_processor,
+                        cancel_check=cancel_check,
+                    )
+                except CancelledError:
+                    return filename, None, 0.0
+                except Exception as e:
+                    _report(f"  [并行失败] {filename}: {e}")
+                    return filename, {'pages': [], 'total_pages': 0, 'filename': filename, 'method': 'error'}, time.perf_counter() - t0
+                return filename, res, time.perf_counter() - t0
 
             from concurrent.futures import as_completed
             with ThreadPoolExecutor(max_workers=min(len(parallel_candidates), 3)) as pool:
@@ -2191,21 +2192,25 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                     pool.submit(_ocr_one_file, task): task[0]
                     for task in parallel_candidates
                 }
+                done_idx = 0
                 for future in as_completed(future_map):
                     filename = future_map[future]
-                    t_done = time.perf_counter()
                     try:
-                        _, result = future.result()
-                        ocr_results[filename] = result
-                        _on_result(filename, result)
-                        _progress_update(filename)
-                        _report(f"  [并行完成] {filename}")
+                        _, result, dur = future.result()
                     except CancelledError:
                         raise
                     except Exception as e:
                         _report(f"  [并行失败] {filename}: {e}")
-                    finally:
-                        _track_file_time(time.perf_counter() - t_done)
+                        continue
+                    if result is None:
+                        continue
+                    done_idx += 1
+                    ocr_results[filename] = result
+                    _on_result(filename, result)
+                    _save_state()
+                    eta = _compute_eta(done_idx + skipped_count, len(parallel_candidates))
+                    _report(f"  [并行 {done_idx}/{len(parallel_candidates)}] {filename} ({dur:.1f}s)  {eta}")
+                    _progress_update(filename)
         else:
             _report(f"  [串行] DirectML 模式下禁止多线程并行，改为逐文件处理...")
             for idx, (filename, doc_type, pdf_path) in enumerate(parallel_candidates, 1):
@@ -2226,14 +2231,11 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 )
                 ocr_results[filename] = result
                 _on_result(filename, result)
+                _save_state()
                 file_dur = time.perf_counter() - t_file
-                _track_file_time(file_dur)
+                eta = _compute_eta(idx + skipped_count, len(parallel_candidates))
+                _report(f"  [{idx}/{len(parallel_candidates)}] {filename} done ({file_dur:.1f}s)  {eta}")
                 _progress_update(filename)
-                # 估算剩余时间
-                avg_dur = sum(_progress_state["per_file_times"]) / len(_progress_state["per_file_times"]) if _progress_state["per_file_times"] else file_dur
-                remaining_files = len(parallel_candidates) - idx + len(serial_candidates)
-                eta_str = _format_eta(avg_dur * remaining_files)
-                _report(f"  [{idx}/{len(parallel_candidates)}] {filename} done ({file_dur:.1f}s, 剩余约 {eta_str})")
 
         parallel_dur = time.perf_counter() - t_parallel
         mode_label = '并行' if use_parallel else '串行'
@@ -2269,7 +2271,9 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
         file_dur = time.perf_counter() - t_file
         ocr_results[filename] = result
         _on_result(filename, result)
-        _report(f"[{other_idx}/{other_total}] {filename} 完成 ({file_dur:.1f}s)")
+        _save_state()
+        eta = _compute_eta(other_idx, other_total)
+        _report(f"[{other_idx}/{other_total}] {filename} 完成 ({file_dur:.1f}s)  {eta}")
         _progress_update(filename)
 
     for dt, dur in type_durations.items():
@@ -2279,9 +2283,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
     if skipped_count:
         _report(f"跳过缓存: {skipped_count} 个文件")
     _report(f"OCR 阶段完成: {total_duration:.2f}s, 共处理 {len(ocr_results)} 个文件")
-
-    # 任务完成，清理断点续跑状态
-    _clear_run_state()
+    _flush_state()  # OCR 阶段结束，一次性落盘断点状态
 
     return ocr_results
 

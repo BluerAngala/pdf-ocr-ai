@@ -165,7 +165,7 @@ def build_run_summary(
         print('=' * 60)
         print('[INFO] 真实 OCR 模式')
         print('=' * 60)
-        ocr_results = run_real_ocr(input_root, use_mock=False, task_output_dir=result_root)
+        ocr_results = run_real_ocr(input_root, use_mock=False, task_output_dir=result_root, force=True)
     else:
         print('=' * 60)
         print('[INFO] Mock 模式（使用预生成缓存）')
@@ -173,7 +173,15 @@ def build_run_summary(
         ocr_results = build_mock_ocr_results(sample_root, input_dir=input_root)
     ocr_duration = time.perf_counter() - ocr_start
     phase_timings['ocr_seconds'] = round(ocr_duration, 4)
-    print(f'\n[INFO] OCR 阶段完成: {ocr_duration:.2f}s')
+    # P0-#extra: 拆出 run_real_ocr 内部的 type_durations（per-doc_type 耗时）
+    meta = ocr_results.pop('_meta', None) if isinstance(ocr_results, dict) else None
+    if meta and isinstance(meta, dict) and 'ocr_timing' in meta:
+        ot = meta['ocr_timing']
+        phase_timings['ocr_type_durations'] = ot.get('type_durations', {})
+        phase_timings['ocr_file_count'] = ot.get('file_count', 0)
+        print(f'\n[INFO] OCR 阶段完成: {ocr_duration:.2f}s, per-doc-type: {ot.get("type_durations", {})}')
+    else:
+        print(f'\n[INFO] OCR 阶段完成: {ocr_duration:.2f}s')
 
     print('\n[INFO] 开始导出文件...')
     export_start = time.perf_counter()

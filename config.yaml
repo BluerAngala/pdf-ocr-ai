@@ -1,27 +1,28 @@
 version: 2.0.0
 developer: 陈恒律师
-
-# 非诉组 OCR 纠错规则（通用）
 ocr_corrections:
-  - wrong: 番禹
-    correct: 番禺
-  - wrong: 天何
-    correct: 天河
-  - wrong: 白去
-    correct: 白云
-  - wrong: 荔弯
-    correct: 荔湾
-  - wrong: 海猪
-    correct: 海珠
-  - wrong: 越莠
-    correct: 越秀
-  - wrong: 黄浦
-    correct: 黄埔
-  - wrong: 花者
-    correct: 花都
-  - wrong: 萝岗
-    correct: 萝岗
-
+- wrong: 番禹
+  correct: 番禺
+- wrong: 天何
+  correct: 天河
+- wrong: 白去
+  correct: 白云
+- wrong: 荔弯
+  correct: 荔湾
+- wrong: 海猪
+  correct: 海珠
+- wrong: 越莠
+  correct: 越秀
+- wrong: 黄浦
+  correct: 黄埔
+- wrong: 花者
+  correct: 花都
+- wrong: 萝岗
+  correct: 萝岗
+- wrong: 【
+  correct: 〔
+- wrong: 】
+  correct: 〕
 paths:
   directories:
     result_dirname: non-litigation-results
@@ -50,7 +51,7 @@ regions:
   notice_header:
     name: 责令号区域
     top: 0.0
-    bottom: 0.30
+    bottom: 0.3
     left: 0.0
     right: 1.0
   application_title:
@@ -493,6 +494,10 @@ enforcement:
     correct: 花都
   - wrong: 萝岗
     correct: 萝岗
+  - wrong: 【
+    correct: 〔
+  - wrong: 】
+    correct: 〕
 company_query:
   api_url: https://env-00jxtnydr3fv.dev-hz.cloudbasefunction.cn/company_search
   userid: test_user_001

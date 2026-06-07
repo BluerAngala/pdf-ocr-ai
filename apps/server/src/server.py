@@ -413,6 +413,13 @@ class JsonRpcServer:
         user_output_dir = params.get('output_dir')
         emitter = ProgressEmitter(task_id)
         from core.task_cancel import is_cancelled as _is_task_cancelled, clear as _clear_task
+        # P0-#reload: 每次任务入口主动 reload config（让用户改 yaml 后无需重启）。
+        # 用 setattr 刷新模块级常量（不会破坏 enum/dataclass 的 == 比较）。
+        try:
+            from core.config_loader import reload_config
+            reload_config(refresh_modules=True)
+        except Exception as _e:
+            print(f"[WARN] 自动 reload config 失败: {_e}")
 
         if force:
             cache_path = USER_DATA_DIR / 'output' / 'ocr-cache.pkl'
@@ -663,6 +670,12 @@ class JsonRpcServer:
         user_output_dir = params.get('output_dir')
         task_id = params.get('task_id', f'enf-{id}')
         cancel_check = lambda: _is_task_cancelled(task_id)
+        # P0-#reload: 强制组任务入口同样主动 reload
+        try:
+            from core.config_loader import reload_config
+            reload_config(refresh_modules=True)
+        except Exception as _e:
+            print(f"[WARN] 自动 reload config 失败: {_e}")
         try:
             from enforcement.extractor import process_enforcement_cases
             import pickle as _pickle
@@ -1070,12 +1083,15 @@ class JsonRpcServer:
         return {"success": True, "count": len(corrections)}
 
     def _config_reload(self, params: Dict, id: Any) -> Dict:
-        """重新加载配置"""
+        """重新加载配置（用户改 config.yaml 后无需重启 Python 进程）"""
         try:
-            from core.config_loader import load_config
-            load_config._config = None
-            cfg = load_config()
-            return {"success": True, "config_path": str(cfg._config_path)}
+            from core.config_loader import reload_config, _config_path
+            reload_config()  # 强制重读 yaml + 重新构造 NonLitigationConfig + 刷新模块级常量
+            return {
+                "success": True,
+                "config_path": str(_config_path()),
+                "message": "配置已重新加载，模块级常量已同步",
+            }
         except Exception as e:
             raise Exception(f"重新加载配置失败: {str(e)}")
 

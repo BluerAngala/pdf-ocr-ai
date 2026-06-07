@@ -106,4 +106,7 @@ def test_export_notice_files_should_keep_base_number_without_fuzzy_back_to_subnu
     created = export_notice_files(sample_root, input_dir, output_dir, ocr_results)
     assert created == 1
     assert copied
-    assert copied[0][1].endswith('918-责催-穗公积金中心番禺责字（2025）1971-2号.pdf')
+    # P0-#9: same_root_remap 应当把 OCR 实际识别到的主号附加到文件名后缀，
+    # 避免「文件命名跟 PDF 实际不一致」的混淆。
+    expected_name = '918-责催-穗公积金中心番禺责字（2025）1971-2号[实际穗公积金中心番禺责字〔2025〕1971号].pdf'
+    assert copied[0][1].endswith(expected_name), f"actual dst: {copied[0][1]}"

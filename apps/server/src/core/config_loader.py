@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
@@ -11,6 +12,22 @@ from core.paths import get_config_path
 
 _CONFIG_CACHE: Optional[dict] = None
 _CONFIG_PATH: Optional[Path] = None
+_CONFIG_MTIME: Optional[float] = None  # 上次加载时的 mtime（秒）
+
+# P0-#reload: 这些模块在 import 时执行了 `_cfg = load_config()` 和
+# `NOTICE_PATTERN = _cfg.notice_pattern` 等模块级赋值。reload_config() 时需要
+# 重新加载它们，让模块级常量也刷新。
+_REFRESH_TARGETS = (
+    "non_litigation.export",
+    "non_litigation.product",
+    "non_litigation.output_plan",
+    "non_litigation.smart_extractor",
+    "non_litigation.streaming",
+    "non_litigation.validator",
+    "enforcement.extractor",
+    "enforcement.export",
+    "enforcement.product",
+)
 
 
 def _config_path() -> Path:
@@ -20,9 +37,22 @@ def _config_path() -> Path:
     return _CONFIG_PATH
 
 
+def _is_cache_stale() -> bool:
+    """检查 yaml 文件是否被外部修改（mtime 变化）"""
+    global _CONFIG_MTIME
+    if _CONFIG_CACHE is None or _CONFIG_MTIME is None:
+        return True
+    try:
+        current_mtime = _config_path().stat().st_mtime
+        return current_mtime > _CONFIG_MTIME
+    except OSError:
+        return False
+
+
 def _load_config() -> dict:
-    global _CONFIG_CACHE
-    if _CONFIG_CACHE is None:
+    """加载并缓存 config.yaml。mtime 变化时自动重新读取。"""
+    global _CONFIG_CACHE, _CONFIG_MTIME
+    if _CONFIG_CACHE is None or _is_cache_stale():
         path = _config_path()
         if not path.is_file():
             raise FileNotFoundError(
@@ -30,17 +60,98 @@ def _load_config() -> dict:
             )
         with open(path, 'r', encoding='utf-8') as f:
             _CONFIG_CACHE = yaml.safe_load(f)
+        try:
+            _CONFIG_MTIME = path.stat().st_mtime
+        except OSError:
+            _CONFIG_MTIME = 0
     return _CONFIG_CACHE
 
 
-def reload_config(path: Optional[Path] = None):
-    global _CONFIG_CACHE, _CONFIG_PATH
+# 每个模块的「模块级 cfg 属性」和「需要随 cfg 刷新的常量」映射
+# key=模块名, value=((cfg_attr_name, *const_attr_names), ...)
+# 刷新时: 先 setattr 模块 _cfg = 新的 NonLitigationConfig, 再 setattr 每个 const_attr
+_MODULE_REFRESH_PLAN = {
+    'non_litigation.export': (
+        ('_cfg', 'NOTICE_PATTERN', 'NON_LITIGATION_CORRECTIONS', 'PAGES_PER_CASE',
+         'NON_LITIGATION_INPUT_DIRNAME'),
+        ('source_mapping',),  # dict 属性（doc_type -> source_pdf）
+    ),
+    'non_litigation.product': (('_cfg',), ()),
+    'non_litigation.output_plan': (('_cfg',), ()),
+    'non_litigation.smart_extractor': (('_cfg', 'NOTICE_PATTERN'), ()),
+    'non_litigation.streaming': (('_cfg', 'NOTICE_PATTERN'), ()),
+    'non_litigation.validator': (('_cfg',), ()),
+    'enforcement.extractor': (
+        ('_cfg', '_enforcement_cfg', '_extraction_cfg'),
+        (),
+    ),
+    'enforcement.export': (('_cfg', '_enforcement_cfg', '_paths_cfg'), ()),
+    'enforcement.product': (('_cfg', '_enforcement_cfg', '_excel_cfg'), ()),
+}
+
+
+def reload_config(path: Optional[Path] = None, refresh_modules: bool = True) -> dict:
+    """
+    强制重新加载 config.yaml。
+
+    Args:
+        path: 切换配置文件路径（None 保持当前路径）
+        refresh_modules: 是否刷新依赖 cfg 的模块（默认 True）。
+            会重新构造 NonLitigationConfig 并 setattr 到模块级 _cfg,
+            同时更新 NOTICE_PATTERN 等模块级常量。不使用 importlib.reload
+            （避免 ValidationStatus 等 dataclass 被重新定义导致 == 比较失败）。
+
+    Returns:
+        重新加载后的 raw config dict
+    """
+    global _CONFIG_CACHE, _CONFIG_PATH, _CONFIG_MTIME
     if path:
         _CONFIG_PATH = path
-    else:
-        _CONFIG_PATH = None
     _CONFIG_CACHE = None
-    _load_config()
+    _CONFIG_MTIME = None
+    raw = _load_config()
+    if refresh_modules:
+        new_cfg = load_config()
+        _refresh_dependent_modules(new_cfg)
+    return raw
+
+
+def _refresh_dependent_modules(new_cfg):
+    """
+    把新的 NonLitigationConfig 实例和派生常量 setattr 到每个模块。
+    不 importlib.reload，避免 enum/dataclass 重新定义。
+    """
+    for mod_name, (cfg_attrs, dict_attrs) in _MODULE_REFRESH_PLAN.items():
+        if mod_name not in sys.modules:
+            continue
+        mod = sys.modules[mod_name]
+        try:
+            for attr in cfg_attrs:
+                if attr == '_cfg':
+                    mod._cfg = new_cfg
+                elif attr == '_enforcement_cfg':
+                    mod._enforcement_cfg = new_cfg.raw_config.get('enforcement', {})
+                elif attr == '_extraction_cfg':
+                    mod._extraction_cfg = mod._enforcement_cfg.get('extraction', {})
+                elif attr == '_paths_cfg':
+                    mod._paths_cfg = mod._enforcement_cfg.get('paths', {})
+                elif attr == '_excel_cfg':
+                    mod._excel_cfg = mod._enforcement_cfg.get('excel_parsing', {})
+                elif attr == 'NOTICE_PATTERN':
+                    mod.NOTICE_PATTERN = new_cfg.notice_pattern
+                elif attr == 'NON_LITIGATION_CORRECTIONS':
+                    mod.NON_LITIGATION_CORRECTIONS = new_cfg.ocr_corrections
+                elif attr == 'PAGES_PER_CASE':
+                    mod.PAGES_PER_CASE = new_cfg.pages_per_case
+                elif attr == 'NON_LITIGATION_INPUT_DIRNAME':
+                    mod.NON_LITIGATION_INPUT_DIRNAME = new_cfg.input_dirname
+            for attr in dict_attrs:
+                # source_mapping 是从 cfg 派生的 dict（doc_type -> source_pdf），
+                # 在 doc_types 重新解析时已通过 _build_doc_type_map 更新 new_cfg
+                if hasattr(new_cfg, attr):
+                    setattr(mod, attr, getattr(new_cfg, attr))
+        except Exception as e:
+            print(f"[WARN] 刷新 {mod_name} 模块级常量失败: {e}")
 
 
 @dataclass

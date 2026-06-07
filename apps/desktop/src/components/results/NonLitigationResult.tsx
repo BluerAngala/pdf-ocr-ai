@@ -124,7 +124,17 @@ function DetailItem({ item }: { item: ValidationDetail }) {
           ))}
         </div>
       )}
-      {sameRootRemap && <p className="text-[10px] text-amber-600 mt-0.5">同根号重映射</p>}
+      {sameRootRemap && (() => {
+        const summary = d.same_root_remap_summary as { selected_notice?: string; target_notice?: string } | undefined;
+        const sel = summary?.selected_notice ?? detectedNotices?.[0];
+        const tgt = summary?.target_notice ?? (d.matched_target_notice as string | undefined);
+        if (!sel && !tgt) return <p className="text-[10px] text-amber-600 mt-0.5">同根号重映射</p>;
+        return (
+          <p className="text-[10px] text-amber-600 mt-0.5">
+            同根号重映射：OCR 实际识别 <span className="font-mono">{sel ?? "?"}</span>，按主号 <span className="font-mono">{tgt ?? "?"}</span> 导出
+          </p>
+        );
+      })()}
       {suggestions.length > 0 && (
         <p className="text-[10px] text-slate-400 mt-0.5">{suggestions.join(" | ")}</p>
       )}

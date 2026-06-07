@@ -663,6 +663,36 @@ def fuzzy_match_notice(detected: str, target_map: Dict[str, str], threshold: flo
     return (best_match, best_ratio) if best_match else (None, 0)
 
 
+def _append_detected_notice_suffix(filename: str, detected_notice: str) -> str:
+    """
+    P0-#9: same_root_remap / fuzzy 时把 OCR 实际识别号附加到文件名后缀，
+    避免「文件命名跟 PDF 实际不一致」混淆。
+    """
+    if not detected_notice:
+        return filename
+    safe = detected_notice.replace('/', '_').replace('\\', '_').strip()
+    stem = Path(filename).stem
+    suffix = Path(filename).suffix
+    return f"{stem}[实际{safe}]{suffix}"
+
+
+def _dedupe_destination(dst: Path) -> Path:
+    """若目标已存在，自动加 -1 / -2 / ... 后缀找到一个未占用名；绝不覆盖既有产出。"""
+    if not dst.exists():
+        return dst
+    parent = dst.parent
+    stem = dst.stem
+    suffix = dst.suffix
+    n = 1
+    while True:
+        candidate = parent / f"{stem}-{n}{suffix}"
+        if not candidate.exists():
+            return candidate
+        n += 1
+        if n > 999:
+            return parent / f"{stem}-{int(time.time())}{suffix}"
+
+
 def _get_ocr_result(ocr_results: Dict[str, Dict], stem: str) -> Optional[Dict]:
     key = f'{stem}.pdf'
     if key in ocr_results:
@@ -1901,6 +1931,9 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
     ocr_start = time.perf_counter()
     ocr_results: Dict[str, Dict] = dict(cached_results) if cached_results else {}
     skipped_count = 0
+    # P0-#extra: 提前到函数顶部初始化，让责催完成时也能写入
+    type_durations: Dict[str, float] = {}
+    notice_dur_captured: float = 0.0
 
     def _on_result(filename: str, result: Dict):
         if result_callback:
@@ -2118,6 +2151,8 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
 
         notice_dur = time.perf_counter() - notice_start
         _report(f"责催完成: {len(notice_pending)} 个文件, 耗时 {notice_dur:.1f}s")
+        type_durations['责催'] = round(notice_dur, 4)
+        notice_dur_captured = round(notice_dur, 4)
     elif notice_items and use_mock:
         for source_name, pdf_path in notice_items:
             if source_name not in ocr_results:
@@ -2236,6 +2271,8 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                 eta = _compute_eta(idx + skipped_count, len(parallel_candidates))
                 _report(f"  [{idx}/{len(parallel_candidates)}] {filename} done ({file_dur:.1f}s)  {eta}")
                 _progress_update(filename)
+                # P0-#extra: dml_det 串行分支累加 type_durations
+                type_durations[doc_type or '其他'] = type_durations.get(doc_type or '其他', 0.0) + file_dur
 
         parallel_dur = time.perf_counter() - t_parallel
         mode_label = '并行' if use_parallel else '串行'
@@ -2243,7 +2280,7 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
 
     other_idx = len(parallel_candidates)
     other_total = len(parallel_candidates) + len(serial_candidates)
-    type_durations = {}
+    # type_durations 已在 run_real_ocr 顶部初始化（line 1905），不再覆盖
     for filename, stem, pdf_path in serial_candidates:
         if cancel_check and cancel_check():
             _report(f"其他文件已取消，已完成 {other_idx}/{other_total}")
@@ -2284,6 +2321,25 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
         _report(f"跳过缓存: {skipped_count} 个文件")
     _report(f"OCR 阶段完成: {total_duration:.2f}s, 共处理 {len(ocr_results)} 个文件")
     _flush_state()  # OCR 阶段结束，一次性落盘断点状态
+
+    # P0-#extra: 暴露 OCR 阶段计时明细，让 build_run_summary 能聚合到 phase_timings。
+    if task_output_dir is not None:
+        try:
+            timing = {
+                'total_seconds': total_duration,
+                'skipped_count': skipped_count,
+                'type_durations': dict(type_durations),
+                'file_count': len(ocr_results),
+            }
+            # _meta 不会进入导出环节的 .pdf 拷贝
+            ocr_results['_meta'] = {'ocr_timing': timing}
+            meta_path = task_output_dir / '_ocr_timing.json'
+            meta_path.write_text(
+                __import__('json').dumps(timing, ensure_ascii=False, indent=2),
+                encoding='utf-8',
+            )
+        except Exception as e:
+            _log(f"  [WARN] 保存 OCR 阶段计时失败: {e}")
 
     return ocr_results
 
@@ -2348,6 +2404,9 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
     unmatched = []
 
     for source_name, detected_notice in source_map.items():
+        # P0-#9: detected_notice 来自 _match_notice_with_ledger，已经是 ledger 字符串；
+        # 拿"OCR 实际识别"得从 ocr_results[source_name].selected_notice 取原始 OCR 输出。
+        ocr_selected_notice = (ocr_results.get(source_name) or {}).get('selected_notice') or detected_notice
         target_name = target_map.get(detected_notice)
         detected_root = _get_notice_root_number(detected_notice)
         ratio = None
@@ -2402,20 +2461,24 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
                     'match_type': match_type,
                 })
                 _log(f"    [WARN] 主号识别后按同根目标导出: '{detected_notice}' -> '{target_notice}'")
-
             src = next((path for path in iter_notice_pdf_paths(input_dir) if path.name == source_name), input_dir / source_name)
             dst = output_dir / target_name
+            # P0-#9: same_root_remap 时把 OCR 实际识别到的主号附加到文件名后缀；
+            # dst 已存在则自动加 -1/-2 后缀，绝不覆盖既有产出。
+            if same_root_remap and ocr_selected_notice and ocr_selected_notice != target_notice:
+                dst_name = _append_detected_notice_suffix(target_name, ocr_selected_notice)
+                dst = output_dir / dst_name
+                _log(f"    [HINT] 同根主号匹配，文件名附加 OCR 实际识别号: {target_name} -> {dst_name}")
             if dst.exists():
-                created += 1
-                _log(f"  [SKIP] 跳过已存在: {target_name}")
-                continue
+                dst = _dedupe_destination(dst)
+                _log(f"  [WARN] 目标已存在，自动加后缀: {dst.name}")
             if src.exists():
                 shutil.copy2(src, dst)
                 created += 1
-                _log(f"  [OK] {source_name} -> {target_name}")
+                _log(f"  [OK] {source_name} -> {dst.name}")
                 _log_audit('notice_renamed', {
                     'source': source_name,
-                    'target': target_name,
+                    'target': dst.name,
                     'match_type': match_type,
                     'detected_notice': detected_notice,
                     'target_notice': target_notice,

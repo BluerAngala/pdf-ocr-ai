@@ -660,11 +660,38 @@ def extract_ruling_from_pdf(pdf_path: Path, use_ocr: bool = True) -> RulingInfo:
     extractor = RulingPDFExtractor(use_ocr=use_ocr)
     return extractor.extract_from_pdf(pdf_path)
 
+def _cache_fingerprint(pdf_path: Path) -> Tuple[str, int, int]:
+    """缓存指纹：stem + mtime(ns) + size。
+    用纳秒级 mtime 避免 Windows NTFS 1 秒精度问题；size 兜底同秒内的内容变更。
+    """
+    try:
+        st = pdf_path.stat()
+        # st_mtime_ns: Python 3.3+ 全平台支持，Windows 下也能拿到 100ns 精度
+        mtime_ns = int(getattr(st, 'st_mtime_ns', int(st.st_mtime * 1_000_000_000)))
+        return pdf_path.stem, mtime_ns, int(st.st_size)
+    except OSError:
+        return pdf_path.stem, 0, 0
 
-def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True, cancel_check=None, cached_results: dict = None, result_callback=None) -> Dict[str, RulingInfo]:
-    results = {}
+
+def _cache_key(pdf_path: Path) -> str:
+    stem, mtime, size = _cache_fingerprint(pdf_path)
+    return f"{stem}|{mtime}|{size}"
+
+
+def _legacy_cache_lookup(cache: Dict, stem: str) -> Optional[dict]:
+    """老缓存（仅 stem 作为 key）兼容：force_ocr=False 时信任旧命中。"""
+    return cache.get(stem) if isinstance(cache, dict) else None
+
+
+def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True, cancel_check=None, cached_results: dict = None, result_callback=None) -> Tuple[Dict[str, RulingInfo], Dict[str, dict]]:
+    """
+    Returns:
+        (results, final_cache) — final_cache 为本次处理的完整缓存（命中+新增），
+        调用方应用 final_cache 写盘，避免副本不回传导致旧数据覆盖。
+    """
+    results: Dict[str, "RulingInfo"] = {}
     extractor = RulingPDFExtractor(use_ocr=use_ocr)
-    cache = dict(cached_results) if cached_results else {}
+    cache: Dict[str, dict] = dict(cached_results) if cached_results else {}
 
     for pdf_file in sorted(pdf_dir.glob("*.pdf")):
         if cancel_check and cancel_check():
@@ -672,29 +699,38 @@ def batch_extract_rulings(pdf_dir: Path, use_ocr: bool = True, cancel_check=None
             print("INFO: 任务已取消，停止处理")
             raise CancelledError("任务已取消")
         stem = pdf_file.stem
-        if stem in cache:
+        cache_key = _cache_key(pdf_file)
+        cached_info_dict = cache.get(cache_key)
+        # 兼容老格式：仅 stem 为 key
+        if cached_info_dict is None:
+            cached_info_dict = _legacy_cache_lookup(cache, stem)
+        if cached_info_dict is not None:
             print(f"INFO: 跳过已缓存: {pdf_file.name}")
             try:
-                info = RulingInfo.from_dict(cache[stem])
+                info = RulingInfo.from_dict(cached_info_dict)
                 key = info.court_case_number if info.court_case_number else stem
                 results[key] = info
+                # 命中后用复合 key 重新落盘一次，迁移老 stem key → 复合 key
+                if cache_key not in cache:
+                    cache[cache_key] = cached_info_dict
+                    cache.pop(stem, None)
             except Exception:
-                del cache[stem]
+                cache.pop(cache_key, None)
+                cache.pop(stem, None)
                 continue
-            else:
-                continue
+            continue
         print(f"INFO: 处理: {pdf_file.name}")
         try:
             info = extractor.extract_from_pdf(pdf_file)
             key = info.court_case_number if info.court_case_number else stem
             results[key] = info
-            cache[stem] = info.to_dict()
+            cache[cache_key] = info.to_dict()
             if result_callback:
                 result_callback(stem, info.to_dict(), cache)
         except Exception as e:
             print(f"ERROR: 处理 {pdf_file.name} 失败: {e}")
 
-    return results
+    return results, cache
 
 
 UNMATCHED_EXCEL_DETAILS_LIMIT = 80
@@ -801,10 +837,20 @@ def process_enforcement_cases(input_dir: Path, excel_path: Path, use_ocr: bool =
         print(f"INFO: Mock 模式：使用模拟数据")
         mock_results = _build_mock_rulings(input_dir)
         pdf_results = mock_results
+        # mock 模式不写缓存，避免空 stem 污染真实数据
+        final_cache: Dict[str, dict] = cached_results if cached_results else {}
     else:
-        pdf_results = batch_extract_rulings(input_dir, use_ocr=use_ocr, cancel_check=cancel_check, cached_results=cached_results, result_callback=result_callback)
+        pdf_results, final_cache = batch_extract_rulings(
+            input_dir, use_ocr=use_ocr, cancel_check=cancel_check,
+            cached_results=cached_results, result_callback=result_callback,
+        )
     processed = len(pdf_results)
-
+    # 把新生成的 final_cache 透传给 caller（server.py）以便落盘
+    if result_callback:
+        try:
+            result_callback("__final__", {}, final_cache)
+        except Exception:
+            pass
     stats: Dict[str, Any] = {
         "total_pdfs": processed,
         "total_excel_rows": 0,

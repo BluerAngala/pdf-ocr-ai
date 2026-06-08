@@ -329,21 +329,48 @@ export function UpdateModal({ onClose }: UpdateModalProps) {
             </>
           )}
 
-          {(status.type === "error" || status.type === "uptodate") && (
+          {status.type === "error" && (
+            <>
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+              >
+                关闭
+              </button>
+              <button
+                onClick={handleCheck}
+                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition-colors"
+              >
+                重新检查
+              </button>
+            </>
+          )}
+
+          {status.type === "uptodate" && (
             <button
-              onClick={handleCheck}
+              onClick={onClose}
               className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition-colors"
             >
-              重新检查
+              确定
             </button>
           )}
 
           {(status.type === "downloading" || status.type === "installing") && (
             <button
-              disabled
-              className="px-4 py-2 bg-slate-300 text-slate-500 text-sm font-medium rounded-lg cursor-not-allowed"
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+              title="关闭不会取消下载"
             >
-              处理中...
+              后台运行
+            </button>
+          )}
+
+          {(status.type === "checking" || status.type === "idle") && (
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+            >
+              关闭
             </button>
           )}
         </div>

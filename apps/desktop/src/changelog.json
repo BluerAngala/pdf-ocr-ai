@@ -1,6 +1,16 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "releases": [
+    {
+      "version": "1.2.1",
+      "date": "2025-01-20",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "修复更新弹窗在检查中、错误、已是最新等状态下没有关闭按钮的问题"
+        }
+      ]
+    },
     {
       "version": "1.2.0",
       "date": "2025-01-15",

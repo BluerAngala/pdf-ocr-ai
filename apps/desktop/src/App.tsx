@@ -35,7 +35,7 @@ import { UpdateModal, UpdateBadge } from "./components/UpdateChecker";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
 
 // 从Tauri配置获取版本号
-const APP_VERSION = "1.2.0";
+const APP_VERSION = "1.2.1";
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "detail">("home");

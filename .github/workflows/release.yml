@@ -49,6 +49,16 @@ jobs:
           cd apps/desktop
           npm ci
 
+      - name: Lint check
+        run: |
+          cd apps/desktop
+          npm run lint
+
+      - name: TypeScript check
+        run: |
+          cd apps/desktop
+          npx tsc --noEmit
+
       - name: Build frontend
         run: |
           cd apps/desktop

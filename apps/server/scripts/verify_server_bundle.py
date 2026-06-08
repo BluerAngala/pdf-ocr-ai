@@ -85,9 +85,9 @@ def _verify_onefile(exe: Path, resources: Path | None) -> int:
         print("[verify] OK onefile ocr.warmup")
         return 0
     if "JSON-RPC" in combined and "已启动" in combined:
-        print("[verify] OK onefile (RPC 已启动，warmup 可能仍在后台)")
+        print("[verify] OK onefile (RPC started, warmup may still be in background)")
         return 0
-    print("[verify] onefile 未收到有效 RPC 响应", file=sys.stderr)
+    print("[verify] onefile did not receive valid RPC response", file=sys.stderr)
     print(combined[-2000:], file=sys.stderr)
     return 1
 

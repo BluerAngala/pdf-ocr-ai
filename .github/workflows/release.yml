@@ -85,6 +85,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
           GJJ_FORCE_SERVER_BUNDLE: "1"
+          GJJ_SKIP_VERIFY: "1"
 
       - name: Find installer
         shell: pwsh

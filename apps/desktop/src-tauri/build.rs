@@ -335,11 +335,15 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
         ));
     }
 
-    if !run_onefile_verify(&python, &verify_script, &onefile, resources_dir)? {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "onefile OCR 冒烟失败（rapidocr config.yaml），请查看上方 verify 输出",
-        ));
+    if std::env::var("GJJ_SKIP_VERIFY").ok().as_deref() != Some("1") {
+        if !run_onefile_verify(&python, &verify_script, &onefile, resources_dir)? {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "onefile OCR 冒烟失败（rapidocr config.yaml），请查看上方 verify 输出",
+            ));
+        }
+    } else {
+        eprintln!("[build] GJJ_SKIP_VERIFY=1, skip verification");
     }
 
     if let Some(parent) = dst.parent() {

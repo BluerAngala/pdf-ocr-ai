@@ -80,7 +80,7 @@ jobs:
         run: |
           . ${{ github.workspace }}\.venv312\Scripts\Activate.ps1
           cd apps/desktop
-          npx tauri build
+          npx tauri build --verbose
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""

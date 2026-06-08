@@ -232,6 +232,9 @@ fn run_onefile_verify(
     if !verify_script.is_file() || !exe.is_file() {
         return Ok(false);
     }
+    // 把 verify 的输出写到文件，避免 cargo 截断
+    let log_path = std::env::temp_dir().join("gjj_verify_output.log");
+    let _ = std::fs::remove_file(&log_path);
     let output = std::process::Command::new(python)
         .arg(verify_script)
         .arg(exe)
@@ -239,9 +242,22 @@ fn run_onefile_verify(
         .output()?;
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    eprintln!("[verify] stdout:\n{}", stdout);
-    eprintln!("[verify] stderr:\n{}", stderr);
-    eprintln!("[verify] exit code: {:?}", output.status.code());
+    let log_content = format!(
+        "=== EXIT CODE: {:?} ===\n=== STDOUT ===\n{}\n=== STDERR ===\n{}",
+        output.status.code(),
+        stdout,
+        stderr
+    );
+    let _ = std::fs::write(&log_path, &log_content);
+    // 同时输出到 stdout 和 stderr（cargo 可能截断其中一个）
+    println!("[verify] log file: {:?}", log_path);
+    eprintln!("[verify] log file: {:?}", log_path);
+    println!("=== verify output (full) ===");
+    eprintln!("=== verify output (full) ===");
+    println!("{}", log_content);
+    eprintln!("{}", log_content);
+    println!("=== end of verify output ===");
+    eprintln!("=== end of verify output ===");
     Ok(output.status.success())
 }
 

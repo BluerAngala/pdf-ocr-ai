@@ -1,0 +1,11 @@
+{
+  "version": "1.2.1",
+  "notes": "修复括号识别问题，优化UI布局，支持自动更新",
+  "pub_date": "2025-01-20T12:00:00Z",
+  "platforms": {
+    "windows-x86_64": {
+      "signature": "请将签名内容粘贴到这里",
+      "url": "https://你的CDN地址.com/GJJ-OCR-Tool-latest-setup.exe"
+    }
+  }
+}

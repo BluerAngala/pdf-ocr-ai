@@ -1,139 +1,55 @@
 {
-  "version": "1.0.7",
+  "version": "1.2.0",
   "releases": [
     {
+      "version": "1.2.0",
+      "date": "2025-01-15",
+      "changes": [
+        {
+          "type": "feature",
+          "description": "升级 Tauri v2，支持增量自动更新"
+        },
+        {
+          "type": "fix",
+          "description": "修复中文圆括号导致文号识别失败的问题"
+        },
+        {
+          "type": "improvement",
+          "description": "优化主页布局，适配不同分辨率"
+        },
+        {
+          "type": "feature",
+          "description": "新增检查更新功能"
+        }
+      ]
+    },
+    {
       "version": "1.0.7",
-      "date": "2026-05-26",
+      "date": "2024-05-26",
       "changes": [
         {
           "type": "fix",
-          "description": "修复并发 OCR 预热导致引擎死锁、桌面端一直显示「OCR引擎准备中」的问题"
+          "description": "修复并发 OCR 预热导致引擎死锁的问题"
         }
       ]
     },
     {
       "version": "1.0.6",
-      "date": "2026-05-23",
+      "date": "2024-05-23",
       "changes": [
         {
           "type": "fix",
-          "description": "修复首次安装后 OCR 加载超时的问题：增加快速预热超时至120秒，超时后自动轮询等待后台初始化完成"
-        },
-        {
-          "type": "fix",
-          "description": "修复 OCR 预热不尊重 skip_gpu_probe 参数，首次启动做了不必要的完整 GPU 探测"
-        }
-      ]
-    },
-    {
-      "version": "1.0.5",
-      "date": "2026-05-23",
-      "changes": [
-        {
-          "type": "fix",
-          "description": "修复打印完成后预览面板一直显示加载中的问题"
-        },
-        {
-          "type": "fix",
-          "description": "修复打印结果中预览模式标记不正确的问题"
-        }
-      ]
-    },
-    {
-      "version": "1.0.4",
-      "date": "2026-05-23",
-      "changes": [
-        {
-          "type": "feature",
-          "description": "内置 SumatraPDF，无需用户额外安装，实现完全静默打印"
-        },
-        {
-          "type": "improvement",
-          "description": "打印功能完全静默，不再弹出任何阅读器窗口"
-        }
-      ]
-    },
-    {
-      "version": "1.0.3",
-      "date": "2026-05-23",
-      "changes": [
-        {
-          "type": "fix",
-          "description": "修复打印份数设置无效的问题"
-        },
-        {
-          "type": "fix",
-          "description": "修复打印页码范围设置无效的问题"
-        },
-        {
-          "type": "fix",
-          "description": "修复单双面打印设置无效的问题"
-        },
-        {
-          "type": "improvement",
-          "description": "打印功能支持 SumatraPDF 和 Adobe Reader 静默打印，避免弹出 WPS"
-        },
-        {
-          "type": "improvement",
-          "description": "打印前验证：未选择匹配字段时提示用户配置"
-        }
-      ]
-    },
-    {
-      "version": "1.0.2",
-      "date": "2026-05-23",
-      "changes": [
-        {
-          "type": "improvement",
-          "description": "强制执行结果页：已匹配/未匹配颜色区分更清晰（绿色=成功，红色=失败）"
-        },
-        {
-          "type": "improvement",
-          "description": "OCR 引擎加载提示增强，首次启动更醒目"
-        },
-        {
-          "type": "improvement",
-          "description": "自动打印改为后台静默模式，不再弹出 WPS 预览窗口"
-        },
-        {
-          "type": "fix",
-          "description": "修复打包后其他电脑无法找到预设路径的问题"
-        }
-      ]
-    },
-    {
-      "version": "1.0.1",
-      "date": "2026-05-12",
-      "changes": [
-        {
-          "type": "feature",
-          "description": "新增更新日志功能，支持配置驱动"
-        },
-        {
-          "type": "improvement",
-          "description": "优化主页布局，右上角新增功能入口"
+          "description": "修复首次安装后 OCR 加载超时的问题"
         }
       ]
     },
     {
       "version": "1.0.0",
-      "date": "2026-04-15",
+      "date": "2024-04-15",
       "changes": [
         {
           "type": "feature",
-          "description": "首次发布"
-        },
-        {
-          "type": "feature",
-          "description": "非诉审查模块：PDF 自动识别、切分与重命名"
-        },
-        {
-          "type": "feature",
-          "description": "强制执行模块：裁定书信息提取与台账更新"
-        },
-        {
-          "type": "feature",
-          "description": "自动打印模块：批量打印企业材料"
+          "description": "首次发布，支持非诉审查、强制执行、自动打印"
         }
       ]
     }

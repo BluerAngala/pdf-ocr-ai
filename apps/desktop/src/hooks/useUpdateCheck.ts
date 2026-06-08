@@ -1,28 +1,37 @@
 import { useState, useEffect, useCallback } from "react";
-import { checkForUpdates, type CheckResult } from "../services/updater";
+import { checkForUpdates, subscribeStatus, type DownloadStatus } from "../services/updater";
 
-export function useUpdateCheck(currentVersion: string) {
+export function useUpdateCheck(_currentVersion: string) {
   const [showModal, setShowModal] = useState(false);
   const [showBadge, setShowBadge] = useState(false);
-  const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
+  const [status, setStatus] = useState<DownloadStatus | null>(null);
 
-  const checkUpdate = useCallback(
-    async (silent: boolean = false) => {
-      const result = await checkForUpdates(currentVersion);
-      setCheckResult(result);
+  useEffect(() => {
+    const unsubscribe = subscribeStatus((newStatus) => {
+      setStatus(newStatus);
+      if (newStatus.type === "available") {
+        setShowBadge(true);
+      }
+    });
 
-      if (result.hasUpdate) {
-        if (silent) {
-          setShowBadge(true);
-        } else {
-          setShowModal(true);
-        }
-      } else if (!silent && !result.error) {
+    return unsubscribe;
+  }, []);
+
+  const checkUpdate = useCallback(async (silent: boolean = false) => {
+    const result = await checkForUpdates();
+
+    if (result.type === "error" && !silent) {
+      setShowModal(true);
+    } else if (result.type === "available") {
+      if (silent) {
+        setShowBadge(true);
+      } else {
         setShowModal(true);
       }
-    },
-    [currentVersion],
-  );
+    } else if (!silent && result.type === "uptodate") {
+      setShowModal(true);
+    }
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -35,7 +44,7 @@ export function useUpdateCheck(currentVersion: string) {
   return {
     showModal,
     showBadge,
-    checkResult,
+    status,
     setShowModal,
     setShowBadge,
     checkUpdate,

@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./jsonrpc";
 
 /** 与 Rust `get_runtime_paths` / Python `describe_runtime_paths` 对齐 */

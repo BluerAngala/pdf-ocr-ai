@@ -1,90 +1,77 @@
 {
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "GJJ-OCR-Tool",
+  "version": "1.2.0",
+  "identifier": "com.gjj.ocr.desktop",
   "build": {
-    "beforeBuildCommand": "npm run build",
     "beforeDevCommand": "npm run dev",
-    "devPath": "http://localhost:1420",
-    "distDir": "../dist"
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
   },
-  "package": {
-    "productName": "GJJ-OCR-Tool",
-    "version": "1.2.0"
-  },
-  "tauri": {
-    "allowlist": {
-      "all": false,
-      "dialog": {
-        "all": false,
-        "message": true,
-        "open": true,
-        "save": true
-      },
-      "fs": {
-        "all": false,
-        "copyFile": true,
-        "createDir": true,
-        "exists": true,
-        "readDir": true,
-        "readFile": true,
-        "removeDir": true,
-        "removeFile": true,
-        "renameFile": true,
-        "writeFile": true
-      },
-      "os": {
-        "all": true
-      },
-      "path": {
-        "all": true
-      },
-      "process": {
-        "all": false,
-        "relaunch": true
-      },
-      "shell": {
-        "all": false,
-        "open": true
-      }
-    },
-    "bundle": {
-      "active": true,
-      "icon": [
-        "icons/32x32.png",
-        "icons/128x128.png",
-        "icons/128x128@2x.png",
-        "icons/icon.icns",
-        "icons/icon.ico"
-      ],
-      "identifier": "com.gjj.ocr.desktop",
-      "resources": [
-        "resources/gjj-ocr-server.exe",
-        "resources/config.yaml",
-        "resources/poppler/**",
-        "resources/sample-data/**",
-        "resources/sumatrapdf/SumatraPDF-3.5.2-64.exe"
-      ],
-      "targets": [
-        "nsis"
-      ]
-    },
-    "security": {
-      "csp": null
-    },
+  "app": {
     "windows": [
       {
         "label": "main",
-        "center": true,
-        "fullscreen": false,
-        "height": 850,
-        "minHeight": 700,
-        "minWidth": 1100,
-        "resizable": true,
         "title": "GJJ OCR Tool",
-        "width": 1400,
-        "transparent": false,
+        "width": 1150,
+        "height": 700,
+        "minWidth": 900,
+        "minHeight": 600,
+        "center": true,
+        "visible": false,
         "decorations": true,
-        "alwaysOnTop": false,
-        "visible": false
+        "transparent": false
       }
-    ]
+    ],
+    "security": {
+      "csp": null,
+      "capabilities": [
+        {
+          "identifier": "default",
+          "description": "Default capabilities for the app",
+          "windows": ["main"],
+          "permissions": [
+            "core:default",
+            "dialog:default",
+            "shell:default",
+            "process:default",
+            "updater:default"
+          ]
+        }
+      ]
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "nsis",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "resources/gjj-ocr-server.exe",
+      "resources/config.yaml",
+      "resources/poppler/**/*",
+      "resources/sample-data/**/*",
+      "resources/sumatrapdf/SumatraPDF-3.5.2-64.exe"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "both",
+        "template": null
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc3RTEwQ0NCNkIzRDJEODMKUldTRExUMXJ5d3poZCtEM05wb2s5eWIzOGVwNzFFN0g4ZHlFT0lXbWNCclhTK0k2OWtNV1J0L3cK",
+      "endpoints": [
+        "https://github.com/BluerAngala/pdf-ocr-ai/releases/latest/download/version.json"
+      ]
+    }
   }
 }

@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { open } from "@tauri-apps/api/shell";
+import { open } from "@tauri-apps/plugin-shell";
 import type { ProcessingResult, PrintTaskStatus } from "../../types";
 
 interface Props {

@@ -1,91 +1,109 @@
-// 版本更新检查服务
-const UPDATE_CHECK_URL = "https://gjj-ocr-updates.oss-cn-guangzhou.aliyuncs.com/version.json";
-// 备用：可以换成你自己的服务器或GitHub Raw
+// Tauri v2 内置自动更新服务
+import { check, type Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 
-interface VersionInfo {
-  version: string;
-  downloadUrl: string;
-  releaseNotes: string[];
-  releaseDate: string;
-  forceUpdate?: boolean;
+export type DownloadStatus =
+  | { type: "idle" }
+  | { type: "checking" }
+  | { type: "available"; update: Update }
+  | { type: "downloading"; progress: number; total?: number }
+  | { type: "downloaded" }
+  | { type: "installing" }
+  | { type: "uptodate" }
+  | { type: "error"; message: string };
+
+let currentStatus: DownloadStatus = { type: "idle" };
+let statusListeners: Array<(status: DownloadStatus) => void> = [];
+
+function setStatus(status: DownloadStatus) {
+  currentStatus = status;
+  statusListeners.forEach((cb) => cb(status));
 }
 
-interface CheckResult {
-  hasUpdate: boolean;
-  currentVersion: string;
-  latestVersion: string;
-  info?: VersionInfo;
-  error?: string;
+export function subscribeStatus(callback: (status: DownloadStatus) => void) {
+  statusListeners.push(callback);
+  callback(currentStatus);
+  return () => {
+    statusListeners = statusListeners.filter((cb) => cb !== callback);
+  };
 }
 
-/**
- * 比较版本号
- * @returns true if v2 > v1
- */
-function compareVersion(v1: string, v2: string): boolean {
-  const parts1 = v1.replace(/^v/, "").split(".").map(Number);
-  const parts2 = v2.replace(/^v/, "").split(".").map(Number);
-
-  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
-    const p1 = parts1[i] || 0;
-    const p2 = parts2[i] || 0;
-    if (p2 > p1) return true;
-    if (p2 < p1) return false;
-  }
-  return false;
+export function getCurrentStatus(): DownloadStatus {
+  return currentStatus;
 }
 
 /**
- * 检查更新
+ * 检查更新（使用 Tauri 内置 updater）
  */
-export async function checkForUpdates(currentVersion: string): Promise<CheckResult> {
+export async function checkForUpdates(): Promise<DownloadStatus> {
   try {
-    // 添加时间戳避免缓存
-    const url = `${UPDATE_CHECK_URL}?t=${Date.now()}`;
+    setStatus({ type: "checking" });
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-      },
+    const update = await check();
+
+    if (update) {
+      setStatus({ type: "available", update });
+      return { type: "available", update };
+    } else {
+      setStatus({ type: "uptodate" });
+      return { type: "uptodate" };
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "检查更新失败";
+    setStatus({ type: "error", message });
+    return { type: "error", message };
+  }
+}
+
+/**
+ * 下载并安装更新
+ */
+export async function downloadAndInstallUpdate(update: Update): Promise<DownloadStatus> {
+  try {
+    setStatus({ type: "downloading", progress: 0 });
+
+    await update.downloadAndInstall((event) => {
+      switch (event.event) {
+        case "Started":
+          setStatus({
+            type: "downloading",
+            progress: 0,
+            total: event.data.contentLength,
+          });
+          break;
+        case "Progress":
+          setStatus({
+            type: "downloading",
+            progress: event.data.chunkLength,
+            total: event.data.contentLength,
+          });
+          break;
+        case "Finished":
+          setStatus({ type: "downloaded" });
+          break;
+      }
     });
 
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
+    setStatus({ type: "installing" });
 
-    const info: VersionInfo = await response.json();
+    // 重新启动应用
+    await relaunch();
 
-    const hasUpdate = compareVersion(currentVersion, info.version);
-
-    return {
-      hasUpdate,
-      currentVersion,
-      latestVersion: info.version,
-      info,
-    };
+    return { type: "installing" };
   } catch (error) {
-    return {
-      hasUpdate: false,
-      currentVersion,
-      latestVersion: currentVersion,
-      error: error instanceof Error ? error.message : "检查更新失败",
-    };
+    const message = error instanceof Error ? error.message : "下载更新失败";
+    setStatus({ type: "error", message });
+    return { type: "error", message };
   }
 }
 
 /**
- * 打开下载链接
+ * 获取版本信息（从 Update 对象）
  */
-export async function openDownloadUrl(url: string): Promise<void> {
-  try {
-    // 使用Tauri的shell.open
-    const { open } = await import("@tauri-apps/api/shell");
-    await open(url);
-  } catch {
-    // 备用：直接打开浏览器
-    window.open(url, "_blank");
-  }
+export function getUpdateInfo(update: Update) {
+  return {
+    version: update.version,
+    notes: update.body || "暂无更新说明",
+    date: update.date,
+  };
 }
-
-export type { VersionInfo, CheckResult };

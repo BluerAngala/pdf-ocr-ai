@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::{Arc, Mutex};
-use tauri::{AppHandle, Manager, State, Window};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, Command};
 use tokio::sync::mpsc;
@@ -90,7 +90,7 @@ fn path_for_display(path: &Path) -> String {
     #[cfg(windows)]
     {
         if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
-            return format!(r"\\{}", rest);
+            return format!(r"\{}", rest);
         }
         if let Some(rest) = s.strip_prefix(r"\\?\") {
             return rest.to_string();
@@ -205,7 +205,7 @@ async fn init_python_service(
         while let Ok(Some(line)) = lines.next_line().await {
             if let Ok(response) = serde_json::from_str::<serde_json::Value>(&line) {
                 if response.get("jsonrpc").is_some() {
-                    let _ = app_handle_clone.emit_all("jsonrpc-response", response);
+                    let _ = app_handle_clone.emit("jsonrpc-response", response);
                     continue;
                 }
             }
@@ -214,7 +214,7 @@ async fn init_python_service(
                 "method": "notify.log",
                 "params": {"level": "info", "message": line}
             });
-            let _ = app_handle_clone.emit_all("jsonrpc-notification", notification);
+            let _ = app_handle_clone.emit("jsonrpc-notification", notification);
         }
     });
 
@@ -234,11 +234,11 @@ async fn init_python_service(
                 if !*ready {
                     *ready = true;
                     eprintln!("[init_python_service] Python RPC ready (stderr)");
-                    let _ = app_handle_clone.emit_all("python-service-ready", ());
+                    let _ = app_handle_clone.emit("python-service-ready", ());
                 }
             }
             if let Ok(notification) = serde_json::from_str::<serde_json::Value>(&line) {
-                let _ = app_handle_clone.emit_all("jsonrpc-notification", notification);
+                let _ = app_handle_clone.emit("jsonrpc-notification", notification);
             }
         }
         eprintln!("[Python stderr] stderr reader exited");
@@ -331,7 +331,7 @@ fn resolve_user_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
     if legacy.exists() {
         return Ok(legacy);
     }
-    if let Some(dir) = app.path_resolver().app_data_dir() {
+    if let Some(dir) = app.path().app_data_dir().ok() {
         std::fs::create_dir_all(&dir).map_err(|e| format!("无法创建用户目录 {:?}: {}", dir, e))?;
         return Ok(dir);
     }
@@ -386,7 +386,7 @@ fn resource_dir_candidates(app: &AppHandle, app_root: &Path) -> Vec<PathBuf> {
             out.push(p);
         }
     };
-    if let Some(d) = app.path_resolver().resource_dir() {
+    if let Some(d) = app.path().resource_dir().ok() {
         push(d);
     }
     push(app_root.join("resources"));
@@ -420,7 +420,7 @@ fn find_bundled_server_exe(app: &AppHandle, app_root: &Path, resources_dir: &Pat
         app_root.join("gjj-ocr-server.exe"),
         resources_dir.join("gjj-ocr-server").join("gjj-ocr-server.exe"),
     ];
-    if let Some(rd) = app.path_resolver().resource_dir() {
+    if let Some(rd) = app.path().resource_dir().ok() {
         candidates.push(rd.join("gjj-ocr-server.exe"));
         candidates.push(rd.join("resources").join("gjj-ocr-server.exe"));
         candidates.push(rd.join("gjj-ocr-server").join("gjj-ocr-server.exe"));
@@ -702,17 +702,11 @@ async fn kill_python(service: State<'_, PythonService>) -> Result<(), String> {
 
 // Tauri 命令：选择文件夹
 #[tauri::command]
-async fn select_folder(window: Window) -> Result<Option<String>, String> {
-    let (tx, rx) = std::sync::mpsc::channel();
+async fn select_folder(app: AppHandle) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
     
-    tauri::api::dialog::FileDialogBuilder::new()
-        .set_parent(&window)
-        .pick_folder(move |folder| {
-            let _ = tx.send(folder);
-        });
-
-    let folder = rx.recv().map_err(|e| format!("Failed to receive: {}", e))?;
-    Ok(folder.map(|p: std::path::PathBuf| path_for_display(&p)))
+    let folder = app.dialog().file().blocking_pick_folder();
+    Ok(folder.map(|p| path_for_display(&std::path::PathBuf::from(p.to_string()))))
 }
 
 // Tauri 命令：打开文件/文件夹（用系统默认程序）
@@ -772,33 +766,21 @@ async fn open_url(url: String) -> Result<(), String> {
 // Tauri 命令：选择文件
 #[tauri::command]
 async fn select_files(
-    window: Window,
+    app: AppHandle,
     multiple: bool,
 ) -> Result<Option<Vec<String>>, String> {
+    use tauri_plugin_dialog::DialogExt;
+    
     if multiple {
-        let (tx, rx) = std::sync::mpsc::channel::<Option<Vec<std::path::PathBuf>>>();
-        
-        tauri::api::dialog::FileDialogBuilder::new()
-            .set_parent(&window)
-            .pick_files(move |files| {
-                let _ = tx.send(files);
-            });
-
-        let files = rx.recv().map_err(|e| format!("Failed to receive: {}", e))?;
+        let files = app.dialog().file().blocking_pick_files();
         Ok(files.map(|f| {
-            f.into_iter().map(|p| path_for_display(&p)).collect()
+            f.into_iter()
+                .map(|p| path_for_display(&std::path::PathBuf::from(p.to_string())))
+                .collect()
         }))
     } else {
-        let (tx, rx) = std::sync::mpsc::channel::<Option<std::path::PathBuf>>();
-        
-        tauri::api::dialog::FileDialogBuilder::new()
-            .set_parent(&window)
-            .pick_file(move |file| {
-                let _ = tx.send(file);
-            });
-
-        let file = rx.recv().map_err(|e| format!("Failed to receive: {}", e))?;
-        Ok(file.map(|f| vec![path_for_display(&f)]))
+        let file = app.dialog().file().blocking_pick_file();
+        Ok(file.map(|f| vec![path_for_display(&std::path::PathBuf::from(f.to_string()))]))
     }
 }
 
@@ -889,7 +871,7 @@ async fn start_python_service_with_retry(
             tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
         }
         
-        let _ = app_handle.emit_all(
+        let _ = app_handle.emit(
             "backend-init-progress",
             serde_json::json!({ "step": "python", "attempt": attempt + 1 }),
         );
@@ -913,7 +895,7 @@ async fn start_python_service_with_retry(
                         if !rpc_ready {
                             eprintln!("[start_python_service] Warning: rpc_ready is false but wait returned Ok");
                             *service.rpc_ready.lock().unwrap() = true;
-                            let _ = app_handle.emit_all("python-service-ready", ());
+                            let _ = app_handle.emit("python-service-ready", ());
                         }
                         eprintln!("[start_python_service] Python service started successfully");
                         return Ok(());
@@ -948,6 +930,10 @@ fn main() {
     }
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // 检查版本变化并清理缓存
             check_and_clear_cache_on_upgrade(&app.handle());
@@ -957,7 +943,7 @@ fn main() {
             app.manage(service.clone());
 
             // 获取主窗口并显示
-            if let Some(window) = app.get_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
                 // 延迟显示窗口，确保内容已加载，避免白屏
                 let window_clone = window.clone();
                 tauri::async_runtime::spawn(async move {
@@ -985,7 +971,7 @@ fn main() {
                     Err(e) => {
                         eprintln!("Failed to initialize Python service: {}", e);
                         *service.error_message.lock().unwrap() = Some(e.clone());
-                        let _ = app_handle.emit_all("python-service-error", e);
+                        let _ = app_handle.emit("python-service-error", e);
                     }
                 }
             });

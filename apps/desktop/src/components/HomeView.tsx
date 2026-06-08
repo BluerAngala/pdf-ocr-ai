@@ -81,60 +81,27 @@ export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }:
       });
     };
 
-    // 初始化
     updateSize();
-
-    // 监听窗口变化
     window.addEventListener("resize", updateSize);
     return () => window.removeEventListener("resize", updateSize);
   }, []);
 
-  // 根据窗口高度调整卡片内边距
-  const getCardPadding = () => {
-    if (windowSize.height < 550) return "p-3";
-    if (windowSize.height < 650) return "p-4";
-    return "p-5";
-  };
-
-  // 根据窗口高度调整图标大小
-  const getIconSize = () => {
-    if (windowSize.height < 550) return { box: "w-9 h-9", icon: "w-4 h-4" };
-    if (windowSize.height < 650) return { box: "w-10 h-10", icon: "w-5 h-5" };
-    return { box: "w-11 h-11", icon: "w-5 h-5" };
-  };
-
-  // 根据窗口高度调整标题大小
-  const getTitleSize = () => {
-    if (windowSize.height < 550) return "text-sm";
-    if (windowSize.height < 650) return "text-base";
-    return "text-lg";
-  };
-
-  // 根据窗口高度调整描述文字大小
-  const getDescSize = () => {
-    if (windowSize.height < 550) return "text-[10px]";
-    return "text-xs";
-  };
-
-  const iconSize = getIconSize();
-  const cardPadding = getCardPadding();
-  const titleSize = getTitleSize();
-  const descSize = getDescSize();
+  const isCompact = windowSize.height < 650;
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* 标题栏 */}
-      <div className="shrink-0 px-5 pt-5 pb-4">
+      <div className="shrink-0 px-4 pt-4 pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-[#0F172A]">公积金 OCR 工具</h1>
-            <p className="text-sm text-slate-500 mt-0.5">选择功能模块开始处理</p>
+            <h1 className="text-2xl font-bold text-[#0F172A]">公积金 OCR 工具</h1>
+            <p className="text-sm text-slate-500 mt-1">PDF 智能识别与案件处理平台</p>
           </div>
           <div className="flex items-center gap-2">
             {onCheckUpdate && (
               <button
                 onClick={onCheckUpdate}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md shadow-sm transition-all cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md shadow-sm transition-all cursor-pointer"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path
@@ -149,7 +116,7 @@ export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }:
             )}
             <button
               onClick={onOpenChangelog}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md shadow-sm transition-all cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md shadow-sm transition-all cursor-pointer"
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path
@@ -165,20 +132,30 @@ export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }:
         </div>
       </div>
 
-      {/* 卡片网格 - 填满剩余空间 */}
-      <div className="flex-1 min-h-0 px-5 pb-5">
-        <div className="grid grid-cols-2 gap-4 h-full">
+      {/* 卡片网格 - 居中显示，卡片固定大小 */}
+      <div className="flex-1 min-h-0 px-4 pb-4 flex items-center justify-center">
+        <div
+          className="grid grid-cols-2 gap-5"
+          style={{
+            width: isCompact ? "520px" : "580px",
+            maxWidth: "90%",
+          }}
+        >
           {MODULES.map((m) => (
             <button
               key={m.key}
               onClick={() => onNavigate(m.key)}
-              className={`group relative flex flex-col items-center justify-center h-full bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 ${cardPadding} cursor-pointer`}
+              className={`group relative flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 cursor-pointer`}
+              style={{
+                height: isCompact ? "180px" : "200px",
+                padding: isCompact ? "20px" : "24px",
+              }}
             >
               <div
-                className={`${iconSize.box} ${m.iconBg} rounded-lg flex items-center justify-center mb-3 transition-colors shrink-0`}
+                className={`${isCompact ? "w-10 h-10" : "w-12 h-12"} ${m.iconBg} rounded-lg flex items-center justify-center mb-2 transition-colors shrink-0`}
               >
                 <svg
-                  className={`${iconSize.icon} ${ICON_COLORS[m.color]}`}
+                  className={`${isCompact ? "w-5 h-5" : "w-6 h-6"} ${ICON_COLORS[m.color]}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -192,16 +169,20 @@ export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }:
                 </svg>
               </div>
 
-              <h3 className={`${titleSize} font-semibold text-[#0F172A] mb-1`}>{m.title}</h3>
+              <h3
+                className={`${isCompact ? "text-sm" : "text-base"} font-semibold text-[#0F172A] mb-0.5`}
+              >
+                {m.title}
+              </h3>
 
               <p
-                className={`${descSize} text-slate-500 leading-relaxed whitespace-pre-line text-center`}
+                className={`${isCompact ? "text-[11px]" : "text-xs"} text-slate-500 leading-relaxed whitespace-pre-line text-center`}
               >
                 {m.desc}
               </p>
 
               <div
-                className={`absolute bottom-2.5 right-2.5 flex items-center gap-0.5 text-xs font-medium ${m.arrowColor} opacity-0 group-hover:opacity-100 transition-opacity`}
+                className={`absolute bottom-2 right-2 flex items-center gap-0.5 text-xs font-medium ${m.arrowColor} opacity-0 group-hover:opacity-100 transition-opacity`}
               >
                 <span>进入</span>
                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

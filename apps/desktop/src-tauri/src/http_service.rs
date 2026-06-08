@@ -178,7 +178,7 @@ impl PythonHttpService {
                     eprintln!("[Python] {}", line);
                     // 尝试解析为 JSON 通知
                     if let Ok(notification) = serde_json::from_str::<Value>(&line) {
-                        let _ = app_handle_clone.emit_all("http-service-log", notification);
+                        let _ = app_handle_clone.emit("http-service-log", notification);
                     }
                 }
             });

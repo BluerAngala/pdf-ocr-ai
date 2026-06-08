@@ -1,5 +1,5 @@
 import { listen } from "@tauri-apps/api/event";
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { sendRequest, isTauri } from "./jsonrpc";
 import { getRuntimePaths } from "./paths";
 import { invalidatePresetCache, getPresets } from "../presets";

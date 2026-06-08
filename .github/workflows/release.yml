@@ -1,0 +1,110 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: |
+          cd apps/desktop
+          npm ci
+
+      - name: Build frontend
+        run: |
+          cd apps/desktop
+          npm run build
+
+      - name: Build Tauri app
+        run: |
+          cd apps/desktop
+          npx tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+
+      - name: Find installer and signature
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem apps/desktop/src-tauri/target/release/bundle/nsis/*.exe | Select-Object -First 1
+          $sig = Get-ChildItem apps/desktop/src-tauri/target/release/bundle/nsis/*.sig | Select-Object -First 1
+          
+          if (-not $exe) {
+            Write-Error "No .exe found!"
+            exit 1
+          }
+          if (-not $sig) {
+            Write-Error "No .sig found! Make sure TAURI_SIGNING_PRIVATE_KEY is set."
+            exit 1
+          }
+          
+          echo "EXE_PATH=$($exe.FullName)" >> $env:GITHUB_ENV
+          echo "SIG_PATH=$($sig.FullName)" >> $env:GITHUB_ENV
+          echo "Found installer: $($exe.Name)"
+          echo "Found signature: $($sig.Name)"
+
+      - name: Read signature
+        shell: pwsh
+        run: |
+          $sigContent = Get-Content $env:SIG_PATH -Raw
+          # Remove any whitespace/newlines
+          $sigContent = $sigContent.Trim()
+          echo "SIGNATURE=$sigContent" >> $env:GITHUB_ENV
+          echo "Signature length: $($sigContent.Length)"
+
+      - name: Create version.json
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".Replace("v", "")
+          $date = (Get-Date -Format "yyyy-MM-ddTHH:mm:ssZ")
+          $repo = "${{ github.repository }}"
+          
+          $json = @{
+            version = $version
+            notes = "Release ${{ github.ref_name }}"
+            pub_date = $date
+            platforms = @{
+              windows-x86_64 = @{
+                signature = $env:SIGNATURE
+                url = "https://github.com/$repo/releases/latest/download/GJJ-OCR-Tool-latest-setup.exe"
+              }
+            }
+          } | ConvertTo-Json -Depth 10
+          
+          $json | Out-File -FilePath version.json -Encoding utf8
+          echo "Created version.json:"
+          Get-Content version.json
+
+      - name: Rename installer to fixed name
+        shell: pwsh
+        run: |
+          Copy-Item "$env:EXE_PATH" "GJJ-OCR-Tool-latest-setup.exe"
+          echo "Renamed installer to GJJ-OCR-Tool-latest-setup.exe"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            GJJ-OCR-Tool-latest-setup.exe
+            version.json
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

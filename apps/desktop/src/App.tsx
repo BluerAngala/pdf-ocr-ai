@@ -21,7 +21,7 @@ import { createInitialModuleTaskState, resolveTaskModule } from "./moduleTaskSta
 import { ensurePresetById, getPresetResolveErrors, invalidatePresetCache } from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus, setupPoppler } from "./services/system";
-import { invoke } from "@tauri-apps/api/tauri";
+import { invoke } from "@tauri-apps/api/core";
 import { normalizePath } from "./services/paths";
 import HomeView from "./components/HomeView";
 import DetailView from "./components/DetailView";
@@ -90,10 +90,8 @@ export default function App() {
   const {
     showModal: showUpdateModal,
     showBadge: showUpdateBadge,
-    checkResult: updateCheckResult,
     setShowModal: setShowUpdateModal,
     setShowBadge: setShowUpdateBadge,
-    checkUpdate,
   } = useUpdateCheck(APP_VERSION);
 
   const logIdRef = useRef(0);
@@ -1372,14 +1370,7 @@ export default function App() {
       {showChangelogModal && <ChangelogModal onClose={() => setShowChangelogModal(false)} />}
 
       {/* 自动更新检查 */}
-      {showUpdateModal && updateCheckResult && (
-        <UpdateModal
-          currentVersion={APP_VERSION}
-          checkResult={updateCheckResult}
-          onClose={() => setShowUpdateModal(false)}
-          onCheck={() => checkUpdate(false)}
-        />
-      )}
+      {showUpdateModal && <UpdateModal onClose={() => setShowUpdateModal(false)} />}
       {showUpdateBadge && (
         <UpdateBadge
           onClick={() => {

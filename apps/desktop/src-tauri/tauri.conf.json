@@ -55,7 +55,6 @@
     "resources": [
       "resources/gjj-ocr-server.exe",
       "resources/config.yaml",
-      "resources/poppler/**/*",
       "resources/sample-data/**/*",
       "resources/sumatrapdf/SumatraPDF-3.5.2-64.exe"
     ],

@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: windows-latest
@@ -170,13 +173,12 @@ jobs:
           echo "Renamed installer to GJJ-OCR-Tool-latest-setup.exe"
 
       - name: Create GitHub Release
-        shell: pwsh
-        run: |
-          gh release create v1.2.0 `
-            --title "GJJ-OCR-Tool v1.2.0" `
-            --notes "Release v1.2.0" `
-            --target main `
-            GJJ-OCR-Tool-latest-setup.exe `
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            GJJ-OCR-Tool-latest-setup.exe
             version.json
+          generate_release_notes: true
+          fail_on_unmatched_files: false
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -28,6 +28,7 @@ export interface SetupPopplerResult {
   message: string;
   path?: string;
   output?: string;
+  needs_restart?: boolean;
 }
 
 export async function setupPoppler(): Promise<SetupPopplerResult> {

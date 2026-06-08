@@ -939,6 +939,14 @@ async fn start_python_service_with_retry(
 }
 
 fn main() {
+    // Windows DPI 感知：让应用在高分屏上正确缩放，避免文字模糊
+    #[cfg(windows)]
+    unsafe {
+        use windows_sys::Win32::UI::HiDpi::SetProcessDpiAwarenessContext;
+        use windows_sys::Win32::UI::HiDpi::DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2;
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    }
+
     tauri::Builder::default()
         .setup(|app| {
             // 检查版本变化并清理缓存

@@ -499,7 +499,11 @@ class JsonRpcServer:
                 import pickle as _pickle
                 ocr_t0 = _time.perf_counter()
 
-                cache_path = result_root / 'ocr-cache.pkl'
+                cache_path = result_root / 'debug' / 'ocr-cache.pkl'
+                # 兼容旧版缓存路径
+                old_cache_path = result_root / 'ocr-cache.pkl'
+                if not force and not cache_path.exists() and old_cache_path.exists():
+                    cache_path = old_cache_path
                 cached_results = None
                 if not force and cache_path.exists():
                     try:
@@ -1236,7 +1240,7 @@ class JsonRpcServer:
 
         cfg = OCRConfig()
         if check_poppler_installed(cfg.poppler_path):
-            return {"installed": True, "message": "Poppler 已安装", "path": cfg.poppler_path}
+            return {"installed": True, "message": "Poppler 已安装", "path": cfg.poppler_path, "needs_restart": False}
 
         if getattr(sys, "frozen", False):
             return {"installed": False, "message": "打包环境中 Poppler 缺失，请重新安装应用程序（Poppler 应随程序打包）", "path": cfg.poppler_path}
@@ -1259,9 +1263,20 @@ class JsonRpcServer:
             output = (result.stdout or "") + (result.stderr or "")
 
             if check_poppler_installed(cfg.poppler_path):
-                return {"installed": True, "message": "Poppler 自动安装成功", "path": cfg.poppler_path, "output": output.strip()}
-            else:
-                return {"installed": False, "message": "自动安装失败，请手动运行: python apps/server/scripts/setup_poppler.py", "output": output.strip(), "exit_code": result.returncode}
+                return {"installed": True, "message": "Poppler 自动安装成功", "path": cfg.poppler_path, "output": output.strip(), "needs_restart": False}
+            
+            # 安装后尝试动态更新 PATH 并重新检测
+            if cfg.poppler_path and cfg.poppler_path.exists():
+                poppler_bin = cfg.poppler_path / "bin"
+                if poppler_bin.exists():
+                    import os
+                    new_path = str(poppler_bin) + os.pathsep + os.environ.get("PATH", "")
+                    os.environ["PATH"] = new_path
+                    # 重新检测
+                    if check_poppler_installed(cfg.poppler_path):
+                        return {"installed": True, "message": "Poppler 安装成功并已加载", "path": cfg.poppler_path, "output": output.strip(), "needs_restart": False}
+            
+            return {"installed": True, "message": "Poppler 安装成功，建议重启软件以完成初始化", "path": cfg.poppler_path, "output": output.strip(), "needs_restart": True}
         except subprocess.TimeoutExpired:
             return {"installed": False, "message": "自动安装超时（5分钟），请手动运行: python apps/server/scripts/setup_poppler.py"}
         except Exception as e:

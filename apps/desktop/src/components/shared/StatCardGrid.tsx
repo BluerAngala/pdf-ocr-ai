@@ -18,17 +18,22 @@ interface Props {
   columns?: number;
 }
 
-export default function StatCardGrid({ items, columns = 5 }: Props) {
-  const gridCols: Record<number, string> = {
-    2: "grid-cols-2",
-    3: "grid-cols-3",
-    4: "grid-cols-4",
-    5: "grid-cols-5",
-    6: "grid-cols-6",
+export default function StatCardGrid({ items, columns }: Props) {
+  // 自动响应式：优先用 CSS grid auto-fill，columns 仅作为最小宽度提示
+  const minMaxMap: Record<number, string> = {
+    2: "minmax(100px, 1fr)",
+    3: "minmax(100px, 1fr)",
+    4: "minmax(100px, 1fr)",
+    5: "minmax(90px, 1fr)",
+    6: "minmax(80px, 1fr)",
   };
+  const minMax = minMaxMap[columns || 5] || minMaxMap[5];
 
   return (
-    <div className={`grid ${gridCols[columns] || gridCols[5]} gap-2`}>
+    <div
+      className="grid gap-2"
+      style={{ gridTemplateColumns: `repeat(auto-fill, ${minMax})` }}
+    >
       {items.map((item) => (
         <div
           key={item.label}

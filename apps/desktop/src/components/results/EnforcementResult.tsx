@@ -128,9 +128,9 @@ export default function EnforcementResult({ result }: { result: ProcessingResult
   const unmatchedPdfs = stats?.unmatched_pdf_details ?? [];
 
   return (
-    <div className="flex flex-col gap-3 h-full min-h-0">
+    <div className="flex flex-col gap-3 h-full min-h-0 min-w-0">
       {/* 简化统计摘要 */}
-      <div className="rounded-lg bg-slate-50 p-3 border border-slate-200">
+      <div className="rounded-lg bg-slate-50 p-3 border border-slate-200 shrink-0">
         <div className="flex items-center justify-between">
           <span className="text-sm text-slate-600">PDF 总数</span>
           <span className="text-lg font-bold text-slate-800">{totalPdfs}</span>

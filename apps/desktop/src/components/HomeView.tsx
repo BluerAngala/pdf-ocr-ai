@@ -92,24 +92,24 @@ export default function HomeView({ onNavigate, onOpenChangelog }: Props) {
           <span>更新日志</span>
         </button>
       </div>
-      <div className="flex-1 flex flex-col items-center justify-center px-8 gap-8">
-        <div className="text-center space-y-3 -mt-16">
-          <h1 className="text-4xl font-bold text-[#0F172A] tracking-tight">公积金 OCR 工具</h1>
-          <p className="text-lg text-slate-500">选择功能模块开始处理</p>
+      <div className="flex-1 flex flex-col items-center justify-center px-4 sm:px-8 gap-6 sm:gap-8 min-h-0">
+        <div className="text-center space-y-2 sm:space-y-3">
+          <h1 className="text-2xl sm:text-4xl font-bold text-[#0F172A] tracking-tight">公积金 OCR 工具</h1>
+          <p className="text-sm sm:text-lg text-slate-500">选择功能模块开始处理</p>
         </div>
 
-        <div className="grid grid-cols-2 gap-6 w-full max-w-2xl">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full max-w-2xl">
           {MODULES.map((m) => (
             <button
               key={m.key}
               onClick={() => onNavigate(m.key)}
-              className={`group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 p-8 text-center cursor-pointer`}
+              className={`group relative bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-lg ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 p-5 sm:p-8 text-center cursor-pointer`}
             >
               <div
-                className={`w-12 h-12 ${m.iconBg} rounded-lg flex items-center justify-center mb-4 mx-auto transition-colors`}
+                className={`w-10 h-10 sm:w-12 sm:h-12 ${m.iconBg} rounded-lg flex items-center justify-center mb-3 sm:mb-4 mx-auto transition-colors`}
               >
                 <svg
-                  className={`w-6 h-6 ${ICON_COLORS[m.color]}`}
+                  className={`w-5 h-5 sm:w-6 sm:h-6 ${ICON_COLORS[m.color]}`}
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -122,10 +122,10 @@ export default function HomeView({ onNavigate, onOpenChangelog }: Props) {
                   />
                 </svg>
               </div>
-              <h3 className="text-lg font-semibold text-[#0F172A] mb-1.5">{m.title}</h3>
-              <p className="text-sm text-slate-500 leading-relaxed whitespace-pre-line">{m.desc}</p>
+              <h3 className="text-base sm:text-lg font-semibold text-[#0F172A] mb-1 sm:mb-1.5">{m.title}</h3>
+              <p className="text-xs sm:text-sm text-slate-500 leading-relaxed whitespace-pre-line">{m.desc}</p>
               <div
-                className={`absolute bottom-3 right-3 flex items-center gap-1 text-sm font-medium ${m.arrowColor} opacity-0 group-hover:opacity-100 transition-opacity`}
+                className={`absolute bottom-2 right-2 sm:bottom-3 sm:right-3 flex items-center gap-1 text-xs sm:text-sm font-medium ${m.arrowColor} opacity-0 group-hover:opacity-100 transition-opacity`}
               >
                 <span>进入模块</span>
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

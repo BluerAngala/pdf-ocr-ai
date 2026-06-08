@@ -391,11 +391,23 @@ def format_current_name(company_data: dict) -> str:
 
 
 def extract_location(company_data: dict) -> str:
-    province = company_data.get("Province", "")
-    city = company_data.get("City", "")
-    district = company_data.get("District", "")
-    address = company_data.get("Address", "")
-    parts = [p for p in [province, city, district, address] if p]
+    """提取企业住所地（完整地址），优先使用详细地址字段"""
+    # 1. 尝试多种可能包含完整地址的字段（CompanyAddress 是 API 实际返回的字段，优先级最高）
+    addr_keys = [
+        "CompanyAddress", "Address", "RegAddress", "OfficeAddress",
+        "Domicile", "RegisteredAddress", "DetailAddress",
+        "住所", "住所地", "注册地址", "经营地址", "地址",
+    ]
+    for key in addr_keys:
+        val = company_data.get(key, "")
+        if val and len(val) > 4:  # 地址字段有值即可返回
+            return val.strip()
+
+    # 2. 回退拼接 Province + City + District
+    province = company_data.get("Province", "") or company_data.get("province", "")
+    city = company_data.get("City", "") or company_data.get("city", "")
+    district = company_data.get("District", "") or company_data.get("Area", "") or company_data.get("district", "")
+    parts = [p for p in [province, city, district] if p]
     return "".join(parts) if parts else ""
 
 
@@ -432,13 +444,35 @@ def _validate_company_result(result: dict) -> tuple[str, str]:
 def process_single_company(company_name: str, config: dict) -> dict:
     try:
         company_data = get_company_data(company_name, config)
+        location = extract_location(company_data)
         result = {
             "original_name": company_name,
             "current_name": format_current_name(company_data),
             "legal_person": company_data.get("LegalPerson", ""),
-            "location": extract_location(company_data),
+            "location": location,
             "credit_code": company_data.get("CreditNo", ""),
         }
+        
+        # 如果location较短（可能只有区），尝试从原始数据中找更完整的地址
+        if len(location) <= 6:
+            # 记录所有含地址信息的字段，优先取最长的
+            addr_candidates = {}
+            for k, v in company_data.items():
+                if isinstance(v, str) and v and any(
+                    kw in k for kw in ["addr", "Addr", "地址", "住所", "位置", "loc", "Loc", "domicile", "Domicile"]
+                ):
+                    addr_candidates[k] = v
+            if addr_candidates:
+                best = max(addr_candidates.values(), key=len)
+                if len(best) > len(location):
+                    result["location"] = best
+            else:
+                # 没找到地址字段，记录可用字段名方便排查
+                import logging
+                logging.getLogger(__name__).debug(
+                    "企业查询地址字段不足: company=%s, location=%s, 可用字段=%s",
+                    company_name, location, list(company_data.keys())
+                )
         
         status, error_msg = _validate_company_result(result)
         result["status"] = status

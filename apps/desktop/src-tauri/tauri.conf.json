@@ -7,7 +7,7 @@
   },
   "package": {
     "productName": "GJJ-OCR-Tool",
-    "version": "1.1.0"
+    "version": "1.2.0"
   },
   "tauri": {
     "allowlist": {
@@ -73,12 +73,12 @@
       {
         "center": true,
         "fullscreen": false,
-        "height": 740,
-        "minHeight": 660,
-        "minWidth": 880,
+        "height": 800,
+        "minHeight": 700,
+        "minWidth": 960,
         "resizable": true,
         "title": "GJJ OCR Tool",
-        "width": 1000
+        "width": 1100
       }
     ]
   }

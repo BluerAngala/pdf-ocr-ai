@@ -1203,8 +1203,24 @@ export default function App() {
           const result = await setupPoppler();
           if (result.installed) {
             addLog("info", result.message);
-            const updated = await fetchSystemStatus();
-            setStatusInfo(updated);
+            if (result.needs_restart) {
+              addLog("warn", "Poppler 已安装，需要重启软件才能生效");
+              // 显示重启提示
+              setTimeout(() => {
+                if (confirm("Poppler 安装成功！需要重启软件才能生效，是否立即重启？")) {
+                  window.location.reload();
+                }
+              }, 500);
+            } else {
+              // 无需重启，立即重新检测
+              addLog("info", "重新检测依赖状态...");
+              await new Promise((resolve) => setTimeout(resolve, 1000));
+              const updated = await fetchSystemStatus();
+              setStatusInfo(updated);
+              if (updated.deps?.all_ready) {
+                addLog("info", "所有依赖已就绪！");
+              }
+            }
           } else {
             addLog("error", result.message);
           }
@@ -1230,7 +1246,7 @@ export default function App() {
   const moduleTitle = MODULE_CONFIG[currentModule]?.title || "";
 
   return (
-    <>
+    <div className="h-screen flex flex-col overflow-hidden">
       {!appReady && startupProgress.phase !== "ready" ? (
         <StartupOverlay
           phase={startupProgress.label}
@@ -1338,6 +1354,6 @@ export default function App() {
         <SystemStatusModal statusInfo={statusInfo} onClose={() => setShowStatusModal(false)} />
       )}
       {showChangelogModal && <ChangelogModal onClose={() => setShowChangelogModal(false)} />}
-    </>
+    </div>
   );
 }

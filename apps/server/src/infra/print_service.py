@@ -153,6 +153,59 @@ def _get_sumatra_path() -> Optional[Path]:
     return None
 
 
+def _wait_for_spooler(printer_name: str, timeout: float = 30.0) -> bool:
+    """
+    等待打印队列中当前任务被打印机接受，确保打印顺序与提交顺序一致。
+    
+    流程：
+    1. SumatraPDF -print-to 同步返回 → 打印任务进入 Windows spooler（spooling）
+    2. spooler 将数据发送到打印机 → 状态变为 printing / printed
+    3. 本函数等到没有 spooling 任务或队列清空，再返回提交下一个
+    
+    返回 True 表示成功等到，False 表示超时。
+    """
+    try:
+        import win32print
+        import win32con
+
+        handle = win32print.OpenPrinter(printer_name)
+        try:
+            start = time.time()
+            while time.time() - start < timeout:
+                jobs = []
+                try:
+                    jobs = win32print.EnumJobs(handle, 0, -1, win32con.JOB_INFO_1)
+                except Exception:
+                    # 枚举失败（空队列也会抛异常），说明无任务
+                    return True
+
+                # 队列空 → 都处理完了
+                if not jobs:
+                    return True
+
+                # JOB_STATUS_SPOOLING = 0x08, JOB_STATUS_PRINTING = 0x10
+                has_spooling = False
+                for job in jobs:
+                    s = job.get("Status", 0) if isinstance(job, dict) else 0
+                    if s & 0x08:  # 还在 spooling
+                        has_spooling = True
+                        break
+
+                # 没有 spooling 任务了 → 数据已全部发送给打印机，可以提交下一个
+                if not has_spooling:
+                    return True
+
+                time.sleep(0.5)
+
+            # 超时但不阻塞，继续执行
+            return False
+        finally:
+            win32print.ClosePrinter(handle)
+    except Exception:
+        # 检测失败时不阻塞，继续打印
+        return True
+
+
 def _print_pdf_silent(pdf_path: Path, printer_name: str, copies: int = 1,
                       start_page: Optional[int] = None, end_page: Optional[int] = None,
                       print_mode: str = "single") -> dict:
@@ -208,8 +261,8 @@ def _print_pdf_silent(pdf_path: Path, printer_name: str, copies: int = 1,
 
             return {
                 "filename": pdf_path.name,
-                "status": "submitted",
-                "message": f"已提交到打印机 ({copies}份, {print_mode})"
+                "status": "spooled",
+                "message": f"已提交到打印队列 ({copies}份, {print_mode})"
             }
 
         except subprocess.CalledProcessError as e:
@@ -430,15 +483,18 @@ def process_print_v2(
 
                 result = _print_pdf_silent(pdf_path, printer_name, copies, page_start, page_end, print_mode)
 
-                if result["status"] == "submitted":
+                if result["status"] in ("spooled", "submitted"):
                     submitted += 1
                     task.completed_jobs += 1
+                    # 等待打印队列处理当前任务，确保顺序
+                    _wait_for_spooler(printer_name, timeout=30.0)
                 else:
                     failed += 1
                     task.failed_jobs += 1
                     task.errors.append({"company": company_name, "file": pdf_path.name, "error": result.get("error", "")})
 
-                time.sleep(0.3)
+                # 间隔1秒，给打印机缓冲时间，避免大文件排队错乱
+                time.sleep(1.0)
 
             if task.cancel_event.is_set():
                 break

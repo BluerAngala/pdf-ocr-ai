@@ -1955,7 +1955,9 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
         if not _state_dirty or task_output_dir is None:
             return
         try:
-            state_path = task_output_dir / ".ocr_state.json"
+            debug_dir = task_output_dir / "debug"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+            state_path = debug_dir / "ocr_state.json"
             state = {
                 'completed': list(ocr_results.keys()),
                 'timestamp': time.time(),
@@ -1968,7 +1970,10 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
     def _load_state() -> set:
         """从磁盘加载已完成任务状态"""
         try:
-            state_path = task_output_dir / ".ocr_state.json"
+            state_path = task_output_dir / "debug" / "ocr_state.json"
+            # 兼容旧版路径
+            if not state_path.exists():
+                state_path = task_output_dir / ".ocr_state.json"
             if not state_path.exists():
                 return set()
             data = json.loads(state_path.read_text(encoding='utf-8'))
@@ -2333,7 +2338,8 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
             }
             # _meta 不会进入导出环节的 .pdf 拷贝
             ocr_results['_meta'] = {'ocr_timing': timing}
-            meta_path = task_output_dir / '_ocr_timing.json'
+            meta_path = task_output_dir / 'debug' / 'ocr_timing.json'
+            meta_path.parent.mkdir(parents=True, exist_ok=True)
             meta_path.write_text(
                 __import__('json').dumps(timing, ensure_ascii=False, indent=2),
                 encoding='utf-8',
@@ -2385,11 +2391,16 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
         target_notice_map[target_name] = normalized
         ledger_notices.append(case['notice_number'])
 
-    # 创建错误文件夹（按文档类型分类）
-    if error_root is None:
-        error_root = output_dir.parent / '需人工核查'
-    error_dir = error_root / '责催'
-    error_dir.mkdir(parents=True, exist_ok=True)
+    # 延迟创建错误文件夹（只在有需要核查的文件时才创建）
+    error_dir: Optional[Path] = None
+    def _get_error_dir() -> Path:
+        nonlocal error_dir, error_root
+        if error_dir is None:
+            if error_root is None:
+                error_root = output_dir.parent / '需人工核查'
+            error_dir = error_root / '责催'
+            error_dir.mkdir(parents=True, exist_ok=True)
+        return error_dir
 
     notice_files = discover_notice_files(input_dir)
     # 传入台账数据进行 OCR 识别结果比对纠错（包含智能纠错）
@@ -2498,17 +2509,19 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
             # 复制到错误文件夹，添加识别信息到文件名
             src = next((path for path in iter_notice_pdf_paths(input_dir) if path.name == source_name), input_dir / source_name)
             if src.exists():
+                # 延迟创建错误文件夹
+                err_dir = _get_error_dir()
                 # 构建错误文件名：原文件名_识别到[责令号]_需人工核查.pdf
                 safe_detected = detected_notice.replace('/', '_').replace('\\', '_') if detected_notice else '未识别'
                 error_filename = f"{Path(source_name).stem}_识别到[{safe_detected}]_需人工核查.pdf"
-                error_dst = error_dir / error_filename
+                error_dst = err_dir / error_filename
                 
                 # 如果文件已存在，添加序号
                 counter = 1
                 original_error_dst = error_dst
                 while error_dst.exists():
                     stem = original_error_dst.stem
-                    error_dst = error_dir / f"{stem}_{counter}.pdf"
+                    error_dst = err_dir / f"{stem}_{counter}.pdf"
                     counter += 1
                 
                 shutil.copy2(src, error_dst)
@@ -2520,7 +2533,8 @@ def export_notice_files(sample_root: Path, input_dir: Path, output_dir: Path, oc
                 })
 
     if unmatched:
-        _log(f"\n  [WARN] 未匹配文件汇总 ({len(unmatched)} 个)，已复制到: {error_dir}")
+        err_dir_path = _get_error_dir() if error_dir else (error_root / '责催' if error_root else output_dir.parent / '需人工核查' / '责催')
+        _log(f"\n  [WARN] 未匹配文件汇总 ({len(unmatched)} 个)，已复制到: {err_dir_path}")
         for source_name, notice, reason in unmatched:
             _log(f"    - {source_name}: {reason} (识别: '{notice}')")
 
@@ -2539,11 +2553,16 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
 
     _log(f"  [INFO] 申请书: {total_pages} 页，台账期望 {expected_cases} 个案件")
 
-    # 创建错误文件夹（按文档类型分类）
-    if error_root is None:
-        error_root = output_dir.parent / '需人工核查'
-    error_dir = error_root / '申请书'
-    error_dir.mkdir(parents=True, exist_ok=True)
+    # 延迟创建错误文件夹（只在有需要核查的文件时才创建）
+    error_dir: Optional[Path] = None
+    def _get_error_dir() -> Path:
+        nonlocal error_dir, error_root
+        if error_dir is None:
+            if error_root is None:
+                error_root = output_dir.parent / '需人工核查'
+            error_dir = error_root / '申请书'
+            error_dir.mkdir(parents=True, exist_ok=True)
+        return error_dir
 
     ranges = detect_application_page_ranges_by_ocr(ocr_results, total_pages, expected_cases)
 
@@ -2653,7 +2672,8 @@ def export_application_files(input_dir: Path, output_dir: Path, target_names: Li
     # 导出匹配失败的文件到错误文件夹
     if error_ranges:
         _log(f"  [INFO] 申请书: 匹配失败 {error_count} 个，导出到错误文件夹")
-        created += export_pdf_ranges(source_pdf, error_ranges, error_dir, error_names)
+        err_dir = _get_error_dir()
+        created += export_pdf_ranges(source_pdf, error_ranges, err_dir, error_names)
 
     if not data or not data.get('pages'):
         _log(f"  [WARN] 无 OCR 数据，按台账顺序命名（可能不准确）")
@@ -2860,11 +2880,16 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
 
     _log(f"  [INFO] {source_name}: {total_pages} 页")
 
-    # 创建错误文件夹（按文档类型分类）
-    if error_root is None:
-        error_root = output_dir.parent / '需人工核查'
-    error_dir = error_root / doc_type
-    error_dir.mkdir(parents=True, exist_ok=True)
+    # 延迟创建错误文件夹（只在有需要核查的文件时才创建）
+    error_dir: Optional[Path] = None
+    def _get_error_dir() -> Path:
+        nonlocal error_dir, error_root
+        if error_dir is None:
+            if error_root is None:
+                error_root = output_dir.parent / '需人工核查'
+            error_dir = error_root / doc_type
+            error_dir.mkdir(parents=True, exist_ok=True)
+        return error_dir
 
     data = _get_ocr_result(ocr_results, doc_type)
     if data and data.get('pages'):
@@ -2931,7 +2956,8 @@ def export_company_named_files(input_dir: Path, output_dir: Path, target_names: 
         # 导出匹配失败的文件到错误文件夹
         if error_ranges:
             _log(f"  [INFO] {doc_type}: 匹配失败 {len(error_ranges)} 页，导出到错误文件夹")
-            created += export_pdf_ranges(source_pdf, error_ranges, error_dir, error_names)
+            err_dir = _get_error_dir()
+            created += export_pdf_ranges(source_pdf, error_ranges, err_dir, error_names)
         
         return created
 
@@ -2994,7 +3020,9 @@ def export_non_litigation_standard_outputs(sample_root: Path, input_dir: Path, o
 
     # 写入审计日志（仅当有问题时输出，格式为易读文本）
     if _audit_log:
-        audit_path = output_root / 'audit-log.txt'
+        debug_dir = output_root / 'debug'
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        audit_path = debug_dir / 'audit-log.txt'
         audit_lines = [f"OCR 识别审计报告（共 {len(_audit_log)} 条）", "=" * 60, ""]
         for i, entry in enumerate(_audit_log, 1):
             event = entry.get('event', 'unknown')
@@ -3134,6 +3162,7 @@ def write_review_summary_excel(audit_log: List[Dict], error_root: Optional[Path]
     try:
         from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
         from openpyxl.utils import get_column_letter
+        HAS_OPENPYXL = True
     except ImportError:
         HAS_OPENPYXL = False
 
@@ -3150,7 +3179,36 @@ def write_review_summary_excel(audit_log: List[Dict], error_root: Optional[Path]
             review_events.append(entry)
 
     if not review_events:
-        _log(f"  [INFO] 无需人工核查的文件，跳过生成汇总")
+        # 即使无需核查也生成空表，让用户确认全部通过
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "需人工核查汇总"
+        try:
+            from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
+            ws.merge_cells('A1:H1')
+            title_cell = ws['A1']
+            title_cell.value = '需人工核查汇总（全部通过，无需核查）'
+            title_cell.font = Font(name='微软雅黑', bold=True, size=14, color='FFFFFF')
+            title_cell.fill = PatternFill(start_color='548235', end_color='548235', fill_type='solid')
+            title_cell.alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[1].height = 35
+            headers = ['序号', '文档类型', '文件名', '页码范围', '识别到的内容', '问题描述', '建议操作', '台账匹配结果']
+            ws.append(headers)
+            for col in range(1, 9):
+                cell = ws.cell(row=2, column=col)
+                cell.font = Font(name='微软雅黑', bold=True, size=11, color='FFFFFF')
+                cell.fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+                cell.alignment = Alignment(horizontal='center', vertical='center')
+            ws.merge_cells('A3:H3')
+            pass_cell = ws['A3']
+            pass_cell.value = '所有文件识别结果均已精确匹配，无需人工核查'
+            pass_cell.font = Font(name='微软雅黑', size=12, color='548235')
+            pass_cell.alignment = Alignment(horizontal='center', vertical='center')
+            ws.row_dimensions[3].height = 30
+            wb.save(output_path)
+            _log(f"  [OK] 需人工核查汇总已保存（全部通过）: {output_path}")
+        except Exception as e:
+            _log(f"  [WARN] 生成空核查汇总失败: {e}")
         return
 
     wb = Workbook()

@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 
 const RECHARGE_URL = "https://pay.ldxp.cn/item/4tsgwq";
 import type {
@@ -190,6 +190,37 @@ export default function DetailView({
   const [draggingH, setDraggingH] = useState(false);
   const [draggingV, setDraggingV] = useState(false);
 
+  // 窗口缩放时，确保左面板宽度不超出合理范围
+  const clampLeftWidth = useCallback((w: number, containerW: number) => {
+    const min = Math.max(200, containerW * 0.18);
+    const max = Math.min(500, containerW * 0.42);
+    return Math.min(max, Math.max(min, w));
+  }, []);
+
+  // 初始化左面板宽度为容器的 28%
+  const initializedRef = useRef(false);
+  const measureAndInit = useCallback(() => {
+    if (initializedRef.current) return;
+    const w = containerRef.current?.clientWidth;
+    if (w && w > 0) {
+      setLeftWidth(Math.round(w * 0.28));
+      initializedRef.current = true;
+    }
+  }, []);
+
+  // 窗口 resize 时重新约束
+  const handleResize = useCallback(() => {
+    const w = containerRef.current?.clientWidth;
+    if (w && w > 0) {
+      setLeftWidth((prev) => clampLeftWidth(prev, w));
+    }
+  }, [clampLeftWidth]);
+
+  useEffect(() => {
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [handleResize]);
+
   const [accountInfo, setAccountInfo] = useState<AccountInfo | null>(null);
   const [checking, setChecking] = useState(false);
   const [showAccount, setShowAccount] = useState(false);
@@ -244,9 +275,10 @@ export default function DetailView({
       setDraggingH(true);
       const startX = e.clientX;
       const startWidth = leftWidth;
+      const containerW = containerRef.current?.clientWidth || 1000;
       const onMove = (ev: MouseEvent) => {
         const delta = ev.clientX - startX;
-        const next = Math.min(500, Math.max(200, startWidth + delta));
+        const next = clampLeftWidth(startWidth + delta, containerW);
         setLeftWidth(next);
       };
       const onUp = () => {
@@ -257,7 +289,7 @@ export default function DetailView({
       document.addEventListener("mousemove", onMove);
       document.addEventListener("mouseup", onUp);
     },
-    [leftWidth],
+    [leftWidth, clampLeftWidth],
   );
 
   const startVerticalDrag = useCallback(
@@ -427,8 +459,13 @@ export default function DetailView({
       </div>
 
       <div
-        ref={containerRef}
-        className={`flex-1 flex min-h-0 p-4 overflow-hidden ${draggingH || draggingV ? "select-none" : ""}`}
+        ref={(el) => {
+          (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+          if (el) {
+            measureAndInit();
+          }
+        }}
+        className={`flex-1 flex min-h-0 p-2 sm:p-4 overflow-hidden ${draggingH || draggingV ? "select-none" : ""}`}
         style={{ gap: 0 }}
       >
         <div style={{ width: leftWidth }} className="shrink-0">

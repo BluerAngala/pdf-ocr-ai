@@ -133,7 +133,7 @@ export default function PreviewPanel({
 
   return (
     <div className="flex-1 bg-white rounded-lg border border-slate-200 shadow-sm flex flex-col overflow-hidden">
-      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+      <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between shrink-0">
         <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">预览</h3>
         <div className="flex items-center gap-2">
           {previewState === "result" && result && moduleType !== "print" && (
@@ -156,7 +156,7 @@ export default function PreviewPanel({
         </div>
       </div>
       <div className="flex-1 flex flex-col min-h-0">
-        <div className="flex-1 overflow-y-auto p-4 h-full">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 h-full">
           {previewState === "empty" && (
             <div className="h-full flex items-center justify-center">
               <div className="text-center space-y-2">

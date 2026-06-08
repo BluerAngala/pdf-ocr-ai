@@ -157,7 +157,7 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}>
         <div className="rounded-lg bg-slate-50 p-3 text-center border border-slate-100">
           <p className="text-lg font-bold text-slate-800">{v?.total ?? "-"}</p>
           <p className="text-[10px] text-slate-500 mt-0.5">总文件</p>
@@ -183,8 +183,8 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
       </div>
 
       {timingSummary && (
-        <div className="rounded-lg bg-indigo-50/50 border border-indigo-100 px-3 py-2">
-          <div className="flex items-center gap-4 flex-wrap">
+        <div className="rounded-lg bg-indigo-50/50 border border-indigo-100 px-3 py-2 overflow-x-auto">
+          <div className="flex items-center gap-3 flex-wrap min-w-0">
             <span className="text-[11px] font-medium text-indigo-600">⏱ OCR 耗时</span>
             <span className="text-[10px] text-slate-500">
               总计{" "}

@@ -73,11 +73,55 @@ Content-Type: application/json
   "code": 200,
   "msg": "查询成功！",
   "data": {
-    "companyName": "珠海横琴航投一号投资中心（有限合伙）",
+    "companyName": "华为技术有限公司",
     "usedTimes": 1,
     "remainingTimes": 99,
     "companyInfo": {
-      "...": "Coze工作流返回的企业详情"
+      "data": {
+        "Authority": "深圳市市场监督管理局",
+        "BusinessScope": "一般经营项目：...(经营范围全文)",
+        "CancelDate": null,
+        "CancelReason": null,
+        "City": "深圳市",
+        "CityCode": "440300",
+        "CompanyAddress": "深圳市龙岗区坂田华为总部办公楼",
+        "CompanyCode": "440301103097413",
+        "CompanyName": "华为技术有限公司",
+        "CompanyPersonNum": 58435,
+        "CompanyStatus": "存续（在营、开业、在册）",
+        "CompanyStatusNew": "正常",
+        "CompanyType": "有限责任公司(法人独资)",
+        "CreditNo": "914403001922038216",
+        "District": "龙岗区",
+        "DistrictCode": "440307",
+        "EstablishDate": "1987-09-15 00:00:00",
+        "HistoryNameList": ["深圳市华为技术有限公司"],
+        "HistoryNames": "深圳市华为技术有限公司",
+        "Id": "912c15bb899cd061510ab8dd963e1420",
+        "Industry": "计算机、通信和其他电子设备制造业",
+        "IssueDate": "2026-04-28 00:00:00",
+        "LegalPerson": "赵明路",
+        "LegalPersonType": 1,
+        "OperationEndDate": "2040-04-09 00:00:00",
+        "OperationStartDate": "1987-09-15 00:00:00",
+        "OrgCode": "192203821",
+        "Province": "广东省",
+        "ProvinceCode": "440000",
+        "RealCapital": "4084113.182000万人民币",
+        "RegCapital": "4104113.182000万人民币",
+        "RegCapitalCurrency": "人民币",
+        "RevokeDate": null,
+        "RevokeReason": null,
+        "TaxCode": "914403001922038216",
+        "companyTypeTags": ["有限责任公司", "独资企业"],
+        "industryAll": {
+          "L1Name": "制造业",
+          "L2Name": "计算机、通信和其他电子设备制造业",
+          "L3Name": "通信设备制造",
+          "L4Name": "通信系统设备制造"
+        },
+        "socialStaffNum": 58435
+      }
     }
   }
 }
@@ -88,7 +132,38 @@ Content-Type: application/json
 | `data.companyName` | string | 查询的企业名称 |
 | `data.usedTimes` | number | 含本次的已使用次数 |
 | `data.remainingTimes` | number | 剩余可用次数 |
-| `data.companyInfo` | object | 企业详细信息 |
+| `data.companyInfo` | object | 企业详细信息（Coze 工作流返回） |
+
+**companyInfo.data 字段明细：**
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `CompanyName` | string | 企业名称（现用名） |
+| `CompanyAddress` | string | 企业住所地（完整地址） |
+| `LegalPerson` | string | 法定代表人 |
+| `CreditNo` | string | 统一社会信用代码 |
+| `Province` / `City` / `District` | string | 省 / 市 / 区 |
+| `ProvinceCode` / `CityCode` / `DistrictCode` | string | 行政区划代码 |
+| `CompanyType` | string | 企业类型 |
+| `CompanyStatus` | string | 经营状态（如"存续"） |
+| `CompanyStatusNew` | string | 简化状态（如"正常"） |
+| `HistoryNames` | string | 曾用名 |
+| `HistoryNameList` | string[] | 曾用名列表 |
+| `BusinessScope` | string | 经营范围 |
+| `Industry` | string | 行业 |
+| `industryAll` | object | 行业分类（L1-L4） |
+| `RegCapital` / `RealCapital` | string | 注册资本 / 实缴资本 |
+| `RegCapitalCurrency` | string | 注册资本币种 |
+| `EstablishDate` | string | 成立日期 |
+| `OperationStartDate` / `OperationEndDate` | string | 营业期限起止 |
+| `IssueDate` | string | 核准日期 |
+| `OrgCode` | string | 组织机构代码 |
+| `TaxCode` | string | 税号 |
+| `Authority` | string | 登记机关 |
+| `CompanyPersonNum` / `socialStaffNum` | number | 人员规模 |
+| `companyTypeTags` | string[] | 企业类型标签 |
+| `CancelDate` / `CancelReason` | string/null | 注销日期/原因 |
+| `RevokeDate` / `RevokeReason` | string/null | 吊销日期/原因 |
 
 **余额不足：**
 

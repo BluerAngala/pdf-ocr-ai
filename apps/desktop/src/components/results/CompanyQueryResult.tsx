@@ -60,7 +60,7 @@ export default function CompanyQueryResult({ result }: { result: ProcessingResul
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}>
         <div className="rounded-lg bg-slate-50 p-3 text-center border border-slate-100">
           <p className="text-lg font-bold text-slate-800">{stats?.total ?? companies.length}</p>
           <p className="text-[10px] text-slate-500 mt-0.5">企业总数</p>
@@ -155,31 +155,31 @@ export default function CompanyQueryResult({ result }: { result: ProcessingResul
 
       {companies.length > 0 && (
         <div className="flex-1 min-h-0 overflow-auto rounded-lg border border-slate-200">
-          <table className="w-full text-left table-fixed">
+          <table className="w-full text-left min-w-[700px]">
             <thead className="sticky top-0 bg-slate-50 z-10">
               <tr className="border-b border-slate-200">
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center w-10">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center whitespace-nowrap">
                   #
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider w-[180px]">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   被执行人
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider w-[180px]">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   现用名
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider w-[80px]">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   法代
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider w-[100px]">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   所在地
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider w-[130px]">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   信用代码
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center w-16">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider text-center whitespace-nowrap">
                   状态
                 </th>
-                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                <th className="px-3 py-2 text-[10px] font-semibold text-slate-400 uppercase tracking-wider whitespace-nowrap">
                   错误信息
                 </th>
               </tr>

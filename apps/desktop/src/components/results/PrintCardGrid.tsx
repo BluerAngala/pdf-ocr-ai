@@ -77,8 +77,8 @@ export default function PrintProgress({
   };
 
   return (
-    <div className="flex flex-col gap-2 h-full">
-      <div className="flex items-center justify-between px-1 py-2 border-b border-slate-100">
+    <div className="flex flex-col gap-2 h-full min-w-0">
+      <div className="flex items-center justify-between px-1 py-2 border-b border-slate-100 shrink-0 flex-wrap gap-y-1">
         <span className="text-xs font-semibold text-slate-700">匹配结果</span>
         <div className="flex items-center gap-3 text-[10px] text-slate-500">
           <span>
@@ -139,8 +139,8 @@ export default function PrintProgress({
       )}
 
       {matchResults.length > 0 && (
-        <div className="flex-1 min-h-0 overflow-y-auto">
-          <table className="w-full text-xs">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden">
+          <table className="w-full text-xs table-fixed">
             <tbody>
               {matchResults.map((item) => {
                 const isSelected = selectedOrders.has(item.order);
@@ -163,7 +163,7 @@ export default function PrintProgress({
                     <td className="w-8 py-1.5 text-right text-slate-400 font-mono">
                       {item.order}.
                     </td>
-                    <td className="py-1.5">
+                    <td className="py-1.5 truncate max-w-0">
                       {isMatched ? (
                         <span className="text-slate-600">
                           <span className="text-slate-700 font-medium">【{item.company}】</span>
@@ -198,7 +198,7 @@ export default function PrintProgress({
                         </span>
                       )}
                     </td>
-                    <td className="py-1.5 text-right">
+                    <td className="py-1.5 text-right w-24 shrink-0 whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
                         {isMatched && !isPrinting && (
                           <button

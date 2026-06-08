@@ -24,10 +24,14 @@ except ImportError:
     HAS_PDFPLUMBER = False
 
 try:
-    from rapidocr import RapidOCR
+    from rapidocr_onnxruntime import RapidOCR
     HAS_RAPIDOCR = True
 except ImportError:
-    HAS_RAPIDOCR = False
+    try:
+        from rapidocr import RapidOCR
+        HAS_RAPIDOCR = True
+    except ImportError:
+        HAS_RAPIDOCR = False
 
 from core.region_extractor import RegionExtractor, REGIONS
 

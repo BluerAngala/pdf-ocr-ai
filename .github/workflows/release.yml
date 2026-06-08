@@ -44,6 +44,17 @@ jobs:
           }
           echo "Spec file found."
 
+      - name: Prepare sample data for build
+        shell: pwsh
+        run: |
+          # build.rs 需要 样本材料/ 下的企业信息查询，如果不存在则从 resources/sample-data/ 复制
+          if (-not (Test-Path "样本材料/企业信息查询")) {
+            echo "Creating 样本材料/企业信息 query from resources/sample-data/"
+            New-Item -ItemType Directory -Force -Path "样本材料/企业信息查询"
+            Copy-Item "resources/sample-data/company-query/001.xlsx" "样本材料/企业信息查询/001.xlsx"
+          }
+          echo "Sample data ready."
+
       - name: Install Node dependencies
         run: |
           cd apps/desktop

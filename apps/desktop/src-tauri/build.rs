@@ -223,6 +223,12 @@ fn find_python(project_root: &Path) -> Option<PathBuf> {
         .map(|_| PathBuf::from("python"))
 }
 
+/// Verify output captured from verify_server_bundle.py. Cargo strips
+/// eprintln! from build scripts in CI, so we surface the captured
+/// stdout/stderr in the final panic message to make CI failures
+/// debuggable.
+static VERIFY_OUTPUT: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
 fn run_onefile_verify(
     python: &Path,
     verify_script: &Path,
@@ -232,33 +238,28 @@ fn run_onefile_verify(
     if !verify_script.is_file() || !exe.is_file() {
         return Ok(false);
     }
-    // 把 verify 的输出写到文件，避免 cargo 截断
-    let log_path = std::env::temp_dir().join("gjj_verify_output.log");
-    let _ = std::fs::remove_file(&log_path);
     let output = std::process::Command::new(python)
         .arg(verify_script)
         .arg(exe)
         .args(["--resources", &resources_dir.to_string_lossy()])
         .output()?;
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-    let log_content = format!(
-        "=== EXIT CODE: {:?} ===\n=== STDOUT ===\n{}\n=== STDERR ===\n{}",
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+    // Save full output for panic message
+    let combined = format!(
+        "[verify] exit={:?}\n[verify] stdout: {}\n[verify] stderr: {}",
         output.status.code(),
         stdout,
         stderr
     );
-    let _ = std::fs::write(&log_path, &log_content);
-    // 同时输出到 stdout 和 stderr（cargo 可能截断其中一个）
-    println!("[verify] log file: {:?}", log_path);
-    eprintln!("[verify] log file: {:?}", log_path);
-    println!("=== verify output (full) ===");
-    eprintln!("=== verify output (full) ===");
-    println!("{}", log_content);
-    eprintln!("{}", log_content);
-    println!("=== end of verify output ===");
-    eprintln!("=== end of verify output ===");
+    let _ = VERIFY_OUTPUT.set(combined);
+    eprintln!("{}", stdout);
+    eprintln!("{}", stderr);
     Ok(output.status.success())
+}
+
+fn last_verify_output() -> String {
+    VERIFY_OUTPUT.get().cloned().unwrap_or_default()
 }
 
 fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> std::io::Result<()> {
@@ -360,7 +361,10 @@ fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> st
         if !run_onefile_verify(&python, &verify_script, &onefile, resources_dir)? {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
-                "onefile OCR 冒烟失败（rapidocr config.yaml），请查看上方 verify 输出",
+                format!(
+                    "onefile OCR 冒烟失败（rapidocr config.yaml）\n\n=== verify output ===\n{}\n=== end ===",
+                    last_verify_output()
+                ),
             ));
         }
     } else {

@@ -67,7 +67,7 @@ jobs:
       - name: Build Tauri app
         shell: pwsh
         run: |
-          . ..\.venv312\Scripts\Activate.ps1
+          . ${{ github.workspace }}\.venv312\Scripts\Activate.ps1
           cd apps/desktop
           npx tauri build
         env:

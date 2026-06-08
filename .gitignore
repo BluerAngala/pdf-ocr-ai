@@ -124,6 +124,7 @@ tools/poppler/
 
 # PyInstaller
 *.spec
+!apps/server/gjj-ocr-server.spec
 
 # Tauri build resources (auto-synced by build.rs, do not edit manually)
 apps/desktop/src-tauri/resources/gjj-ocr-server.exe

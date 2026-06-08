@@ -956,6 +956,21 @@ fn main() {
             let service = PythonService::placeholder();
             app.manage(service.clone());
 
+            // 获取主窗口并显示
+            if let Some(window) = app.get_window("main") {
+                // 延迟显示窗口，确保内容已加载，避免白屏
+                let window_clone = window.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    if let Err(e) = window_clone.show() {
+                        eprintln!("[main] Failed to show window: {}", e);
+                    }
+                    if let Err(e) = window_clone.set_focus() {
+                        eprintln!("[main] Failed to set focus: {}", e);
+                    }
+                });
+            }
+
             // 启动 Python 服务
             tauri::async_runtime::spawn(async move {
                 match start_python_service_with_retry(app_handle.clone(), service.clone(), 3).await {

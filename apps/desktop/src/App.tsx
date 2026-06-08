@@ -1246,7 +1246,7 @@ export default function App() {
   const moduleTitle = MODULE_CONFIG[currentModule]?.title || "";
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="flex flex-col h-full overflow-hidden">
       {!appReady && startupProgress.phase !== "ready" ? (
         <StartupOverlay
           phase={startupProgress.label}

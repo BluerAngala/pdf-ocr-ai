@@ -60,7 +60,10 @@ export default function CompanyQueryResult({ result }: { result: ProcessingResul
 
   return (
     <div className="flex flex-col gap-4 h-full">
-      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}>
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}
+      >
         <div className="rounded-lg bg-slate-50 p-3 text-center border border-slate-100">
           <p className="text-lg font-bold text-slate-800">{stats?.total ?? companies.length}</p>
           <p className="text-[10px] text-slate-500 mt-0.5">企业总数</p>

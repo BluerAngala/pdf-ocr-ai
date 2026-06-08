@@ -124,17 +124,22 @@ function DetailItem({ item }: { item: ValidationDetail }) {
           ))}
         </div>
       )}
-      {sameRootRemap && (() => {
-        const summary = d.same_root_remap_summary as { selected_notice?: string; target_notice?: string } | undefined;
-        const sel = summary?.selected_notice ?? detectedNotices?.[0];
-        const tgt = summary?.target_notice ?? (d.matched_target_notice as string | undefined);
-        if (!sel && !tgt) return <p className="text-[10px] text-amber-600 mt-0.5">同根号重映射</p>;
-        return (
-          <p className="text-[10px] text-amber-600 mt-0.5">
-            同根号重映射：OCR 实际识别 <span className="font-mono">{sel ?? "?"}</span>，按主号 <span className="font-mono">{tgt ?? "?"}</span> 导出
-          </p>
-        );
-      })()}
+      {sameRootRemap &&
+        (() => {
+          const summary = d.same_root_remap_summary as
+            | { selected_notice?: string; target_notice?: string }
+            | undefined;
+          const sel = summary?.selected_notice ?? detectedNotices?.[0];
+          const tgt = summary?.target_notice ?? (d.matched_target_notice as string | undefined);
+          if (!sel && !tgt)
+            return <p className="text-[10px] text-amber-600 mt-0.5">同根号重映射</p>;
+          return (
+            <p className="text-[10px] text-amber-600 mt-0.5">
+              同根号重映射：OCR 实际识别 <span className="font-mono">{sel ?? "?"}</span>，按主号{" "}
+              <span className="font-mono">{tgt ?? "?"}</span> 导出
+            </p>
+          );
+        })()}
       {suggestions.length > 0 && (
         <p className="text-[10px] text-slate-400 mt-0.5">{suggestions.join(" | ")}</p>
       )}
@@ -157,7 +162,10 @@ export default function NonLitigationResult({ result }: { result: ProcessingResu
 
   return (
     <div className="flex flex-col gap-3 h-full">
-      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}>
+      <div
+        className="grid gap-2"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(90px, 1fr))" }}
+      >
         <div className="rounded-lg bg-slate-50 p-3 text-center border border-slate-100">
           <p className="text-lg font-bold text-slate-800">{v?.total ?? "-"}</p>
           <p className="text-[10px] text-slate-500 mt-0.5">总文件</p>

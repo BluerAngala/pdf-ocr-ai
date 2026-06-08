@@ -5,23 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>公积金 OCR 工具</title>
     <style>
-      /* 高分屏适配：检测缩放比例并调整根字体大小 */
-      @media (-webkit-device-pixel-ratio: 1.25) {
-        html { zoom: 0.9; }
+      /* 确保 html 和 body 占满整个窗口 */
+      html, body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
       }
-      @media (-webkit-device-pixel-ratio: 1.5) {
-        html { zoom: 0.8; }
-      }
-      @media (-webkit-device-pixel-ratio: 1.75) {
-        html { zoom: 0.75; }
-      }
-      @media (-webkit-device-pixel-ratio: 2) {
-        html { zoom: 0.7; }
+      /* Tauri WebView 高分屏适配 */
+      @media (resolution > 1dppx) {
+        html {
+          /* 使用 transform 替代 zoom，避免 viewport 计算问题 */
+          transform-origin: 0 0;
+        }
       }
     </style>
 </head>
-<body class="overflow-hidden select-none flex flex-col h-screen antialiased bg-[#F8FAFC] text-[#0F172A]">
-    <div id="root" class="flex flex-col flex-1 min-h-0"></div>
+<body class="select-none antialiased bg-[#F8FAFC] text-[#0F172A]">
+    <div id="root" class="flex flex-col h-full"></div>
     <script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

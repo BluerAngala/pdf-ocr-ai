@@ -30,10 +30,7 @@ export default function StatCardGrid({ items, columns }: Props) {
   const minMax = minMaxMap[columns || 5] || minMaxMap[5];
 
   return (
-    <div
-      className="grid gap-2"
-      style={{ gridTemplateColumns: `repeat(auto-fill, ${minMax})` }}
-    >
+    <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(auto-fill, ${minMax})` }}>
       {items.map((item) => (
         <div
           key={item.label}

@@ -71,14 +71,19 @@
     },
     "windows": [
       {
+        "label": "main",
         "center": true,
         "fullscreen": false,
-        "height": 800,
-        "minHeight": 700,
-        "minWidth": 960,
+        "height": 600,
+        "minHeight": 500,
+        "minWidth": 720,
         "resizable": true,
         "title": "GJJ OCR Tool",
-        "width": 1100
+        "width": 900,
+        "transparent": false,
+        "decorations": true,
+        "alwaysOnTop": false,
+        "visible": false
       }
     ]
   }

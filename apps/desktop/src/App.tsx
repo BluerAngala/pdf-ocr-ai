@@ -92,6 +92,7 @@ export default function App() {
     showBadge: showUpdateBadge,
     setShowModal: setShowUpdateModal,
     setShowBadge: setShowUpdateBadge,
+    checkUpdate,
   } = useUpdateCheck(APP_VERSION);
 
   const logIdRef = useRef(0);

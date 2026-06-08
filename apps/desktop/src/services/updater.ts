@@ -64,20 +64,25 @@ export async function downloadAndInstallUpdate(update: Update): Promise<Download
 
     await update.downloadAndInstall((event) => {
       switch (event.event) {
-        case "Started":
+        case "Started": {
+          const data = event.data as Record<string, unknown>;
+          const total = typeof data.contentLength === "number" ? data.contentLength : 0;
           setStatus({
             type: "downloading",
             progress: 0,
-            total: event.data.contentLength,
+            total: total > 0 ? total : undefined,
           });
           break;
-        case "Progress":
+        }
+        case "Progress": {
+          const data = event.data as Record<string, unknown>;
+          const chunkLength = typeof data.chunkLength === "number" ? data.chunkLength : 0;
           setStatus({
             type: "downloading",
-            progress: event.data.chunkLength,
-            total: event.data.contentLength,
+            progress: chunkLength,
           });
           break;
+        }
         case "Finished":
           setStatus({ type: "downloaded" });
           break;

@@ -31,6 +31,11 @@ import ChangelogModal from "./components/ChangelogModal";
 import StartupOverlay from "./components/StartupOverlay";
 import OcrWarmupBanner from "./components/OcrWarmupBanner";
 import { runStartupWarmup, runBackgroundOcrWarmup, type StartupProgress } from "./services/startup";
+import { UpdateModal, UpdateBadge } from "./components/UpdateChecker";
+import { useUpdateCheck } from "./hooks/useUpdateCheck";
+
+// 从Tauri配置获取版本号
+const APP_VERSION = "1.2.0";
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "detail">("home");
@@ -80,6 +85,16 @@ export default function App() {
     phase: "waiting_backend",
     label: "正在启动…",
   });
+
+  // 自动更新检查
+  const {
+    showModal: showUpdateModal,
+    showBadge: showUpdateBadge,
+    checkResult: updateCheckResult,
+    setShowModal: setShowUpdateModal,
+    setShowBadge: setShowUpdateBadge,
+    checkUpdate,
+  } = useUpdateCheck(APP_VERSION);
 
   const logIdRef = useRef(0);
   const taskIdToModuleRef = useRef<Record<string, ModuleType>>({});
@@ -1274,6 +1289,7 @@ export default function App() {
         <HomeView
           onNavigate={navigateToModule}
           onOpenChangelog={() => setShowChangelogModal(true)}
+          onCheckUpdate={() => checkUpdate(false)}
         />
       ) : (
         <DetailView
@@ -1354,6 +1370,24 @@ export default function App() {
         <SystemStatusModal statusInfo={statusInfo} onClose={() => setShowStatusModal(false)} />
       )}
       {showChangelogModal && <ChangelogModal onClose={() => setShowChangelogModal(false)} />}
+
+      {/* 自动更新检查 */}
+      {showUpdateModal && updateCheckResult && (
+        <UpdateModal
+          currentVersion={APP_VERSION}
+          checkResult={updateCheckResult}
+          onClose={() => setShowUpdateModal(false)}
+          onCheck={() => checkUpdate(false)}
+        />
+      )}
+      {showUpdateBadge && (
+        <UpdateBadge
+          onClick={() => {
+            setShowUpdateBadge(false);
+            setShowUpdateModal(true);
+          }}
+        />
+      )}
     </div>
   );
 }

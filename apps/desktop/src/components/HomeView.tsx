@@ -67,9 +67,10 @@ const ICON_COLORS: Record<string, string> = {
 interface Props {
   onNavigate: (module: ModuleType) => void;
   onOpenChangelog: () => void;
+  onCheckUpdate?: () => void;
 }
 
-export default function HomeView({ onNavigate, onOpenChangelog }: Props) {
+export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }: Props) {
   const [windowSize, setWindowSize] = useState({ width: 900, height: 600 });
 
   useEffect(() => {
@@ -129,20 +130,38 @@ export default function HomeView({ onNavigate, onOpenChangelog }: Props) {
             <h1 className="text-xl font-bold text-[#0F172A]">公积金 OCR 工具</h1>
             <p className="text-sm text-slate-500 mt-0.5">选择功能模块开始处理</p>
           </div>
-          <button
-            onClick={onOpenChangelog}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md shadow-sm transition-all cursor-pointer"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
-              />
-            </svg>
-            <span>更新日志</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {onCheckUpdate && (
+              <button
+                onClick={onCheckUpdate}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md shadow-sm transition-all cursor-pointer"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                  />
+                </svg>
+                <span>检查更新</span>
+              </button>
+            )}
+            <button
+              onClick={onOpenChangelog}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 rounded-md shadow-sm transition-all cursor-pointer"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"
+                />
+              </svg>
+              <span>更新日志</span>
+            </button>
+          </div>
         </div>
       </div>
 

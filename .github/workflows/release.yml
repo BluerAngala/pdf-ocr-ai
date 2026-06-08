@@ -152,7 +152,7 @@ jobs:
             notes = "Release ${{ github.ref_name }}"
             pub_date = $date
             platforms = @{
-              windows-x86_64 = @{
+              "windows-x86_64" = @{
                 signature = $env:SIGNATURE
                 url = "https://github.com/$repo/releases/latest/download/GJJ-OCR-Tool-latest-setup.exe"
               }

@@ -44,7 +44,7 @@ jobs:
           }
           echo "Spec file found."
 
-      - name: Prepare sample data for build
+      - name: Prepare resources for build
         shell: pwsh
         run: |
           # build.rs 需要 样本材料/ 下的企业信息查询，如果不存在则从 resources/sample-data/ 复制
@@ -53,7 +53,13 @@ jobs:
             New-Item -ItemType Directory -Force -Path "样本材料/企业信息查询"
             Copy-Item "resources/sample-data/company-query/001.xlsx" "样本材料/企业信息查询/001.xlsx"
           }
-          echo "Sample data ready."
+          # 复制 Poppler 到 Tauri resources 目录
+          if (-not (Test-Path "apps/desktop/src-tauri/resources/poppler")) {
+            echo "Copying Poppler to Tauri resources"
+            New-Item -ItemType Directory -Force -Path "apps/desktop/src-tauri/resources/poppler"
+            Copy-Item -Recurse "apps/server/tools/poppler/*" "apps/desktop/src-tauri/resources/poppler/"
+          }
+          echo "Resources ready."
 
       - name: Install Node dependencies
         run: |

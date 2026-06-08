@@ -47,19 +47,31 @@ jobs:
       - name: Prepare resources for build
         shell: pwsh
         run: |
-          # build.rs 需要 样本材料/ 下的企业信息查询，如果不存在则从 resources/sample-data/ 复制
+          # 1. 准备企业信息查询样本
           if (-not (Test-Path "样本材料/企业信息查询")) {
-            echo "Creating 样本材料/企业信息 query from resources/sample-data/"
+            echo "Creating 样本材料/企业信息查询 from resources/sample-data/"
             New-Item -ItemType Directory -Force -Path "样本材料/企业信息查询"
             Copy-Item "resources/sample-data/company-query/001.xlsx" "样本材料/企业信息查询/001.xlsx"
           }
-          # 复制 Poppler 到 Tauri resources 目录
-          if (-not (Test-Path "apps/desktop/src-tauri/resources/poppler")) {
-            echo "Copying Poppler to Tauri resources"
-            New-Item -ItemType Directory -Force -Path "apps/desktop/src-tauri/resources/poppler"
-            Copy-Item -Recurse "apps/server/tools/poppler/*" "apps/desktop/src-tauri/resources/poppler/"
+
+          # 2. 准备 SumatraPDF
+          $sumatraDest = "apps/desktop/src-tauri/resources/sumatrapdf"
+          if (-not (Test-Path "$sumatraDest/SumatraPDF-3.5.2-64.exe")) {
+            echo "Extracting SumatraPDF"
+            New-Item -ItemType Directory -Force -Path "$sumatraDest"
+            Expand-Archive -Path "SumatraPDF-3.5.2-64.zip" -DestinationPath "$sumatraDest" -Force
+            # zip 解压后通常是单层目录，找到真正的 exe
+            $sumatraExe = Get-ChildItem -Recurse -Path "$sumatraDest" -Filter "SumatraPDF*.exe" | Select-Object -First 1
+            if ($sumatraExe) {
+              $flatPath = "$sumatraDest/SumatraPDF-3.5.2-64.exe"
+              Move-Item $sumatraExe.FullName $flatPath -Force
+              # 清理子目录
+              Get-ChildItem -Path "$sumatraDest" -Directory | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+            }
           }
-          echo "Resources ready."
+
+          echo "Resources ready:"
+          Get-ChildItem apps/desktop/src-tauri/resources/ -Recurse -File | Select-Object -First 5 | ForEach-Object { $_.FullName }
 
       - name: Install Node dependencies
         run: |

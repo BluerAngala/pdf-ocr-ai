@@ -102,6 +102,7 @@ nul
 
 # Large archives
 *.zip
+!SumatraPDF-3.5.2-64.zip
 *.tar.gz
 *.rar
 *.7z

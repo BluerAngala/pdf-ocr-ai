@@ -232,12 +232,17 @@ fn run_onefile_verify(
     if !verify_script.is_file() || !exe.is_file() {
         return Ok(false);
     }
-    let status = std::process::Command::new(python)
+    let output = std::process::Command::new(python)
         .arg(verify_script)
         .arg(exe)
         .args(["--resources", &resources_dir.to_string_lossy()])
-        .status()?;
-    Ok(status.success())
+        .output()?;
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    eprintln!("[verify] stdout:\n{}", stdout);
+    eprintln!("[verify] stderr:\n{}", stderr);
+    eprintln!("[verify] exit code: {:?}", output.status.code());
+    Ok(output.status.success())
 }
 
 fn bundle_python_server_onefile(project_root: &Path, resources_dir: &Path) -> std::io::Result<()> {

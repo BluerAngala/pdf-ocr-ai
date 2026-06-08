@@ -70,6 +70,14 @@ jobs:
             }
           }
 
+          # 3. 准备 Poppler
+          $popplerDest = "apps/desktop/src-tauri/resources/poppler"
+          if (-not (Test-Path "$popplerDest/poppler-24.08.0")) {
+            echo "Copying Poppler"
+            New-Item -ItemType Directory -Force -Path $popplerDest
+            Copy-Item -Recurse "apps/server/tools/poppler/poppler-24.08.0" "$popplerDest/"
+          }
+
           echo "Resources ready:"
           Get-ChildItem apps/desktop/src-tauri/resources/ -Recurse -File | Select-Object -First 5 | ForEach-Object { $_.FullName }
 

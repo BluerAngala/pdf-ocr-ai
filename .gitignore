@@ -160,4 +160,5 @@ tauri.key.pub
 # Keep directory structure
 # =============================================================================
 !.gitkeep
-scripts/
+# 只忽略仓库根的 scripts/（前导 / 限定路径）
+/scripts/

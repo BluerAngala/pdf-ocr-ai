@@ -149,8 +149,14 @@ export function UpdateModal({ onClose }: UpdateModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-md mx-4 bg-white rounded-xl shadow-2xl overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md mx-4 bg-white rounded-xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* 头部 */}
         <div className={`px-6 py-4 ${getHeaderStyle()}`}>
           <div className="flex items-center gap-2">
@@ -224,9 +230,7 @@ export function UpdateModal({ onClose }: UpdateModalProps) {
                 />
               </svg>
               <p className="text-lg font-medium text-slate-800">已是最新版本</p>
-              <p className="text-sm text-slate-500 mt-1">
-                当前版本 v{import.meta.env.VITE_APP_VERSION || "1.2.0"}
-              </p>
+              <p className="text-sm text-slate-500 mt-1">当前版本 v{__APP_VERSION__}</p>
             </div>
           )}
 
@@ -236,7 +240,7 @@ export function UpdateModal({ onClose }: UpdateModalProps) {
                 <div className="flex items-center gap-1.5">
                   <span className="text-slate-500">当前版本</span>
                   <span className="px-2 py-0.5 bg-slate-100 rounded text-slate-700 font-medium">
-                    v{import.meta.env.VITE_APP_VERSION || "1.2.0"}
+                    v{__APP_VERSION__}
                   </span>
                 </div>
                 <svg

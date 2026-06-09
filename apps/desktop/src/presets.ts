@@ -92,16 +92,21 @@ export async function getPresets(forceRefresh = false): Promise<PresetConfig[]> 
     invalidatePresetCache();
   }
 
-  const fromPython = await fetchPresetsFromPython(forceRefresh ? 24 : 12, forceRefresh ? 500 : 400);
-  if (fromPython?.length) {
-    _cachedPresets = fromPython;
-    return fromPython;
-  }
-
+  // 在 Tauri 环境下，尝试从 Python 拉取真实路径
+  // 失败时不抛错（容错），fallback 到 mock 列表
   if (isTauri()) {
-    throw new Error("无法从后端加载预设路径（请重新安装最新版，或手动选择样本文件夹）");
+    const fromPython = await fetchPresetsFromPython(
+      forceRefresh ? 24 : 12,
+      forceRefresh ? 500 : 400,
+    );
+    if (fromPython?.length) {
+      _cachedPresets = fromPython;
+      return fromPython;
+    }
+    // Python 拉取失败也不抛错，让上层走 mock fallback（无 sampleRoot）
   }
 
+  // 浏览器 mock 或 Tauri 失败时的 fallback
   _cachedPresets = PRESET_STUBS.map((d) => ({
     ...d,
     sampleRoot: "",

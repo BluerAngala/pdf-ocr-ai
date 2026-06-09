@@ -124,18 +124,36 @@ PRESET_EXCEL_PATHS: Dict[str, List[str]] = {
 
 
 def iter_path_candidates(rel: str):
+    """为给定相对路径生成多个候选绝对路径，兼容不同打包方式：
+    - 开发环境（仓库根或 resources/）
+    - 打包环境（NSIS 安装目录或安装目录/resources/）
+    同一相对路径在不同 base 下都尝试一次。
+    """
     rel_norm = rel.replace("\\", "/").lstrip("./")
     rel_path = Path(rel_norm)
     seen: set[str] = set()
 
     for base in get_data_roots():
-        variants = [base / rel_path]
+        # 生成候选路径
+        candidates: list = [base / rel_path]
+        # 兼容 rel 以 "resources/" 开头
         if rel_norm.startswith("resources/"):
-            variants.append(base / rel_norm[len("resources/") :])
+            stripped = rel_norm[len("resources/") :]
+            candidates.append(base / stripped)
+            # 如果 base 已以 resources 结尾，再尝试 base.parent
+            if base.name.lower() == "resources":
+                candidates.append(base.parent / stripped)
+        # 兼容 rel 不以 "资源/" 或 "样本材料/" 开头
         elif not rel_norm.startswith("样本材料/"):
-            variants.append(base / "resources" / rel_path)
+            candidates.append(base / "resources" / rel_path)
+            # 如果 base 已以 resources 结尾
+            if base.name.lower() == "resources":
+                candidates.append(base.parent / rel_path)
+            # 兼容"base 已经是 resources 父目录"的情况（Tauri 安装时直接把
+            # 资源放 exe 旁而不放 resources/ 子目录）
+            candidates.append(base / rel_path)
 
-        for candidate in variants:
+        for candidate in candidates:
             try:
                 key = str(candidate.resolve())
             except OSError:

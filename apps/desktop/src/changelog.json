@@ -1,19 +1,9 @@
 {
-  "version": "1.2.1",
+  "version": "1.2.0",
   "releases": [
     {
-      "version": "1.2.1",
-      "date": "2025-01-20",
-      "changes": [
-        {
-          "type": "fix",
-          "description": "修复更新弹窗在检查中、错误、已是最新等状态下没有关闭按钮的问题"
-        }
-      ]
-    },
-    {
       "version": "1.2.0",
-      "date": "2025-01-15",
+      "date": "2026-06-09",
       "changes": [
         {
           "type": "feature",
@@ -30,6 +20,14 @@
         {
           "type": "feature",
           "description": "新增检查更新功能"
+        },
+        {
+          "type": "fix",
+          "description": "修复更新弹窗在多个状态下缺少关闭按钮的问题（点击遮罩也可关闭）"
+        },
+        {
+          "type": "fix",
+          "description": "修复预设路径解析在不同 Tauri bundler 资源布局下失败的兼容问题"
         }
       ]
     },

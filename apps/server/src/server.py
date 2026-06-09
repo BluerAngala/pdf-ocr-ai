@@ -1170,6 +1170,17 @@ class JsonRpcServer:
         except:
             pass
         app_version = os.environ.get('GJJ_APP_VERSION', '')
+        if not app_version:
+            # 兜底：使用与 Tauri 端一致的硬编码版本（不要读 config.yaml 的 version 字段，
+            # 因为该字段是配置文件 schema 版本，与应用版本不同）
+            app_version = "1.2.0"
+        developer = ''
+        try:
+            from core.config_loader import _load_config
+            raw = _load_config()
+            developer = raw.get('developer', '')
+        except:
+            pass
         developer = ''
         try:
             from core.config_loader import _load_config

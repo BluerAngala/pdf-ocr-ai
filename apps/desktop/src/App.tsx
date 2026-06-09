@@ -18,7 +18,12 @@ import type {
 } from "./types";
 import { MODULE_CONFIG, PHASE_NAMES } from "./constants";
 import { createInitialModuleTaskState, resolveTaskModule } from "./moduleTaskState";
-import { ensurePresetById, getPresetResolveErrors, invalidatePresetCache } from "./presets";
+import {
+  ensurePresetById,
+  getPresetResolveErrors,
+  getPresets,
+  invalidatePresetCache,
+} from "./presets";
 import { setupJsonRpcListeners, sendRequest, isTauri } from "./services/jsonrpc";
 import { fetchSystemStatus, setupPoppler } from "./services/system";
 import { invoke } from "@tauri-apps/api/core";
@@ -34,8 +39,8 @@ import { runStartupWarmup, runBackgroundOcrWarmup, type StartupProgress } from "
 import { UpdateModal, UpdateBadge } from "./components/UpdateChecker";
 import { useUpdateCheck } from "./hooks/useUpdateCheck";
 
-// 从Tauri配置获取版本号
-const APP_VERSION = "1.2.1";
+// 从 tauri.conf.json 注入的版本号（vite.config.ts 读取 tauri.conf.json 注入）
+const APP_VERSION = __APP_VERSION__;
 
 export default function App() {
   const [currentView, setCurrentView] = useState<"home" | "detail">("home");
@@ -500,12 +505,35 @@ export default function App() {
     async (module: ModuleType, logModule?: ModuleType) => {
       const config = MODULE_CONFIG[module];
       const preset = await ensurePresetById(config.presetId);
-      if (preset?.sampleRoot || preset?.excelPath) {
+      // 只要预设存在就应用（mock 模式不需要真实路径）
+      if (preset) {
         if (preset.sampleRoot) setSampleRoot(preset.sampleRoot);
         if (preset.excelPath) setExcelFile(preset.excelPath);
         setMockMode(preset.mode === "mock");
-        addLog("info", `已加载预设: ${preset.name}`, logModule ?? module);
+        addLog(
+          "info",
+          preset.sampleRoot || preset.excelPath
+            ? `已加载预设: ${preset.name}`
+            : `已加载预设（mock 模式）: ${preset.name}`,
+          logModule ?? module,
+        );
         return true;
+      }
+      // 预设找不到：输出详细诊断
+      addLog(
+        "debug",
+        `ensurePresetById 返回 undefined，config.presetId="${config.presetId}"`,
+        logModule ?? module,
+      );
+      try {
+        const rawPresets = await getPresets(false);
+        addLog(
+          "debug",
+          `get_presets 返回 ${rawPresets.length} 项，包含「${config.presetId}」：${rawPresets.find((p: { id: string }) => p.id === config.presetId) ? "是" : "否"}`,
+          logModule ?? module,
+        );
+      } catch (e) {
+        addLog("debug", `get_presets 调用失败: ${String(e)}`, logModule ?? module);
       }
       if (module === "company-query") {
         setExcelFile("");

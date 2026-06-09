@@ -75,6 +75,8 @@ jobs:
 
           # 3. Poppler 由 setup_poppler.py 单独安装（不在应用包中分发）
           . ${{ github.workspace }}\.venv312\Scripts\Activate.ps1
+          $env:PYTHONIOENCODING = "utf-8"
+          $env:PYTHONUTF8 = "1"
           python apps/server/scripts/setup_poppler.py
 
           echo "Resources ready:"

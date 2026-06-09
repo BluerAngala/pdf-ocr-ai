@@ -11,6 +11,16 @@ import urllib.request
 from pathlib import Path
 from typing import Optional
 
+# 防御性：GitHub Actions / 部分 Windows 终端默认 cp1252，print 中文会崩。
+# 强制 stdout/stderr 用 UTF-8（Python 3.7+）。
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):
+        pass  # 旧 Python / 已关闭流
+os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+os.environ.setdefault("PYTHONUTF8", "1")
+
 # Poppler Windows 版本下载链接
 POPPLER_URL = "https://github.com/oschwartz10612/poppler-windows/releases/download/v24.08.0-0/Release-24.08.0-0.zip"
 POPPLER_VERSION = "24.08.0"

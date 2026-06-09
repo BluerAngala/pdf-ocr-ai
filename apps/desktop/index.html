@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>公积金 OCR 工具</title>
     <style>
       /* 确保 html 和 body 占满整个窗口 */
@@ -12,13 +12,8 @@
         padding: 0;
         overflow: hidden;
       }
-      /* Tauri WebView 高分屏适配 */
-      @media (resolution > 1dppx) {
-        html {
-          /* 使用 transform 替代 zoom，避免 viewport 计算问题 */
-          transform-origin: 0 0;
-        }
-      }
+      /* Tauri WebView2 + PER_MONITOR_AWARE_V2 下，CSS 像素自动按 DPI 缩放。
+         不需要任何 transform/zoom，否则会双重缩放导致布局溢出 */
     </style>
 </head>
 <body class="select-none antialiased bg-[#F8FAFC] text-[#0F172A]">

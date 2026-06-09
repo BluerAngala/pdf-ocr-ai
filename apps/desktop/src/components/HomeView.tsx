@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useLayoutEffect } from "react";
 import type { ModuleType } from "../types";
 
 const MODULES: {
@@ -73,7 +73,8 @@ interface Props {
 export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }: Props) {
   const [windowSize, setWindowSize] = useState({ width: 900, height: 600 });
 
-  useEffect(() => {
+  // useLayoutEffect 保证首屏 DPR/size 正确测量，避免初始布局抖动
+  useLayoutEffect(() => {
     const updateSize = () => {
       setWindowSize({
         width: window.innerWidth,
@@ -83,10 +84,17 @@ export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }:
 
     updateSize();
     window.addEventListener("resize", updateSize);
-    return () => window.removeEventListener("resize", updateSize);
+    // DPR 变化时（用户拖窗口到不同 DPI 屏）WebView 不会自动 resize，需监听 matchMedia
+    const mql = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    mql.addEventListener("change", updateSize);
+    return () => {
+      window.removeEventListener("resize", updateSize);
+      mql.removeEventListener("change", updateSize);
+    };
   }, []);
 
-  const isCompact = windowSize.height < 650;
+  // 双重判断：高度 < 650 或 宽度 < 720 时切换紧凑模式
+  const isCompact = windowSize.height < 650 || windowSize.width < 720;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -132,24 +140,21 @@ export default function HomeView({ onNavigate, onOpenChangelog, onCheckUpdate }:
         </div>
       </div>
 
-      {/* 卡片网格 - 居中显示，卡片固定大小 */}
-      <div className="flex-1 min-h-0 px-4 pb-4 flex items-center justify-center">
+      {/* 卡片网格 - 自适应窗口宽度，最大 580px */}
+      <div className="flex-1 min-h-0 px-4 pb-4 flex items-center justify-center overflow-auto">
         <div
-          className="grid grid-cols-2 gap-5"
+          className="grid grid-cols-2 gap-4 sm:gap-5 w-full"
           style={{
-            width: isCompact ? "520px" : "580px",
-            maxWidth: "90%",
+            maxWidth: "min(580px, calc(100vw - 32px))",
           }}
         >
           {MODULES.map((m) => (
             <button
               key={m.key}
               onClick={() => onNavigate(m.key)}
-              className={`group relative flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 cursor-pointer`}
-              style={{
-                height: isCompact ? "180px" : "200px",
-                padding: isCompact ? "20px" : "24px",
-              }}
+              className={`group relative flex flex-col items-center justify-center bg-white rounded-xl border border-slate-200 shadow-sm hover:shadow-md ${m.hoverBorder} hover:-translate-y-0.5 transition-all duration-200 cursor-pointer min-h-[160px] ${
+                isCompact ? "p-4" : "p-5"
+              }`}
             >
               <div
                 className={`${isCompact ? "w-10 h-10" : "w-12 h-12"} ${m.iconBg} rounded-lg flex items-center justify-center mb-2 transition-colors shrink-0`}

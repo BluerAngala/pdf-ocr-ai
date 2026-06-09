@@ -87,6 +87,20 @@ def _verify_onefile(exe: Path, resources: Path | None) -> int:
     if "JSON-RPC" in combined and "已启动" in combined:
         print("[verify] OK onefile (RPC started, warmup may still be in background)")
         return 0
+
+    # 额外校验关键业务模块能否导入（防止 hiddenimports 遗漏导致运行时缺依赖）
+    key_modules = ["pandas", "openpyxl", "requests", "rapidfuzz"]
+    missing = []
+    for mod in key_modules:
+        try:
+            __import__(mod)
+        except ImportError:
+            missing.append(mod)
+    if missing:
+        print(f"[verify] 关键业务依赖缺失: {missing}", file=sys.stderr)
+        return 1
+    print(f"[verify] OK key modules: {key_modules}")
+
     print("[verify] onefile did not receive valid RPC response", file=sys.stderr)
     print(combined[-2000:], file=sys.stderr)
     return 1

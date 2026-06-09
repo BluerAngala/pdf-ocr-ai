@@ -45,7 +45,19 @@ _pandas_datas = collect_data_files("pandas", include_py_files=False)
 datas.extend(_pandas_datas)
 print(f"[spec] pandas submodules: {len(_pandas_hidden)}, datas: {len(_pandas_datas)}")
 
-hiddenimports = rapid_hidden + _pandas_hidden + [
+# pywin32 子模块 + DLL（打印服务依赖 win32print/win32api 等）
+_win32_hidden = collect_submodules("win32") + collect_submodules("win32com")
+_win32_datas = collect_data_files("win32", include_py_files=False)
+datas.extend(_win32_datas)
+# pywintypesXX.dll 和 pythoncomXX.dll 在 venv 根目录，collect 找不到，手动收集
+for _dll_name in ("pywintypes312.dll", "pythoncom312.dll"):
+    _dll = Path(importlib.import_module("pywintypes" if "pywintypes" in _dll_name else "pythoncom").__file__).resolve()
+    if _dll.exists():
+        binaries.append((str(_dll), "."))
+        print(f"[spec] Added DLL: {_dll}")
+print(f"[spec] win32 submodules: {len(_win32_hidden)}, datas: {len(_win32_datas)}")
+
+hiddenimports = rapid_hidden + _pandas_hidden + _win32_hidden + [
     "yaml",
     "rapidocr_onnxruntime",
     "rapidocr",
@@ -57,20 +69,11 @@ hiddenimports = rapid_hidden + _pandas_hidden + [
     "pypdf",
     "onnxruntime",
     "cv2",
-    # company_query HTTP 调用
     "requests",
-    # http_server 入口（Flask + CORS）
     "flask",
     "flask_cors",
-    # fuzzy match 备用
     "rapidfuzz",
-    # Windows 打印服务用
-    "win32print",
-    "win32api",
-    "win32con",
     "winreg",
-    "pywintypes",
-    "pythoncom",
     "psutil",
 ]
 

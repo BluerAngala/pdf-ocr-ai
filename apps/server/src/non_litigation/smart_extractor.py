@@ -273,7 +273,7 @@ class NoticeNumberExtractor:
             return False
         
         # 年份检查（必须包含4位年份）
-        if not re.search(r'[〔\[(]\d{4}[〕\])]', notice):
+        if not re.search(r'[〔\[(［【（]\d{4}[〕\)\]］】）]', notice):
             return False
         
         return True

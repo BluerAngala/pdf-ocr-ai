@@ -258,7 +258,7 @@ def normalize_notice_number(text: str) -> str:
 
 _RELAXED_NOTICE_PATTERN = re.compile(
     r'([\u4e00-\u9fff]{1,2}公积金中心[\u4e00-\u9fff]{2,4}[责贵]字'
-    r'[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号)'
+    r'[〔\[(［【（]\d{4}[〕\)\]］】）]\d+(?:-\d+)?号)'
 )
 
 _KNOWN_DISTRICTS = [
@@ -281,7 +281,7 @@ _PREFIX_VARIANTS = {
 _FUZZY_MATCH_THRESHOLD = 75.0
 
 _NOTICE_STRUCT_PATTERN = re.compile(
-    r'([\u4e00-\u9fff]{1,2}公积金中心)([\u4e00-\u9fff]{2,4})([责贵]字[〔\[(［【])(\d{4})([〕\)\]］】])(\d+(?:-\d+)?)(号)'
+    r'([\u4e00-\u9fff]{1,2}公积金中心)([\u4e00-\u9fff]{2,4})([责贵]字[〔\[(［【（])(\d{4})([〕\)\]］】）])(\d+(?:-\d+)?)(号)'
 )
 
 

@@ -1,6 +1,20 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "releases": [
+    {
+      "version": "1.2.1",
+      "date": "2026-06-09",
+      "changes": [
+        {
+          "type": "fix",
+          "description": "修复 isTauri() 误判导致 jsonrpc 走 mock、预设路径与 OCR 引擎预热全部失效的问题（兼容 Tauri 2.x __TAURI_INTERNALS__）"
+        },
+        {
+          "type": "fix",
+          "description": "统一 AGENTS.md 中 Tauri 1.x → 2.x 描述"
+        }
+      ]
+    },
     {
       "version": "1.2.0",
       "date": "2026-06-09",

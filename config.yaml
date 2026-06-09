@@ -1,4 +1,4 @@
-version: 1.2.0
+version: 1.2.1
 developer: 陈恒律师
 ocr_corrections:
 - wrong: 番禹
@@ -333,12 +333,12 @@ excel_parsing:
     original_notice: 责字
     renamed_notice: 责催-
 regex_patterns:
-  notice_number: 穗公积金中心[^\s，。；《》]*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+(?:-\d+)?号
+  notice_number: 穗公积金中心[^\s，。；《》]*?责字[〔\[(［【（]\d{4}[〕\)\]］】）]\d+(?:-\d+)?号
   court_case_number: '[(\[]\s*(\d{4})\s*[)\]]\s*(\u7ca4|\u7a57)\s*(\d+)\s*(\u884c\u5ba1|\u6c11\u521d|\u5211\u521d|\u6267|\u884c)\s*(\d+)\s*\u53f7'
   decision_case_number: (.{2,30}?字)\s*[\[(]\s*(\d{4})\s*[\])]\s*(\d+(?:-\d+)?)\s*号
   decision_id_types: 责字|行审|民初|刑初|执字
-  decision_number_range: (穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕)(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号
-  single_decision_number: (穗公积金中心[^\s，。；《》]*?责字〔\d{4}〕\d+(?:-\d+)?号)
+  decision_number_range: (穗公积金中心[^\s，。；《》]*?责字[〔\[(［【（]\d{4}[〕\)\]］】）])(\d+(?:-\d+)?)号至\s*(\d+(?:-\d+)?)号
+  single_decision_number: (穗公积金中心[^\s，。；《》]*?责字[〔\[(［【（]\d{4}[〕\)\]］】）]\d+(?:-\d+)?号)
 company_name_corrections:
 - pattern: 广东\s*润生\s*箱包\s*制造\s*有限公司
   replacement: 广东润生箱包制造有限公司
@@ -438,8 +438,8 @@ enforcement:
     respondent_patterns:
     - 被执行人[：:]\s*([^，。,，、\n]+?)[，。,，、\n]
     court_case_pattern: '[（(]\d{4}[）)]粤\d+行审\d+号'
-    notice_number_in_ruling_pattern: 穗公积金中心\S*?责字[〔\[(［【]\d{4}[〕\)\]］】]\d+号
-    notice_number_range_pattern: 责字[〔\[(［【](\d{4})[〕\)\]］】](\d+)号至(\d+)号
+    notice_number_in_ruling_pattern: 穗公积金中心\S*?责字[〔\[(［【（]\d{4}[〕\)\]］】）]\d+号
+    notice_number_range_pattern: 责字[〔\[(［【（](\d{4})[〕\)\]］】）](\d+)号至(\d+)号
     withdraw_keywords:
     - 撤回执行
     - 撤回强制执行

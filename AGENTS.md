@@ -1,6 +1,6 @@
 # Repository Guidelines
 
-> 公积金业务辅助工具。基于 RapidOCR + pdfplumber 的 PDF/图片 OCR 识别，分**非诉组**（责催/申请书/授权书/所函）和**强制执行组**（裁定信息）两条业务主线。前端是 Tauri 1.x 桌面壳，后端是 Python 3.12，通过 stdin/stdout JSON-RPC（`server.py`）通信，可选 Flask HTTP（`http_server.py`）并存。
+> 公积金业务辅助工具。基于 RapidOCR + pdfplumber 的 PDF/图片 OCR 识别，分**非诉组**（责催/申请书/授权书/所函）和**强制执行组**（裁定信息）两条业务主线。前端是 Tauri 2.x 桌面壳，后端是 Python 3.12，通过 stdin/stdout JSON-RPC（`server.py`）通信，可选 Flask HTTP（`http_server.py`）并存。
 
 ## 1. Project Overview
 
@@ -96,7 +96,7 @@ PDF 输入
 | `apps/server/tools/poppler/` | Poppler 24.08.0 Windows 二进制（`setup_poppler.py` 安装） |
 | `apps/server/requirements.txt` | Python 依赖 |
 | `apps/desktop/src/` | React 19 + Vite 前端 |
-| `apps/desktop/src-tauri/` | Tauri 1.x Rust 端 + `resources/`（含打包产物） |
+| `apps/desktop/src-tauri/` | Tauri 2.x Rust 端 + `resources/`（含打包产物） |
 | `config.yaml` | **所有业务配置**（正则、纠错词表、文书类型、强制组规则） |
 | `resources/sample-data/` | 安装包携带的 5 个样本目录（non-litigation-batch1/2、enforcement/extract、enforcement/print、company-query） |
 | `样本材料/` | 开发用真实样本（含第 1/2/3 批 + 番禺法院待做 + 强制组 + 企业查询） |
@@ -225,7 +225,7 @@ npm run format:check
 ### 强制要求
 - **Python 3.12**（`.python-version` 写 `3.12`）。不接受 3.13。
 - **Windows**：Tauri 端 `CREATE_NO_WINDOW` + `pywin32`；Poppler 需本地配置（`apps/server/tools/poppler/poppler-24.08.0`）。
-- **Node ≥ 18**（Vite 5 隐含）；Tauri 1.x + Rust ≥ 1.70。
+- **Node ≥ 18**（Vite 5 隐含）；Tauri 2.x + Rust ≥ 1.70。
 - pip 源：`https://pypi.tuna.tsinghua.edu.cn/simple`。
 - 包管理器：**npm**（根有 `package-lock.json` 143KB，无 `bun.lockb`/`pnpm-lock.yaml`）。
 - 锁 Python 解释器到 `.venv312\Scripts\python.exe`（`.vscode/settings.json` + `build.rs::find_python`）。

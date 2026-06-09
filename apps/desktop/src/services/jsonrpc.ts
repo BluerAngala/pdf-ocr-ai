@@ -15,7 +15,14 @@ let requestId = 0;
 const pendingRequests = new Map<number, PendingRequest>();
 
 export function isTauri(): boolean {
-  return typeof window !== "undefined" && !!(window as { __TAURI_IPC__?: unknown }).__TAURI_IPC__;
+  if (typeof window === "undefined") return false;
+  const w = window as unknown as {
+    __TAURI_INTERNALS__?: unknown;
+    __TAURI_IPC__?: unknown;
+    __TAURI__?: unknown;
+  };
+  // Tauri 2.x 暴露 __TAURI_INTERNALS__；兼容 1.x 的 __TAURI_IPC__ / __TAURI__
+  return Boolean(w.__TAURI_INTERNALS__ || w.__TAURI_IPC__ || w.__TAURI__);
 }
 
 export async function sendRequest(

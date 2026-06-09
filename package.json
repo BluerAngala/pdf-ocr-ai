@@ -1,6 +1,6 @@
 {
   "name": "gjj-ocr-tools",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "公积金 OCR 工具 - 桌面版 + 服务端",
   "private": true,
   "workspaces": [

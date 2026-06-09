@@ -163,6 +163,37 @@ fn sync_resources_release(
     sync_sample_data(project_root, &tauri_sample, BUNDLE_SAMPLE_MAPPINGS)?;
     verify_sample_data_bundle(&tauri_sample)?;
 
+    let poppler_src = project_root
+        .join("apps")
+        .join("server")
+        .join("tools")
+        .join("poppler");
+    let poppler_dst = resources_dir.join("poppler");
+    if poppler_src.is_dir() {
+        if poppler_dst.exists() {
+            fs::remove_dir_all(&poppler_dst)?;
+        }
+        fs::create_dir_all(&poppler_dst)?;
+        copy_dir_all(&poppler_src, &poppler_dst)?;
+        let pdftoppm = poppler_dst
+            .join("poppler-24.08.0")
+            .join("Library")
+            .join("bin")
+            .join("pdftoppm.exe");
+        if !pdftoppm.is_file() {
+            panic!(
+                "poppler copied but pdftoppm.exe missing: {:?} (run setup_poppler.py)",
+                poppler_src
+            );
+        }
+        eprintln!("[build] release: synced poppler -> {:?}", poppler_dst);
+    } else {
+        eprintln!(
+            "[build] release: poppler source not found at {:?} (run setup_poppler.py)",
+            poppler_src
+        );
+    }
+
     Ok(())
 }
 

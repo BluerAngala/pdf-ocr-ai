@@ -56,7 +56,8 @@
       "resources/gjj-ocr-server.exe",
       "resources/config.yaml",
       "resources/sample-data/**/*",
-      "resources/sumatrapdf/SumatraPDF-3.5.2-64.exe"
+      "resources/sumatrapdf/SumatraPDF-3.5.2-64.exe",
+      "resources/poppler/**/*"
     ],
     "windows": {
       "nsis": {

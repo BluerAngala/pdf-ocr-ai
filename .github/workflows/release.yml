@@ -74,6 +74,8 @@ jobs:
           }
 
           # 3. Poppler 由 setup_poppler.py 单独安装（不在应用包中分发）
+          . ${{ github.workspace }}\.venv312\Scripts\Activate.ps1
+          python apps/server/scripts/setup_poppler.py
 
           echo "Resources ready:"
           Get-ChildItem apps/desktop/src-tauri/resources/ -Recurse -File | Select-Object -First 5 | ForEach-Object { $_.FullName }

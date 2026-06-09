@@ -50,9 +50,20 @@ hiddenimports = rapid_hidden + [
     "pypdf",
     "onnxruntime",
     "cv2",
+    # enforcement / non_litigation 用 pandas
+    "pandas",
+    # company_query HTTP 调用
+    "requests",
+    # http_server 入口（Flask + CORS）
+    "flask",
+    "flask_cors",
+    # fuzzy match 备用
+    "rapidfuzz",
+    # Windows 打印服务用
     "win32print",
     "win32api",
     "win32con",
+    "winreg",
     "pywintypes",
     "pythoncom",
     "psutil",

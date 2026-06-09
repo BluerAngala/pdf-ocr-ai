@@ -331,7 +331,12 @@ excel_parsing:
   column_company_name: 4
   filter_keywords:
     original_notice: 责字
-    renamed_notice: 责催-
+    # 多个命名前缀用列表表示，任一命中即视为有效台账行
+    # 适用场景：同一个 Excel 混存"5月责催"和"5月授权书"两批数据
+    renamed_notice:
+      - 责催-
+      - 授权书-
+      - 申请书pdf-
 regex_patterns:
   notice_number: 穗公积金中心[^\s，。；《》]*?责字[〔\[(［【（]\d{4}[〕\)\]］】）]\d+(?:-\d+)?号
   court_case_number: '[(\[]\s*(\d{4})\s*[)\]]\s*(\u7ca4|\u7a57)\s*(\d+)\s*(\u884c\u5ba1|\u6c11\u521d|\u5211\u521d|\u6267|\u884c)\s*(\d+)\s*\u53f7'

@@ -247,7 +247,8 @@ class NonLitigationConfig:
     excel_column_renamed_notice: int = 2
     excel_column_company_name: int = 4
     excel_filter_original_notice: str = '责字'
-    excel_filter_renamed_notice: str = '责催-'
+    # 支持多个命名格式前缀（用 | 分隔）；任一命中即视为有效台账行
+    excel_filter_renamed_notice: str = '责催-|授权书-|申请书pdf-'
 
     fuzzy_match_threshold: float = 0.85
     text_quality: Dict[str, Dict[str, int]] = field(default_factory=dict)
@@ -475,7 +476,13 @@ def load_config() -> NonLitigationConfig:
     cfg.excel_column_company_name = excel.get('column_company_name', 4)
     filters = excel.get('filter_keywords', {})
     cfg.excel_filter_original_notice = filters.get('original_notice', '责字')
-    cfg.excel_filter_renamed_notice = filters.get('renamed_notice', '责催-')
+    # renamed_notice 支持字符串（"责催-"）或列表（["责催-", "授权书-", "申请书pdf-"]）
+    renamed_filter = filters.get('renamed_notice', '责催-|授权书-|申请书pdf-')
+    if isinstance(renamed_filter, list):
+        # 列表形式：直接用 | 拼接
+        cfg.excel_filter_renamed_notice = '|'.join(renamed_filter)
+    else:
+        cfg.excel_filter_renamed_notice = renamed_filter
 
     # ---------- 验证 ----------
     validation = raw.get('validation', {})

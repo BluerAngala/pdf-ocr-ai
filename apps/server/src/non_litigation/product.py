@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import os
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -30,6 +31,36 @@ def _safe_load_workbook(path):
     return load_workbook(path, data_only=True)
 
 
+def _extract_sequence_from_renamed(renamed_notice: str) -> str:
+    """
+    从 "1-责催-..." / "1-授权书-..." / "1-申请书pdf-..." 提取序列号。
+    返回纯数字字符串。
+    """
+    # 在常见命名分隔符前切分，取首段再提取数字
+    for sep in ('-责催-', '-授权书-', '-申请书pdf-', '-申请书-', '-所函-'):
+        if sep in renamed_notice:
+            head = renamed_notice.split(sep, 1)[0].strip()
+            digits = re.findall(r'\d+', head)
+            if digits:
+                return digits[0]
+    # 兜底：取首段连续数字
+    digits = re.findall(r'\d+', renamed_notice)
+    return digits[0] if digits else ''
+
+
+def _matches_any_keyword(text: str, keyword_pattern: str) -> bool:
+    """
+    判断 text 是否命中 keyword_pattern 中的任一关键字。
+    keyword_pattern 支持 "|" 分隔的多关键字（如 "责催-|授权书-|申请书pdf-"）。
+    """
+    if not keyword_pattern:
+        return False
+    for kw in keyword_pattern.split('|'):
+        if kw and kw in text:
+            return True
+    return False
+
+
 def load_non_litigation_cases(sample_root: Path, excel_path: Optional[Path] = None) -> List[Dict]:
     resolved = excel_path if excel_path else sample_root / _cfg.excel_filename
     workbook = _safe_load_workbook(resolved)
@@ -42,10 +73,16 @@ def load_non_litigation_cases(sample_root: Path, excel_path: Optional[Path] = No
         original_notice = values[_cfg.excel_column_original_notice]
         renamed_notice = values[_cfg.excel_column_renamed_notice]
         company_name = values[_cfg.excel_column_company_name]
-        if _cfg.excel_filter_original_notice not in original_notice or _cfg.excel_filter_renamed_notice not in renamed_notice or not company_name:
+        if (
+            _cfg.excel_filter_original_notice not in original_notice
+            or not _matches_any_keyword(renamed_notice, _cfg.excel_filter_renamed_notice)
+            or not company_name
+        ):
             continue
-        sequence = renamed_notice.split('-责催-')[0].replace(' ', '')
+        sequence = _extract_sequence_from_renamed(renamed_notice)
         notice_number = original_notice.replace(' ', '')
+        if not sequence or not notice_number:
+            continue
         cases.append({
             'sequence': sequence,
             'notice_number': notice_number,

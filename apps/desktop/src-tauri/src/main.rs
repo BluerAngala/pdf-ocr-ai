@@ -160,7 +160,10 @@ async fn init_python_service(
         .env("GJJ_OCR_USER_DATA", paths.user_data_dir.as_str())
         .env("GJJ_APP_VERSION", env!("CARGO_PKG_VERSION"))
         .env("PYTHONUTF8", "1")
-        .env("PYTHONIOENCODING", "utf-8");
+        .env("PYTHONIOENCODING", "utf-8")
+        // 打包环境下 onnxruntime DirectML 初始化可能触发 C++ 异常导致 Python 子进程崩溃。
+        // 强制 CPU 模式确保稳定性。dev 模式 (CLI) 不设此变量，仍可走 DirectML。
+        .env("GJJ_OCR_FORCE_CPU", "1");
     #[cfg(target_os = "windows")]
     {
         #[allow(unused_imports)]

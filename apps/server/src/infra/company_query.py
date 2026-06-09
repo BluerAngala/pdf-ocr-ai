@@ -13,6 +13,7 @@ import pandas as pd
 import requests
 
 from core.config_loader import _load_config
+from core.paths import USER_DATA_DIR
 
 
 class CompanyQueryError(Exception):
@@ -36,8 +37,8 @@ def _wait_with_timeout(futures, timeout=0.5):
 
 
 def _get_cache_path(excel_path: Path) -> Path:
-    output_dir = Path("output")
-    output_dir.mkdir(exist_ok=True)
+    output_dir = USER_DATA_DIR / "output" / "company-query"
+    output_dir.mkdir(parents=True, exist_ok=True)
     return output_dir / f"company_query_cache_{excel_path.stem}.json"
 
 

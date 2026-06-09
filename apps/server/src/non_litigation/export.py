@@ -20,7 +20,7 @@ import threading
 import time
 from difflib import SequenceMatcher
 from multiprocessing import Pool
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
 from pathlib import Path
 from typing import Dict, List, Tuple, Optional, Iterable
 
@@ -782,7 +782,9 @@ def pre_check_input_materials(
 
 
 def get_non_litigation_input_root(project_root: Path) -> Path:
-    return project_root / 'input' / NON_LITIGATION_INPUT_DIRNAME
+    # 必须走 USER_DATA_DIR（不可写 Program Files 等安装目录）；
+    # project_root 仅作向后兼容保留。
+    return USER_DATA_DIR / 'input' / NON_LITIGATION_INPUT_DIRNAME
 
 
 def get_non_litigation_result_root(project_root: Path) -> Path:
@@ -795,10 +797,17 @@ def get_non_litigation_temp_root(project_root: Path) -> Path:
 
 def ensure_non_litigation_input_structure(project_root: Path) -> Path:
     input_root = get_non_litigation_input_root(project_root)
-    input_root.mkdir(parents=True, exist_ok=True)
+    try:
+        input_root.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        # 安装目录（Program Files）只读时跳过创建；server.py 会在下一步 override 为 sample 子目录。
+        pass
     for item in input_root.parent.iterdir():
         if item.is_file() and item.suffix.lower() == '.pdf' and not (input_root / item.name).exists():
-            shutil.move(str(item), str(input_root / item.name))
+            try:
+                shutil.move(str(item), str(input_root / item.name))
+            except OSError:
+                pass
     return input_root
 
 
@@ -2226,7 +2235,9 @@ def run_real_ocr(input_dir: Path, use_mock: bool = False,
                     return filename, {'pages': [], 'total_pages': 0, 'filename': filename, 'method': 'error'}, time.perf_counter() - t0
                 return filename, res, time.perf_counter() - t0
 
-            from concurrent.futures import as_completed
+            # as_completed 已在 module-level import（line 23），不要在函数内重复 import，
+            # 否则 PEP 227 会让 as_completed 变 run_real_ocr 的 local，导致该函数内其它位置
+            # （如 line 2128 责催并行）抛 UnboundLocalError。
             with ThreadPoolExecutor(max_workers=min(len(parallel_candidates), 3)) as pool:
                 future_map = {
                     pool.submit(_ocr_one_file, task): task[0]

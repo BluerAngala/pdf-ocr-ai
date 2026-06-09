@@ -205,6 +205,13 @@ def detect_gpu_provider(*, skip_probe: bool = False):
     global _gpu_provider, _gpu_info
     if _gpu_provider is not None:
         return _gpu_provider, _gpu_info
+    # 打包环境下 onnxruntime DirectML 初始化可能触发 C++ 异常（不可捕获），
+    # 导致整个 Python 子进程崩溃。通过 GJJ_OCR_FORCE_CPU=1 强制 CPU 模式。
+    if os.environ.get('GJJ_OCR_FORCE_CPU') == '1':
+        _gpu_provider = 'cpu'
+        _gpu_info = 'CPU (GJJ_OCR_FORCE_CPU=1 强制 CPU，绕过 DirectML)'
+        _save_gpu_cache(_gpu_provider, _gpu_info)
+        return _gpu_provider, _gpu_info
     cached = _load_gpu_cache()
     if cached:
         _gpu_provider = cached["provider"]
@@ -315,17 +322,23 @@ def _create_ocr_engine(*, skip_gpu_probe: bool = False):
     """创建 OCR 引擎 - 简化版：自动选择最佳配置，无需预热"""
     if not HAS_RAPIDOCR:
         raise RuntimeError("RapidOCR 未安装，请运行: pip install rapidocr-onnxruntime")
-    
+
     kwargs = dict(use_cls=False)
     cfg = _rapidocr_config_path()
     if cfg:
         kwargs["config_path"] = cfg
-    
+
+    # 打包环境下 onnxruntime DirectML 初始化可能触发 C++ 异常（不可捕获），
+    # 导致整个 Python 子进程崩溃。GJJ_OCR_FORCE_CPU=1 强制 CPU 模式。
+    if os.environ.get('GJJ_OCR_FORCE_CPU') == '1':
+        print(f"[OCR] GJJ_OCR_FORCE_CPU=1 强制 CPU 模式（绕过 DirectML）")
+        return RapidOCR(**kwargs)
+
     # 简化 GPU 检测：只检查 onnxruntime 是否报告有 CUDA/DirectML，不做准确度验证
     try:
         import onnxruntime as ort
         providers = ort.get_available_providers()
-        
+
         if 'CUDAExecutionProvider' in providers:
             kwargs['det_use_cuda'] = True
             kwargs['rec_use_cuda'] = True
@@ -337,7 +350,7 @@ def _create_ocr_engine(*, skip_gpu_probe: bool = False):
             print(f"[OCR] 使用 CPU 模式")
     except Exception:
         print(f"[OCR] 使用 CPU 模式 (自动检测失败)")
-    
+
     return RapidOCR(**kwargs)
 
 

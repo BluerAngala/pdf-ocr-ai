@@ -2,6 +2,7 @@
 # onefile：单 exe；显式打包 rapidocr_onnxruntime 的 config 和 ONNX 模型
 import importlib
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 datas = []
 binaries = []
@@ -38,7 +39,13 @@ try:
 except Exception as e:
     print(f"[spec] Error collecting rapidocr: {e}")
 
-hiddenimports = rapid_hidden + [
+# pandas 子模块（PyInstaller 经常漏收 pandas._libs 等 C 扩展）
+_pandas_hidden = collect_submodules("pandas")
+_pandas_datas = collect_data_files("pandas", include_py_files=False)
+datas.extend(_pandas_datas)
+print(f"[spec] pandas submodules: {len(_pandas_hidden)}, datas: {len(_pandas_datas)}")
+
+hiddenimports = rapid_hidden + _pandas_hidden + [
     "yaml",
     "rapidocr_onnxruntime",
     "rapidocr",
@@ -50,8 +57,6 @@ hiddenimports = rapid_hidden + [
     "pypdf",
     "onnxruntime",
     "cv2",
-    # enforcement / non_litigation 用 pandas
-    "pandas",
     # company_query HTTP 调用
     "requests",
     # http_server 入口（Flask + CORS）

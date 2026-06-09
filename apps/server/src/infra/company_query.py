@@ -542,6 +542,8 @@ def process_company_query(
     results: OrderedDict[str, dict] = OrderedDict()
     skipped = 0
     completed_count = 0
+    balance_depleted = False
+    recharge_url = ""
 
     cached_names = []
     uncached_names = []
@@ -568,7 +570,6 @@ def process_company_query(
     if uncached_names and not is_cancelled(task_id):
         max_workers = max(1, config.get("max_concurrent", 3))
         _cancel_event = threading.Event()
-        balance_depleted = False
 
         def _query_one(name: str) -> tuple[str, dict, int]:
             if _cancel_event.is_set():
